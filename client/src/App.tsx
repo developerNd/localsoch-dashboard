@@ -45,6 +45,7 @@ function Router() {
         <ProtectedRoute allowedRoles={['admin']}>
           <Switch>
             <Route path="/" component={AdminDashboard} />
+            <Route path="/login" component={AdminDashboard} />
             <Route path="/sellers" component={AdminSellers} />
             <Route path="/products" component={AdminProducts} />
             <Route path="/orders" component={AdminOrders} />
