@@ -1,0 +1,74 @@
+💻 WEB APP REQUIREMENTS (Admin & Seller Panel)
+🔧 Core Functionality
+✅ Seller Dashboard Features:
+Feature	Purpose
+Login/Register	Secure authentication (JWT from Strapi)
+Product Management	Add, edit, delete products (with images, price, stock, etc.)
+Inventory Tracking	Update stock levels, mark out-of-stock
+Order Tracking	View customer orders, update status (pending, shipped, delivered)
+Earnings Overview	View total sales, commission deductions, net earnings
+Profile Settings	Update shop details, banner image, contact info
+Review Management	View buyer reviews and ratings
+Notifications	System updates or admin messages
+
+✅ Admin Dashboard Features:
+Feature	Purpose
+Login (Secure)	Admin-only access
+Seller Management	View, approve, reject or suspend sellers
+Product Oversight	Approve products (if moderation is required), or view all
+Order Monitoring	View all orders platform-wide
+Platform Analytics	Total revenue, active sellers, best-selling products, etc.
+Commission Management	Define platform fee % and track collections
+CMS Pages	Optionally manage site content like FAQ, About, Policies, etc.
+
+🧰 Technical Context for Web App
+🔌 API Integration
+Consume Strapi REST or GraphQL APIs
+
+Use JWT authentication
+
+Handle role-based access (admin, seller)
+
+📦 Recommended Tech Stack:
+Layer	Technology
+Frontend Framework	Next.js
+UI Library	Tailwind CSS, ShadCN
+Auth Handling	Store JWT securely (cookies or localStorage + refresh logic)
+API Client	axios or built-in fetch with token interceptors
+State Management	Context API or Zustand/Redux (optional)
+Charts & Analytics	Recharts, Chart.js, or ApexCharts
+File Uploads	Use Strapi's media API (for product images, banners)
+
+💼 Business Requirements
+🔐 Seller Onboarding
+Self-onboarding via signup form (optional admin approval)
+
+On sign-up, assign default seller_pending role
+
+Admin dashboard shows pending sellers for approval
+
+💳 Payment Processing
+Not handled inside the web app directly
+
+You may show transaction summaries per seller (data comes from Strapi or external payment API like Razorpay)
+
+Admin can manually mark withdrawals, or build Razorpay Payout integration
+
+📊 Reporting/Analytics
+Seller Dashboard: earnings, order volume, product stats
+
+Admin Dashboard: revenue, commissions, seller rankings, order heatmaps
+
+🎨 Design Preferences
+🎯 Branding & Styling
+Match your Android app’s design language (colors, icons, typography)
+
+Use responsive layout to support sellers accessing from mobile
+
+📐 Recommended UX Patterns
+Page	Pattern
+Seller Dashboard	Sidebar nav + top summary cards (products, orders, sales)
+Product List	Table or card grid with action buttons
+Order List	Table with filters by date/status
+Analytics	Charts + metrics cards
+Settings	Tabbed or sectioned UI with forms
