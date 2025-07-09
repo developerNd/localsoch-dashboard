@@ -18,16 +18,6 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Redirect if already authenticated
-  if (user) {
-    if (user.role === 'admin') {
-      setLocation('/admin');
-    } else if (user.role === 'seller') {
-      setLocation('/seller');
-    }
-    return null;
-  }
-
   const loginForm = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -100,6 +90,16 @@ export default function Login() {
   const handleRegister = async (data: RegisterData) => {
     await registerMutation.mutateAsync(data);
   };
+
+  // Redirect if already authenticated
+  if (user) {
+    if (user.role === 'admin') {
+      setLocation('/admin');
+    } else if (user.role === 'seller') {
+      setLocation('/seller');
+    }
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
