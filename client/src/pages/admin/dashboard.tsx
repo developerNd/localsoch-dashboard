@@ -24,7 +24,7 @@ export default function AdminDashboard() {
   const isLoading = analyticsLoading || sellersLoading || ordersLoading;
   
   // Debug: Log data and errors
-  console.log('Dashboard data:', { analytics, sellers, orders, isLoading });
+  console.log('Dashboard data:', { analytics: !!analytics, sellers: !!sellers, orders: !!orders, isLoading, analyticsLoading, sellersLoading, ordersLoading });
   console.log('Dashboard errors:', { analyticsError, sellersError, ordersError });
 
   // Generate sample chart data for platform revenue
@@ -74,11 +74,10 @@ export default function AdminDashboard() {
       <MobileNav />
       
       <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
-        {/* Debug info */}
-        <div className="mb-4 p-2 bg-blue-100 text-blue-800 text-sm rounded">
-          Debug: Analytics: {analytics ? 'loaded' : 'null'}, 
-          Sellers: {sellers ? sellers.length : 'null'}, 
-          Orders: {orders ? orders.length : 'null'}
+        {/* Test rendering */}
+        <div className="mb-4 p-4 bg-red-100 border-2 border-red-500 text-red-800 font-bold">
+          ADMIN DASHBOARD IS RENDERING - Data loaded: analytics={analytics ? 'YES' : 'NO'}, 
+          sellers={sellers ? sellers.length : 'NO'}, orders={orders ? orders.length : 'NO'}
         </div>
         {/* Welcome Section */}
         <div className="mb-8">
