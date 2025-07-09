@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -91,15 +91,16 @@ export default function Login() {
     await registerMutation.mutateAsync(data);
   };
 
-  // Redirect if already authenticated
-  if (user) {
-    if (user.role === 'admin') {
-      setLocation('/admin');
-    } else if (user.role === 'seller') {
-      setLocation('/seller');
+  // Use useEffect for navigation to avoid rendering during render
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'admin') {
+        setLocation('/admin');
+      } else if (user.role === 'seller') {
+        setLocation('/seller');
+      }
     }
-    return null;
-  }
+  }, [user, setLocation]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

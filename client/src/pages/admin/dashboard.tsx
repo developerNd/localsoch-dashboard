@@ -9,17 +9,23 @@ import SalesChart from '@/components/charts/sales-chart';
 import { Link } from 'wouter';
 
 export default function AdminDashboard() {
-  const { data: analytics, isLoading } = useQuery({
+  const { data: analytics, isLoading: analyticsLoading, error: analyticsError } = useQuery({
     queryKey: ['/api/analytics'],
   });
 
-  const { data: sellers } = useQuery({
+  const { data: sellers, isLoading: sellersLoading, error: sellersError } = useQuery({
     queryKey: ['/api/admin/sellers'],
   });
 
-  const { data: orders } = useQuery({
+  const { data: orders, isLoading: ordersLoading, error: ordersError } = useQuery({
     queryKey: ['/api/orders'],
   });
+
+  const isLoading = analyticsLoading || sellersLoading || ordersLoading;
+  
+  // Debug: Log data and errors
+  console.log('Dashboard data:', { analytics, sellers, orders, isLoading });
+  console.log('Dashboard errors:', { analyticsError, sellersError, ordersError });
 
   // Generate sample chart data for platform revenue
   const chartData = [
@@ -36,10 +42,27 @@ export default function AdminDashboard() {
   const activeSellers = sellers?.filter((s: any) => s.role === 'seller') || [];
   const recentOrders = orders?.slice(-5) || [];
 
+  // Show error state if there are errors
+  if (analyticsError || sellersError || ordersError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-red-600 mb-2">Dashboard Error</h2>
+          <p className="text-gray-600">
+            {analyticsError?.message || sellersError?.message || ordersError?.message}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard data...</p>
+        </div>
       </div>
     );
   }
@@ -51,6 +74,12 @@ export default function AdminDashboard() {
       <MobileNav />
       
       <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+        {/* Debug info */}
+        <div className="mb-4 p-2 bg-blue-100 text-blue-800 text-sm rounded">
+          Debug: Analytics: {analytics ? 'loaded' : 'null'}, 
+          Sellers: {sellers ? sellers.length : 'null'}, 
+          Orders: {orders ? orders.length : 'null'}
+        </div>
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">

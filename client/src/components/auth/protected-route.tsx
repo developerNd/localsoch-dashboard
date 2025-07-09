@@ -10,6 +10,8 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
+  
+  console.log('ProtectedRoute render:', { user: user?.role, isLoading, isAuthenticated, allowedRoles });
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

@@ -18,17 +18,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   // Check if user is authenticated and fetch user data
-  const { data: userData, isLoading } = useQuery({
+  const { data: userData, isLoading, error } = useQuery({
     queryKey: ['/api/auth/me'],
     enabled: !!getAuthToken(),
     retry: false,
   });
 
   useEffect(() => {
+    console.log('AuthProvider: userData updated:', userData);
+    console.log('AuthProvider: auth error:', error);
+    console.log('AuthProvider: token exists:', !!getAuthToken());
+    
     if (userData?.user) {
       setUser(userData.user);
+    } else if (error) {
+      // Clear invalid token
+      removeAuthToken();
+      setUser(null);
     }
-  }, [userData]);
+  }, [userData, error]);
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
