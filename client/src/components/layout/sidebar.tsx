@@ -133,10 +133,10 @@ export default function Sidebar({ className }: SidebarProps) {
         <div className="mt-8 pt-4 border-t border-gray-200">
           <ul className="space-y-2">
             <li>
-              <Button variant="ghost" className="w-full justify-start space-x-3 p-3 text-gray-700 hover:bg-gray-100">
+              <div className="flex items-center space-x-3 p-3 text-gray-500 text-sm">
                 <i className="fas fa-question-circle"></i>
                 <span>Help & Support</span>
-              </Button>
+              </div>
             </li>
           </ul>
         </div>
