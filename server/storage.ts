@@ -313,7 +313,7 @@ export class MemStorage implements IStorage {
       costPrice: insertProduct.costPrice || null,
       stock: insertProduct.stock || 0,
       sku: insertProduct.sku || null,
-      images: insertProduct.images || null,
+      images: insertProduct.images as string[] | null,
       isActive: insertProduct.isActive ?? true,
       isApproved: insertProduct.isApproved ?? false,
       sellerId: insertProduct.sellerId,
@@ -416,8 +416,12 @@ export class MemStorage implements IStorage {
 
   async createReview(insertReview: InsertReview): Promise<Review> {
     const review: Review = {
-      ...insertReview,
       id: this.currentReviewId++,
+      customerId: insertReview.customerId,
+      customerName: insertReview.customerName,
+      productId: insertReview.productId,
+      rating: insertReview.rating,
+      comment: insertReview.comment || null,
       createdAt: new Date(),
     };
     this.reviews.set(review.id, review);
@@ -452,8 +456,12 @@ export class MemStorage implements IStorage {
 
   async createNotification(insertNotification: InsertNotification): Promise<Notification> {
     const notification: Notification = {
-      ...insertNotification,
       id: this.currentNotificationId++,
+      message: insertNotification.message,
+      type: insertNotification.type || null,
+      userId: insertNotification.userId,
+      title: insertNotification.title,
+      isRead: insertNotification.isRead || null,
       createdAt: new Date(),
     };
     this.notifications.set(notification.id, notification);
