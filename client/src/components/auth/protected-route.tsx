@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   const { user, isLoading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   
-  console.log('ProtectedRoute render:', { user: user?.role, isLoading, isAuthenticated, allowedRoles });
+  // Protection validation successful
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {

@@ -94,7 +94,6 @@ export default function Login() {
   // Use useEffect for navigation to avoid rendering during render
   useEffect(() => {
     if (user) {
-      console.log('Login: Redirecting user with role:', user.role);
       if (user.role === 'admin') {
         setLocation('/admin');
       } else if (user.role === 'seller') {

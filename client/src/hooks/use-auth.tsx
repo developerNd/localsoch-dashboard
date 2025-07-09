@@ -25,10 +25,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    console.log('AuthProvider: userData updated:', userData);
-    console.log('AuthProvider: auth error:', error);
-    console.log('AuthProvider: token exists:', !!getAuthToken());
-    
     if (userData?.user) {
       setUser(userData.user);
     } else if (error) {
