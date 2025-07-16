@@ -26,31 +26,66 @@ function Router() {
       <Route path="/login" component={Login} />
       
       {/* Seller Routes */}
-      <Route path="/seller" nest>
+      <Route path="/seller">
         <ProtectedRoute allowedRoles={['seller']}>
-          <Switch>
-            <Route path="/" component={SellerDashboard} />
-            <Route path="/products" component={SellerProducts} />
-            <Route path="/orders" component={SellerOrders} />
-            <Route path="/inventory" component={SellerInventory} />
-            <Route path="/earnings" component={SellerEarnings} />
-            <Route path="/reviews" component={SellerReviews} />
-            <Route path="/profile" component={SellerProfile} />
-          </Switch>
+          <SellerDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/seller/products">
+        <ProtectedRoute allowedRoles={['seller']}>
+          <SellerProducts />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/seller/orders">
+        <ProtectedRoute allowedRoles={['seller']}>
+          <SellerOrders />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/seller/inventory">
+        <ProtectedRoute allowedRoles={['seller']}>
+          <SellerInventory />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/seller/earnings">
+        <ProtectedRoute allowedRoles={['seller']}>
+          <SellerEarnings />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/seller/reviews">
+        <ProtectedRoute allowedRoles={['seller']}>
+          <SellerReviews />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/seller/profile">
+        <ProtectedRoute allowedRoles={['seller']}>
+          <SellerProfile />
         </ProtectedRoute>
       </Route>
       
       {/* Admin Routes */}
-      <Route path="/admin" nest>
+      <Route path="/admin">
         <ProtectedRoute allowedRoles={['admin']}>
-          <Switch>
-            <Route path="/" component={AdminDashboard} />
-            <Route path="/login" component={AdminDashboard} />
-            <Route path="/sellers" component={AdminSellers} />
-            <Route path="/products" component={AdminProducts} />
-            <Route path="/orders" component={AdminOrders} />
-            <Route path="/analytics" component={AdminAnalytics} />
-          </Switch>
+          <AdminDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/sellers">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminSellers />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/products">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminProducts />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/orders">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminOrders />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/analytics">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminAnalytics />
         </ProtectedRoute>
       </Route>
       
