@@ -3,7 +3,6 @@ export const API_CONFIG = {
   // Get API URL from environment variable or fallback to production
   get API_URL() {
     return 'https://api.localsoch.com';
-    // return 'http://localhost:1337';
   },
   
   // Get the appropriate image URL based on environment
