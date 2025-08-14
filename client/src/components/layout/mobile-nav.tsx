@@ -14,6 +14,7 @@ export default function MobileNav() {
     { href: '/seller/products', icon: 'fas fa-box', label: 'Products' },
     { href: '/seller/orders', icon: 'fas fa-shopping-cart', label: 'Orders' },
     { href: '/seller/earnings', icon: 'fas fa-chart-line', label: 'Earnings' },
+    { href: '/seller/button-tracking', icon: 'fas fa-mouse-pointer', label: 'Tracking' },
     { href: '/seller/profile', icon: 'fas fa-user', label: 'Profile' },
   ];
 

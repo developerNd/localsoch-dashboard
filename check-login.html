@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Page Check - CityShopping</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Login Page Status Check</h1>
+        
+        <div class="test-section">
+            <h3>1. Server Status</h3>
+            <button onclick="checkServer()">Check Server</button>
+            <div id="serverResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Login API Test</h3>
+            <button onclick="testLoginAPI()">Test Login API</button>
+            <div id="loginResult"></div>
+            <div style="margin-top: 10px; padding: 10px; background: #e8f5e8; border-radius: 5px;">
+                <strong>✅ Fixed:</strong> Login now goes to LocalVendorHub server instead of Strapi
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Strapi Backend Test</h3>
+            <button onclick="testStrapiBackend()">Test Strapi Backend</button>
+            <div id="strapiResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Dashboard Access</h3>
+            <a href="http://localhost:5000" target="_blank">
+                <button>Open Dashboard</button>
+            </a>
+            <div class="info" style="padding: 15px; margin-top: 10px;">
+                <h4>📝 Instructions:</h4>
+                <ol>
+                    <li>Click "Open Dashboard" above</li>
+                    <li>If you see a login page, use these credentials:</li>
+                    <ul>
+                        <li><strong>Admin:</strong> admin / admin123</li>
+                        <li><strong>Seller:</strong> seller / seller123</li>
+                    </ul>
+                    <li>If you see a blank page or error, check the console</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Direct Login Page</h3>
+            <a href="http://localhost:5000/login" target="_blank">
+                <button>Open Login Page Directly</button>
+            </a>
+        </div>
+
+        <div class="test-section">
+            <h3>6. Troubleshooting</h3>
+            <div class="info" style="padding: 15px;">
+                <h4>🐛 Common Issues:</h4>
+                <ul>
+                    <li><strong>Blank page:</strong> Check browser console for JavaScript errors</li>
+                    <li><strong>Server not responding:</strong> Restart the server with <code>npm run dev</code></li>
+                    <li><strong>Port conflict:</strong> Kill processes on port 5000</li>
+                    <li><strong>Build errors:</strong> Check terminal for compilation errors</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function checkServer() {
+            const resultDiv = document.getElementById('serverResult');
+            resultDiv.innerHTML = '<div class="info">Checking server...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:5000');
+                if (response.ok) {
+                    const text = await response.text();
+                    const hasReact = text.includes('react') || text.includes('React');
+                    const hasLogin = text.includes('login') || text.includes('Login');
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Server is running!</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>React detected:</strong> ${hasReact ? 'Yes' : 'No'}</p>
+                            <p><strong>Login page detected:</strong> ${hasLogin ? 'Yes' : 'No'}</p>
+                            <details>
+                                <summary>Response Preview</summary>
+                                <pre>${text.substring(0, 500)}...</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Server Error</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Connection Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testLoginAPI() {
+            const resultDiv = document.getElementById('loginResult');
+            resultDiv.innerHTML = '<div class="info">Testing login API...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:5000/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: 'admin123' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Login API Working!</h4>
+                            <p><strong>User:</strong> ${data.user.username} (${data.user.role})</p>
+                            <p><strong>Token:</strong> ${data.token.substring(0, 50)}...</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Login API Failed</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Network Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testStrapiBackend() {
+            const resultDiv = document.getElementById('strapiResult');
+            resultDiv.innerHTML = '<div class="info">Testing Strapi backend...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/products', {
+                    headers: { 
+                        'Authorization': 'Bearer e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Strapi Backend Working!</h4>
+                            <p><strong>Products:</strong> ${data.data?.length || 0} found</p>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <details>
+                                <summary>Sample Product</summary>
+                                <pre>${JSON.stringify(data.data?.[0] || 'No products', null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Strapi Backend Error</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Strapi Connection Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-run server check on page load
+        window.addEventListener('load', () => {
+            console.log('🔍 Login Page Check Loaded');
+            checkServer();
+        });
+    </script>
+</body>
+</html> 

@@ -15,13 +15,15 @@ import { useQuery } from '@tanstack/react-query';
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const isAdmin = user?.role?.name === 'admin';
+  const isSeller = user?.role?.name === 'seller';
 
   const { data: notifications } = useQuery({
     queryKey: ['/api/notifications'],
     enabled: !!user,
   });
 
-  const unreadCount = notifications?.filter((n: any) => !n.isRead).length || 0;
+  const unreadCount = Array.isArray(notifications) ? notifications.filter((n: any) => !n.isRead).length : 0;
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
@@ -33,7 +35,9 @@ export default function Header() {
             </Button>
             <div className="flex items-center ml-4 lg:ml-0">
               <i className="fas fa-store text-primary text-2xl mr-3"></i>
-              <h1 className="text-xl font-bold text-gray-900">SellerHub</h1>
+              <h1 className="text-xl font-bold text-gray-900">
+                {isAdmin ? 'Admin Panel' : 'SellerHub'}
+              </h1>
             </div>
           </div>
           
@@ -70,6 +74,9 @@ export default function Header() {
                   </Avatar>
                   <span className="hidden md:block text-sm font-medium">
                     {user?.firstName} {user?.lastName}
+                  </span>
+                  <span className="hidden md:block text-xs text-gray-500 font-normal ml-2">
+                    {isAdmin ? 'Admin' : isSeller ? 'Seller' : ''}
                   </span>
                   <ChevronDown className="h-4 w-4 text-gray-500" />
                 </Button>

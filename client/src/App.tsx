@@ -1,17 +1,21 @@
 import { Switch, Route } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import ProtectedRoute from "@/components/auth/protected-route";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
+import Signup from "@/pages/signup";
+import Payment from "@/pages/payment";
 import SellerDashboard from "@/pages/seller/dashboard";
 import SellerProducts from "@/pages/seller/products";
 import SellerOrders from "@/pages/seller/orders";
 import SellerInventory from "@/pages/seller/inventory";
 import SellerEarnings from "@/pages/seller/earnings";
+import SellerButtonTracking from "@/pages/seller/button-tracking";
 import SellerReviews from "@/pages/seller/reviews";
 import SellerProfile from "@/pages/seller/profile";
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -19,45 +23,78 @@ import AdminSellers from "@/pages/admin/sellers";
 import AdminProducts from "@/pages/admin/products";
 import AdminOrders from "@/pages/admin/orders";
 import AdminAnalytics from "@/pages/admin/analytics";
+import AdminBanners from "@/pages/admin/banners";
+import AdminFeaturedProducts from "@/pages/admin/featured-products";
+
+// Root redirect component
+function RootRedirect() {
+  const { user } = useAuth();
+  
+  useEffect(() => {
+    if (user) {
+      if (user.vendorId) {
+        window.location.href = '/seller';
+      } else {
+        window.location.href = '/admin';
+      }
+    }
+  }, [user]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-lg">Redirecting to dashboard...</p>
+      </div>
+    </div>
+  );
+}
 
 function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
+      <Route path="/payment" component={Payment} />
       
-      {/* Seller Routes */}
+      {/* Seller Routes - Admin can also access for management */}
       <Route path="/seller">
-        <ProtectedRoute allowedRoles={['seller']}>
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerDashboard />
         </ProtectedRoute>
       </Route>
       <Route path="/seller/products">
-        <ProtectedRoute allowedRoles={['seller']}>
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerProducts />
         </ProtectedRoute>
       </Route>
       <Route path="/seller/orders">
-        <ProtectedRoute allowedRoles={['seller']}>
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerOrders />
         </ProtectedRoute>
       </Route>
       <Route path="/seller/inventory">
-        <ProtectedRoute allowedRoles={['seller']}>
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerInventory />
         </ProtectedRoute>
       </Route>
       <Route path="/seller/earnings">
-        <ProtectedRoute allowedRoles={['seller']}>
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerEarnings />
         </ProtectedRoute>
       </Route>
+      <Route path="/seller/button-tracking">
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
+          <SellerButtonTracking />
+        </ProtectedRoute>
+      </Route>
       <Route path="/seller/reviews">
-        <ProtectedRoute allowedRoles={['seller']}>
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerReviews />
         </ProtectedRoute>
       </Route>
       <Route path="/seller/profile">
-        <ProtectedRoute allowedRoles={['seller']}>
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerProfile />
         </ProtectedRoute>
       </Route>
@@ -88,11 +125,21 @@ function Router() {
           <AdminAnalytics />
         </ProtectedRoute>
       </Route>
+      <Route path="/admin/banners">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminBanners />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/featured-products">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminFeaturedProducts />
+        </ProtectedRoute>
+      </Route>
       
       {/* Redirect root to appropriate dashboard */}
       <Route path="/">
         <ProtectedRoute>
-          <div>Redirecting...</div>
+          <RootRedirect />
         </ProtectedRoute>
       </Route>
       

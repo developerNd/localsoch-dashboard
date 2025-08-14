@@ -14,10 +14,11 @@ export default function Sidebar({ className }: SidebarProps) {
   const { user } = useAuth();
   const [location] = useLocation();
 
-  const { data: analytics } = useQuery({
+  const { data: analyticsRaw } = useQuery({
     queryKey: ['/api/analytics'],
     enabled: !!user,
   });
+  const analytics = analyticsRaw || {};
 
   const isActive = (path: string) => location.startsWith(path);
 
@@ -37,6 +38,7 @@ export default function Sidebar({ className }: SidebarProps) {
     },
     { href: '/seller/inventory', icon: 'fas fa-warehouse', label: 'Inventory' },
     { href: '/seller/earnings', icon: 'fas fa-chart-line', label: 'Earnings' },
+    { href: '/seller/button-tracking', icon: 'fas fa-mouse-pointer', label: 'Button Tracking' },
     { href: '/seller/reviews', icon: 'fas fa-star', label: 'Reviews' },
     { href: '/seller/profile', icon: 'fas fa-user-cog', label: 'Shop Settings' },
   ];
@@ -62,9 +64,13 @@ export default function Sidebar({ className }: SidebarProps) {
       badge: analytics?.totalOrders 
     },
     { href: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
+    { href: '/admin/banners', icon: 'fas fa-image', label: 'Banners' },
+    { href: '/admin/featured-products', icon: 'fas fa-star', label: 'Featured Products' },
   ];
 
-  const navItems = user?.role === 'admin' ? adminNavItems : sellerNavItems;
+  const isAdmin = user?.role?.name === 'admin';
+  const isSeller = user?.role?.name === 'seller';
+  const navItems = isAdmin ? adminNavItems : sellerNavItems;
 
   return (
     <aside className={cn(

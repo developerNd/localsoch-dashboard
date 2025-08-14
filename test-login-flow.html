@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Flow Test - CityShopping</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .loading { background: #fff3cd; border: 1px solid #ffeaa7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Login Flow Test - CityShopping</h1>
+        
+        <div class="test-section">
+            <h3>1. Server Status</h3>
+            <button onclick="checkServer()">Check Server</button>
+            <div id="serverResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Login Test (No Page Reload)</h3>
+            <button onclick="testLoginFlow()">Test Complete Login Flow</button>
+            <div id="loginFlowResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Dashboard Access</h3>
+            <a href="http://localhost:5000" target="_blank">
+                <button>Open Dashboard</button>
+            </a>
+            <div class="info" style="padding: 15px; margin-top: 10px;">
+                <h4>📝 Instructions:</h4>
+                <ol>
+                    <li>Click "Open Dashboard" above</li>
+                    <li>Use demo buttons or manual login</li>
+                    <li>Check that navigation happens without page reload</li>
+                    <li>Verify you land on the correct dashboard (admin/seller)</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Expected Behavior</h3>
+            <div class="info" style="padding: 15px;">
+                <h4>✅ What Should Happen:</h4>
+                <ul>
+                    <li><strong>Login:</strong> Should authenticate without page reload</li>
+                    <li><strong>Navigation:</strong> Should use React Router (smooth transition)</li>
+                    <li><strong>Admin Login:</strong> Should redirect to /admin dashboard</li>
+                    <li><strong>Seller Login:</strong> Should redirect to /seller dashboard</li>
+                    <li><strong>Token Storage:</strong> JWT token should be saved in localStorage</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Troubleshooting</h3>
+            <div class="info" style="padding: 15px;">
+                <h4>🐛 If Issues Occur:</h4>
+                <ul>
+                    <li><strong>Page reloads:</strong> Check browser console for errors</li>
+                    <li><strong>Login fails:</strong> Check network tab for API errors</li>
+                    <li><strong>Wrong redirect:</strong> Verify user role in API response</li>
+                    <li><strong>Token issues:</strong> Check localStorage for JWT token</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function checkServer() {
+            const resultDiv = document.getElementById('serverResult');
+            resultDiv.innerHTML = '<div class="loading">Checking server...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:5000');
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Server is running!</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>Dashboard:</strong> Ready for login testing</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Server Error</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Connection Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testLoginFlow() {
+            const resultDiv = document.getElementById('loginFlowResult');
+            resultDiv.innerHTML = '<div class="loading">Testing login flow...</div>';
+            
+            try {
+                // Step 1: Test login API
+                const loginResponse = await fetch('http://localhost:5000/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: 'admin123' })
+                });
+                
+                if (!loginResponse.ok) {
+                    throw new Error(`Login failed: ${loginResponse.status}`);
+                }
+                
+                const loginData = await loginResponse.json();
+                
+                // Step 2: Test user data API with token
+                const userResponse = await fetch('http://localhost:5000/api/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${loginData.token}`
+                    }
+                });
+                
+                if (!userResponse.ok) {
+                    throw new Error(`User data failed: ${userResponse.status}`);
+                }
+                
+                const userData = await userResponse.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h4>✅ Login Flow Working!</h4>
+                        <p><strong>Login:</strong> ✅ Success</p>
+                        <p><strong>User Data:</strong> ✅ Success</p>
+                        <p><strong>User Role:</strong> ${userData.user.role}</p>
+                        <p><strong>Expected Redirect:</strong> /${userData.user.role}</p>
+                        <details>
+                            <summary>Login Response</summary>
+                            <pre>${JSON.stringify(loginData, null, 2)}</pre>
+                        </details>
+                        <details>
+                            <summary>User Data Response</summary>
+                            <pre>${JSON.stringify(userData, null, 2)}</pre>
+                        </details>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Login Flow Failed</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-run server check on page load
+        window.addEventListener('load', () => {
+            console.log('🔐 Login Flow Test Loaded');
+            checkServer();
+        });
+    </script>
+</body>
+</html> 

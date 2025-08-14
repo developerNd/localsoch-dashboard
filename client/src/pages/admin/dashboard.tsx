@@ -335,7 +335,7 @@ export default function AdminDashboard() {
             <CardTitle>Admin Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <Link href="/admin/sellers">
                 <div className="flex flex-col items-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg border border-primary/20 transition-colors cursor-pointer">
                   <i className="fas fa-users text-primary text-2xl mb-2"></i>
@@ -361,6 +361,20 @@ export default function AdminDashboard() {
                 <div className="flex flex-col items-center p-4 bg-secondary/5 hover:bg-secondary/10 rounded-lg border border-secondary/20 transition-colors cursor-pointer">
                   <i className="fas fa-chart-bar text-gray-600 text-2xl mb-2"></i>
                   <span className="text-sm font-medium text-gray-600">View Analytics</span>
+                </div>
+              </Link>
+
+              <Link href="/admin/banners">
+                <div className="flex flex-col items-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors cursor-pointer">
+                  <i className="fas fa-image text-purple-600 text-2xl mb-2"></i>
+                  <span className="text-sm font-medium text-purple-600">Manage Banners</span>
+                </div>
+              </Link>
+
+              <Link href="/admin/featured-products">
+                <div className="flex flex-col items-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-colors cursor-pointer">
+                  <i className="fas fa-star text-yellow-600 text-2xl mb-2"></i>
+                  <span className="text-sm font-medium text-yellow-600">Featured Products</span>
                 </div>
               </Link>
             </div>

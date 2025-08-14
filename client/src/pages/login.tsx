@@ -1,372 +1,229 @@
-import { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { loginSchema, registerSchema, type LoginData, type RegisterData } from '@shared/schema';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/hooks/use-auth';
-import { useToast } from '@/hooks/use-toast';
-import { useMutation } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
-  const { login, user } = useAuth();
-  const [, setLocation] = useLocation();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loginStatus, setLoginStatus] = useState("");
+  const { login, isLoading } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
-  const loginForm = useForm<LoginData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: '',
-      password: '',
-    },
-  });
-
-  const registerForm = useForm<RegisterData>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      username: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      firstName: '',
-      lastName: '',
-      shopName: '',
-      shopDescription: '',
-      contactPhone: '',
-      address: '',
-      city: '',
-      state: '',
-      pincode: '',
-      role: 'seller',
-      avatar: null,
-      isActive: true,
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: async (data: RegisterData) => {
-      const response = await apiRequest('POST', '/api/auth/register', data);
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Registration Successful",
-        description: "Your account has been created and is pending admin approval.",
-      });
-      registerForm.reset();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Registration Failed",
-        description: error.message || "Failed to create account",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleLogin = async (data: LoginData) => {
-    try {
-      await login(data);
-      toast({
-        title: "Login Successful",
-        description: "Welcome back!",
-      });
-      
-      // Redirect will be handled by ProtectedRoute
-    } catch (error: any) {
-      toast({
-        title: "Login Failed",
-        description: error.message || "Invalid credentials",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRegister = async (data: RegisterData) => {
-    await registerMutation.mutateAsync(data);
-  };
-
-  // Use useEffect for navigation to avoid rendering during render
+  // Auto-login effect for users coming from payment flow
   useEffect(() => {
-    if (user) {
-      if (user.role === 'admin') {
-        setLocation('/admin');
-      } else if (user.role === 'seller') {
-        setLocation('/seller');
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoLogin = urlParams.get('autoLogin');
+    
+    if (autoLogin === 'true') {
+      const autoLoginData = localStorage.getItem('autoLoginData');
+      if (autoLoginData) {
+        try {
+          const data = JSON.parse(autoLoginData);
+          const now = Date.now();
+          const timeDiff = now - data.timestamp;
+          
+          // Only auto-login if data is less than 5 minutes old
+          if (timeDiff < 5 * 60 * 1000) {
+            setUsername(data.username || data.email);
+            toast({
+              title: "Welcome!",
+              description: "Please enter your password to complete login.",
+            });
+          } else {
+            // Clear old auto-login data
+            localStorage.removeItem('autoLoginData');
+          }
+        } catch (error) {
+          console.error('Error parsing auto-login data:', error);
+          localStorage.removeItem('autoLoginData');
+        }
       }
     }
-  }, [user, setLocation]);
+  }, [toast]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoginStatus("");
+
+    try {
+      if (username && password) {
+        setLoginStatus("Logging in...");
+        const result = await login({ username, password });
+        
+        // Manual redirect as backup
+        if (result && result.user) {
+          if (result.user.vendorId) {
+            setLocation('/seller');
+          } else {
+            setLocation('/admin');
+          }
+        }
+      } else {
+        setError("Please enter both username and password");
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError(error instanceof Error ? error.message : "Invalid credentials. Please try again.");
+      toast({
+        title: "Login Failed",
+        description: error instanceof Error ? error.message : "Invalid credentials. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDemoLogin = async (role: 'admin' | 'seller') => {
+    try {
+      setError("");
+      setLoginStatus("");
+      
+      const credentials = role === 'admin' 
+        ? { username: 'admin', password: 'admin123' }
+        : { username: 'seller1_demo@example.com', password: 'TestSeller123!' };
+      
+      setLoginStatus(`Logging in as ${role}...`);
+      
+      await login(credentials);
+      // Navigation will be handled by the auth context
+    } catch (err) {
+      setError("Demo login failed");
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <i className="fas fa-store text-primary text-5xl mb-4"></i>
-          <h1 className="text-3xl font-bold text-gray-900">SellerHub</h1>
-          <p className="text-gray-600 mt-2">Multivendor Ecommerce Portal</p>
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            CityShopping Admin
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Sign in to your account
+          </p>
+          {new URLSearchParams(window.location.search).get('autoLogin') === 'true' && (
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-800 text-center">
+                ✅ Payment successful! Your seller account is now active. Please login to continue.
+              </p>
+            </div>
+          )}
         </div>
-
+        
         <Card>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
-            </TabsList>
+          <CardHeader>
+            <CardTitle>Login</CardTitle>
+            <CardDescription>
+              Enter your credentials to access the dashboard
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter username"
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  required
+                />
+              </div>
+              
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              
+              {loginStatus && (
+                <Alert>
+                  <AlertDescription>{loginStatus}</AlertDescription>
+                </Alert>
+              )}
+              
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
             
-            <TabsContent value="login">
-              <CardHeader>
-                <CardTitle>Sign In</CardTitle>
-                <CardDescription>
-                  Enter your credentials to access your account
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
-                  <div>
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      {...loginForm.register('username')}
-                      placeholder="Enter your username"
-                    />
-                    {loginForm.formState.errors.username && (
-                      <p className="text-sm text-destructive mt-1">
-                        {loginForm.formState.errors.username.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      {...loginForm.register('password')}
-                      placeholder="Enter your password"
-                    />
-                    {loginForm.formState.errors.password && (
-                      <p className="text-sm text-destructive mt-1">
-                        {loginForm.formState.errors.password.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <Button type="submit" className="w-full">
-                    Sign In
-                  </Button>
-                </form>
-                
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Demo Accounts:</h4>
-                  <div className="text-sm text-blue-800 space-y-1">
-                    <p><strong>Admin:</strong> admin / admin123</p>
-                    <p><strong>Seller:</strong> johnseller / seller123</p>
-                  </div>
+            <div className="mt-6 space-y-3">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
                 </div>
-              </CardContent>
-            </TabsContent>
-            
-            <TabsContent value="register">
-              <CardHeader>
-                <CardTitle>Create Seller Account</CardTitle>
-                <CardDescription>
-                  Join our marketplace and start selling your products
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        {...registerForm.register('firstName')}
-                        placeholder="John"
-                      />
-                      {registerForm.formState.errors.firstName && (
-                        <p className="text-sm text-destructive mt-1">
-                          {registerForm.formState.errors.firstName.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        {...registerForm.register('lastName')}
-                        placeholder="Doe"
-                      />
-                      {registerForm.formState.errors.lastName && (
-                        <p className="text-sm text-destructive mt-1">
-                          {registerForm.formState.errors.lastName.message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      {...registerForm.register('username')}
-                      placeholder="johndoe"
-                    />
-                    {registerForm.formState.errors.username && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.username.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      {...registerForm.register('email')}
-                      placeholder="john@example.com"
-                    />
-                    {registerForm.formState.errors.email && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.email.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="shopName">Shop Name</Label>
-                    <Input
-                      id="shopName"
-                      {...registerForm.register('shopName')}
-                      placeholder="John's Electronics Store"
-                    />
-                    {registerForm.formState.errors.shopName && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.shopName.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="contactPhone">Phone Number</Label>
-                    <Input
-                      id="contactPhone"
-                      {...registerForm.register('contactPhone')}
-                      placeholder="+91-9876543210"
-                    />
-                    {registerForm.formState.errors.contactPhone && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.contactPhone.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="address">Address</Label>
-                    <Input
-                      id="address"
-                      {...registerForm.register('address')}
-                      placeholder="123 Main Street"
-                    />
-                    {registerForm.formState.errors.address && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.address.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="city">City</Label>
-                      <Input
-                        id="city"
-                        {...registerForm.register('city')}
-                        placeholder="Mumbai"
-                      />
-                      {registerForm.formState.errors.city && (
-                        <p className="text-sm text-destructive mt-1">
-                          {registerForm.formState.errors.city.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="state">State</Label>
-                      <Input
-                        id="state"
-                        {...registerForm.register('state')}
-                        placeholder="Maharashtra"
-                      />
-                      {registerForm.formState.errors.state && (
-                        <p className="text-sm text-destructive mt-1">
-                          {registerForm.formState.errors.state.message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="pincode">Pincode</Label>
-                    <Input
-                      id="pincode"
-                      {...registerForm.register('pincode')}
-                      placeholder="400001"
-                    />
-                    {registerForm.formState.errors.pincode && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.pincode.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      {...registerForm.register('password')}
-                      placeholder="Enter a strong password"
-                    />
-                    {registerForm.formState.errors.password && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.password.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      {...registerForm.register('confirmPassword')}
-                      placeholder="Confirm your password"
-                    />
-                    {registerForm.formState.errors.confirmPassword && (
-                      <p className="text-sm text-destructive mt-1">
-                        {registerForm.formState.errors.confirmPassword.message}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={registerMutation.isPending}
-                  >
-                    {registerMutation.isPending ? "Creating Account..." : "Create Account"}
-                  </Button>
-                </form>
-              </CardContent>
-            </TabsContent>
-          </Tabs>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or try demo accounts
+                  </span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => handleDemoLogin('admin')}
+                  disabled={isLoading}
+                >
+                  Admin Demo
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleDemoLogin('seller')}
+                  disabled={isLoading}
+                >
+                  Seller Demo
+                </Button>
+              </div>
+            </div>
+          </CardContent>
         </Card>
+        
+        <div className="text-center text-sm text-gray-600">
+          <p className="font-medium mb-2">Demo Credentials:</p>
+          <div className="space-y-1">
+            <p><strong>Admin:</strong> admin / admin123</p>
+            <p><strong>Seller:</strong> seller1 / seller123</p>
+            <p><strong>Seller (alt):</strong> seller2 / seller123</p>
+          </div>
+          <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
+            <p><strong>Note:</strong> These are real Strapi accounts</p>
+            <p>Login will show only your products/orders</p>
+          </div>
+          <div className="mt-4 pt-4 border-t">
+            <p className="text-sm text-gray-600">
+              Want to become a seller?{" "}
+              <a href="/signup" className="text-blue-600 hover:underline font-medium">
+                Register here
+              </a>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

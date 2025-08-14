@@ -4,9 +4,10 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
-  role: string;
+  role: string | { id: number; name: string; description?: string };
   avatar?: string;
   sellerProfile?: any;
+  vendorId?: number;
 }
 
 export const getAuthToken = (): string | null => {

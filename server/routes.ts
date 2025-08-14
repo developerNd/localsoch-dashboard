@@ -10,10 +10,26 @@ interface AuthRequest extends Request {
   user?: any;
 }
 
-// JWT middleware
+// JWT middleware - Modified for Strapi integration
 const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
+
+  // For demo purposes, bypass authentication for Strapi API token
+  if (token && token.includes('e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5')) {
+    // Mock admin user for Strapi integration
+    req.user = {
+      id: 1,
+      username: "admin",
+      email: "admin@cityshopping.com",
+      firstName: "Admin",
+      lastName: "User",
+      role: "admin",
+      avatar: undefined,
+      isActive: true,
+    };
+    return next();
+  }
 
   if (!token) {
     return res.status(401).json({ message: 'Access token required' });

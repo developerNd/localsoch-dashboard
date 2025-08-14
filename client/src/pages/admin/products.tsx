@@ -3,86 +3,132 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
-import { apiRequest } from '@/lib/queryClient';
+import { useAdminProducts, useUpdateProductStatus, useDeleteProduct, useProductStats } from '@/hooks/use-api';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminProducts() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [approvalDialog, setApprovalDialog] = useState(false);
+  const [approvalData, setApprovalData] = useState({ status: '', reason: '' });
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ['/api/products'],
-  });
+  // Fetch products using admin-specific hook
+  const { data: products, isLoading: productsLoading } = useAdminProducts();
+  const { data: productStats, isLoading: statsLoading } = useProductStats();
 
-  const updateProductMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const response = await apiRequest('PUT', `/api/products/${id}`, data);
-      return response.json();
-    },
+  const updateProductStatusMutation = useMutation({
+    mutationFn: useUpdateProductStatus().mutateAsync,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products/admin/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products/admin/stats'] });
+      setApprovalDialog(false);
+      setApprovalData({ status: '', reason: '' });
       toast({
-        title: "Product Updated",
+        title: "Status Updated",
         description: "Product status has been updated successfully.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to update product",
+        description: error.message || "Failed to update product status",
         variant: "destructive",
       });
     },
   });
 
-  const filteredProducts = products?.filter((product: any) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'approved' && product.isApproved) ||
-                         (statusFilter === 'pending' && !product.isApproved) ||
-                         (statusFilter === 'active' && product.isActive) ||
-                         (statusFilter === 'inactive' && !product.isActive);
-    
-    return matchesSearch && matchesStatus;
-  }) || [];
+  const deleteProductMutation = useMutation({
+    mutationFn: useDeleteProduct().mutateAsync,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products/admin/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products/admin/stats'] });
+      toast({
+        title: "Product Deleted",
+        description: "Product has been deleted successfully.",
+        variant: "destructive",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete product",
+        variant: "destructive",
+      });
+    },
+  });
 
-  const approvedProducts = products?.filter((p: any) => p.isApproved) || [];
-  const pendingProducts = products?.filter((p: any) => !p.isApproved) || [];
-  const activeProducts = products?.filter((p: any) => p.isActive) || [];
+  // Filter products based on search and status
+  const filteredProducts = Array.isArray(products) ? products.filter((product: any) => {
+    const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.vendor?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.category?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (statusFilter === 'all') return matchesSearch;
+    if (statusFilter === 'approved') return matchesSearch && product.isApproved;
+    if (statusFilter === 'pending') return matchesSearch && !product.isApproved;
+    if (statusFilter === 'active') return matchesSearch && product.isActive;
+    if (statusFilter === 'inactive') return matchesSearch && !product.isActive;
+    
+    return matchesSearch;
+  }) : [];
 
-  const handleApproveProduct = async (productId: number) => {
-    await updateProductMutation.mutateAsync({ 
-      id: productId, 
-      data: { isApproved: true } 
+  const approvedProducts = Array.isArray(products) ? products.filter((p: any) => p.isApproved) : [];
+  const pendingProducts = Array.isArray(products) ? products.filter((p: any) => !p.isApproved) : [];
+  const activeProducts = Array.isArray(products) ? products.filter((p: any) => p.isActive) : [];
+  const inactiveProducts = Array.isArray(products) ? products.filter((p: any) => !p.isActive) : [];
+
+  const handleApprovalUpdate = (product: any) => {
+    setSelectedProduct(product);
+    setApprovalDialog(true);
+  };
+
+  const handleApprovalSubmit = async () => {
+    if (!selectedProduct || !approvalData.status) return;
+    
+    await updateProductStatusMutation.mutateAsync({
+      id: selectedProduct.id,
+      status: approvalData.status,
+      reason: approvalData.reason
     });
   };
 
-  const handleToggleActive = async (productId: number, isActive: boolean) => {
-    await updateProductMutation.mutateAsync({ 
-      id: productId, 
-      data: { isActive: !isActive } 
-    });
+  const handleDeleteProduct = async (productId: number) => {
+    if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
+      await deleteProductMutation.mutateAsync(productId);
+    }
   };
 
   const getStatusBadge = (product: any) => {
-    if (!product.isActive) return <Badge variant="destructive">Inactive</Badge>;
-    if (!product.isApproved) return <Badge variant="destructive">Pending Approval</Badge>;
+    if (!product.isApproved) {
+      return <Badge variant="secondary">Pending Approval</Badge>;
+    }
+    if (!product.isActive) {
+      return <Badge variant="outline">Inactive</Badge>;
+    }
     return <Badge variant="default">Active</Badge>;
   };
 
-  if (isLoading) {
+  const getPriceDisplay = (price: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR'
+    }).format(price);
+  };
+
+  if (productsLoading || statsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -105,7 +151,7 @@ export default function AdminProducts() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
@@ -114,7 +160,7 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Products</p>
-                  <p className="text-2xl font-bold text-gray-900">{products?.length || 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{productStats?.totalProducts || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -128,7 +174,7 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Approved</p>
-                  <p className="text-2xl font-bold text-gray-900">{approvedProducts.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{productStats?.approvedProducts || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -141,8 +187,8 @@ export default function AdminProducts() {
                   <i className="fas fa-clock text-warning text-xl"></i>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Pending Approval</p>
-                  <p className="text-2xl font-bold text-gray-900">{pendingProducts.length}</p>
+                  <p className="text-sm font-medium text-gray-600">Pending</p>
+                  <p className="text-2xl font-bold text-gray-900">{productStats?.pendingProducts || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -151,210 +197,187 @@ export default function AdminProducts() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-error/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-eye text-error text-xl"></i>
+                <div className="w-12 h-12 bg-info/10 rounded-lg flex items-center justify-center mr-4">
+                  <i className="fas fa-toggle-on text-info text-xl"></i>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Active</p>
-                  <p className="text-2xl font-bold text-gray-900">{activeProducts.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{productStats?.activeProducts || 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-destructive/10 rounded-lg flex items-center justify-center mr-4">
+                  <i className="fas fa-toggle-off text-destructive text-xl"></i>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Inactive</p>
+                  <p className="text-2xl font-bold text-gray-900">{productStats?.inactiveProducts || 0}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex-1">
+            <Input
+              placeholder="Search products by name, description, vendor, or category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Products</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="pending">Pending Approval</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Products Table */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>All Products</CardTitle>
-              <div className="flex items-center space-x-4">
-                <Input
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-64"
-                />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
+            <CardTitle>Products ({filteredProducts.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map((product: any) => (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={product.image?.url} />
+                            <AvatarFallback>{product.name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-sm text-gray-500">{product.description?.substring(0, 50)}...</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{product.vendor?.name || 'No Vendor'}</div>
+                          <div className="text-sm text-gray-500">{product.vendor?.user?.username}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{product.category?.name || 'Uncategorized'}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{getPriceDisplay(product.price)}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-center">
+                          <div className="font-medium">{product.stock}</div>
+                          <div className="text-sm text-gray-500">units</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(product)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApprovalUpdate(product)}
+                          >
+                            {product.isApproved ? 'Update Status' : 'Approve/Reject'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteProduct(product.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Approval Dialog */}
+        <Dialog open={approvalDialog} onOpenChange={setApprovalDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Product Status</DialogTitle>
+              <DialogDescription>
+                Update the status for {selectedProduct?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <Select 
+                  value={approvalData.status} 
+                  onValueChange={(value) => setApprovalData(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <label className="text-sm font-medium">Reason (Optional)</label>
+                <Textarea
+                  placeholder="Enter reason for status change..."
+                  value={approvalData.reason}
+                  onChange={(e) => setApprovalData(prev => ({ ...prev, reason: e.target.value }))}
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setApprovalDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleApprovalSubmit}
+                  disabled={updateProductStatusMutation.isPending}
+                >
+                  {updateProductStatusMutation.isPending ? 'Updating...' : 'Update Status'}
+                </Button>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            {filteredProducts.length === 0 ? (
-              <div className="text-center py-8">
-                <i className="fas fa-search text-4xl text-gray-300 mb-4"></i>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-                <p className="text-gray-600">
-                  {searchTerm ? 'Try adjusting your search criteria.' : 'No products match the selected filters.'}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Seller</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProducts.map((product: any) => (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            {product.images?.[0] ? (
-                              <img 
-                                src={product.images[0]} 
-                                alt={product.name}
-                                className="w-12 h-12 rounded-lg object-cover"
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                                <i className="fas fa-image text-gray-400"></i>
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-medium text-gray-900">{product.name}</p>
-                              <p className="text-sm text-gray-500 font-mono">{product.sku}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="text-sm font-medium">Seller #{product.sellerId}</p>
-                            <p className="text-xs text-gray-500">ID: {product.sellerId}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          ₹{parseFloat(product.price).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            product.stock === 0 
-                              ? 'bg-red-100 text-red-800'
-                              : product.stock <= 5
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            {product.stock} units
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(product)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => setSelectedProduct(product)}
-                                >
-                                  <i className="fas fa-eye mr-2"></i>
-                                  View
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-2xl">
-                                <DialogHeader>
-                                  <DialogTitle>Product Details</DialogTitle>
-                                  <DialogDescription>
-                                    Detailed information about the product
-                                  </DialogDescription>
-                                </DialogHeader>
-                                
-                                {selectedProduct && (
-                                  <div className="space-y-6">
-                                    <div className="flex items-center space-x-4">
-                                      {selectedProduct.images?.[0] ? (
-                                        <img 
-                                          src={selectedProduct.images[0]} 
-                                          alt={selectedProduct.name}
-                                          className="w-24 h-24 rounded-lg object-cover"
-                                        />
-                                      ) : (
-                                        <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center">
-                                          <i className="fas fa-image text-gray-400 text-2xl"></i>
-                                        </div>
-                                      )}
-                                      <div>
-                                        <h3 className="text-lg font-medium">{selectedProduct.name}</h3>
-                                        <p className="text-gray-600">{selectedProduct.description}</p>
-                                        <p className="text-sm text-gray-500 font-mono">SKU: {selectedProduct.sku}</p>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                        <h4 className="font-medium mb-2">Pricing & Stock</h4>
-                                        <p className="text-sm"><strong>Price:</strong> ₹{parseFloat(selectedProduct.price).toLocaleString()}</p>
-                                        <p className="text-sm"><strong>Cost Price:</strong> ₹{selectedProduct.costPrice ? parseFloat(selectedProduct.costPrice).toLocaleString() : 'N/A'}</p>
-                                        <p className="text-sm"><strong>Stock:</strong> {selectedProduct.stock} units</p>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium mb-2">Status</h4>
-                                        <p className="text-sm"><strong>Active:</strong> {selectedProduct.isActive ? 'Yes' : 'No'}</p>
-                                        <p className="text-sm"><strong>Approved:</strong> {selectedProduct.isApproved ? 'Yes' : 'No'}</p>
-                                        <p className="text-sm"><strong>Created:</strong> {new Date(selectedProduct.createdAt).toLocaleDateString()}</p>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="flex justify-end space-x-2">
-                                      {!selectedProduct.isApproved && (
-                                        <Button 
-                                          onClick={() => handleApproveProduct(selectedProduct.id)}
-                                          disabled={updateProductMutation.isPending}
-                                        >
-                                          Approve Product
-                                        </Button>
-                                      )}
-                                      <Button 
-                                        variant={selectedProduct.isActive ? "destructive" : "default"}
-                                        onClick={() => handleToggleActive(selectedProduct.id, selectedProduct.isActive)}
-                                        disabled={updateProductMutation.isPending}
-                                      >
-                                        {selectedProduct.isActive ? 'Deactivate' : 'Activate'}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </DialogContent>
-                            </Dialog>
-                            
-                            {!product.isApproved && (
-                              <Button 
-                                size="sm"
-                                onClick={() => handleApproveProduct(product.id)}
-                                disabled={updateProductMutation.isPending}
-                              >
-                                Approve
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
 }
+

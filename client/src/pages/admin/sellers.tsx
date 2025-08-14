@@ -7,88 +7,142 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
-import { apiRequest } from '@/lib/queryClient';
+import { useAdminVendors, useUpdateVendorStatus, useDeleteVendor, useVendorStats } from '@/hooks/use-api';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminSellers() {
-  const [selectedSeller, setSelectedSeller] = useState<any>(null);
+  const [selectedVendor, setSelectedVendor] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusUpdateDialog, setStatusUpdateDialog] = useState(false);
+  const [statusUpdateData, setStatusUpdateData] = useState({ status: '', reason: '' });
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: sellers, isLoading } = useQuery({
-    queryKey: ['/api/admin/sellers'],
-  });
+  // Fetch vendors using admin-specific hook
+  const { data: vendors, isLoading: vendorsLoading } = useAdminVendors();
+  const { data: vendorStats, isLoading: statsLoading } = useVendorStats();
 
-  const approveMutation = useMutation({
-    mutationFn: async (sellerId: number) => {
-      const response = await apiRequest('PUT', `/api/admin/sellers/${sellerId}/approve`);
-      return response.json();
-    },
+  const updateVendorStatusMutation = useMutation({
+    mutationFn: useUpdateVendorStatus().mutateAsync,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/sellers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/stats'] });
+      setStatusUpdateDialog(false);
+      setStatusUpdateData({ status: '', reason: '' });
       toast({
-        title: "Seller Approved",
-        description: "Seller has been approved successfully.",
+        title: "Status Updated",
+        description: "Vendor status has been updated successfully.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to approve seller",
+        description: error.message || "Failed to update vendor status",
         variant: "destructive",
       });
     },
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: async (sellerId: number) => {
-      const response = await apiRequest('PUT', `/api/admin/sellers/${sellerId}/reject`);
-      return response.json();
-    },
+  const deleteVendorMutation = useMutation({
+    mutationFn: useDeleteVendor().mutateAsync,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/sellers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/stats'] });
       toast({
-        title: "Seller Rejected",
-        description: "Seller application has been rejected.",
+        title: "Vendor Deleted",
+        description: "Vendor has been deleted successfully.",
         variant: "destructive",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to reject seller",
+        description: error.message || "Failed to delete vendor",
         variant: "destructive",
       });
     },
   });
 
-  const pendingSellers = sellers?.filter((s: any) => s.role === 'seller_pending') || [];
-  const activeSellers = sellers?.filter((s: any) => s.role === 'seller') || [];
-  const inactiveSellers = sellers?.filter((s: any) => !s.isActive) || [];
+  // Calculate product counts per vendor
+  const getProductCount = (vendorId: number) => {
+    if (!vendors || !Array.isArray(vendors)) return 0;
+    const vendor = vendors.find((v: any) => v.id === vendorId);
+    return vendor?.products?.length || 0;
+  };
 
-  const handleApprove = async (sellerId: number) => {
-    if (confirm('Are you sure you want to approve this seller?')) {
-      await approveMutation.mutateAsync(sellerId);
+  // Filter vendors based on search and status
+  const filteredVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => {
+    const matchesSearch = vendor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vendor.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vendor.contact?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vendor.user?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vendor.user?.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (statusFilter === 'all') return matchesSearch;
+    if (statusFilter === 'active') return matchesSearch && getProductCount(vendor.id) > 0;
+    if (statusFilter === 'inactive') return matchesSearch && getProductCount(vendor.id) === 0;
+    if (statusFilter === 'pending') return matchesSearch && vendor.status === 'pending';
+    if (statusFilter === 'approved') return matchesSearch && vendor.status === 'approved';
+    if (statusFilter === 'rejected') return matchesSearch && vendor.status === 'rejected';
+    
+    return matchesSearch;
+  }) : [];
+
+  const activeVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => getProductCount(vendor.id) > 0) : [];
+  const inactiveVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => getProductCount(vendor.id) === 0) : [];
+  const pendingVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'pending') : [];
+  const approvedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'approved') : [];
+  const rejectedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'rejected') : [];
+
+  const handleStatusUpdate = (vendor: any) => {
+    setSelectedVendor(vendor);
+    setStatusUpdateDialog(true);
+  };
+
+  const handleStatusSubmit = async () => {
+    if (!selectedVendor || !statusUpdateData.status) return;
+    
+    await updateVendorStatusMutation.mutateAsync({
+      id: selectedVendor.id,
+      status: statusUpdateData.status,
+      reason: statusUpdateData.reason
+    });
+  };
+
+  const handleDeleteVendor = async (vendorId: number) => {
+    if (confirm('Are you sure you want to delete this vendor? This action cannot be undone.')) {
+      await deleteVendorMutation.mutateAsync(vendorId);
     }
   };
 
-  const handleReject = async (sellerId: number) => {
-    if (confirm('Are you sure you want to reject this seller? This action cannot be undone.')) {
-      await rejectMutation.mutateAsync(sellerId);
+  const getStatusBadge = (vendor: any) => {
+    const productCount = getProductCount(vendor.id);
+    
+    if (vendor.status === 'pending') {
+      return <Badge variant="secondary">Pending Approval</Badge>;
     }
+    if (vendor.status === 'rejected') {
+      return <Badge variant="destructive">Rejected</Badge>;
+    }
+    if (productCount > 0) {
+      return <Badge variant="default">Active ({productCount} products)</Badge>;
+    }
+    return <Badge variant="outline">Inactive</Badge>;
   };
 
-  const getStatusBadge = (seller: any) => {
-    if (!seller.isActive) return <Badge variant="destructive">Inactive</Badge>;
-    if (seller.role === 'seller_pending') return <Badge variant="destructive">Pending</Badge>;
-    if (seller.sellerProfile?.isApproved) return <Badge variant="default">Approved</Badge>;
-    return <Badge variant="secondary">Active</Badge>;
+  const getUserRole = (user: any) => {
+    if (!user) return 'No User';
+    return user.role?.name || 'Unknown';
   };
 
-  if (isLoading) {
+  if (vendorsLoading || statsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -105,13 +159,27 @@ export default function AdminSellers() {
       <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Seller Management</h2>
-            <p className="text-gray-600">Manage seller accounts and approvals</p>
+            <h2 className="text-2xl font-bold text-gray-900">Vendor Management</h2>
+            <p className="text-gray-600">Manage all vendors and their products</p>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mr-4">
+                  <i className="fas fa-users text-primary text-xl"></i>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Vendors</p>
+                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.totalVendors || 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
@@ -119,8 +187,8 @@ export default function AdminSellers() {
                   <i className="fas fa-check-circle text-success text-xl"></i>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Active Sellers</p>
-                  <p className="text-2xl font-bold text-gray-900">{activeSellers.length}</p>
+                  <p className="text-sm font-medium text-gray-600">Active Vendors</p>
+                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.activeVendors || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -134,7 +202,7 @@ export default function AdminSellers() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Pending Approval</p>
-                  <p className="text-2xl font-bold text-gray-900">{pendingSellers.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.pendingVendors || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -143,12 +211,12 @@ export default function AdminSellers() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-error/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-times-circle text-error text-xl"></i>
+                <div className="w-12 h-12 bg-info/10 rounded-lg flex items-center justify-center mr-4">
+                  <i className="fas fa-thumbs-up text-info text-xl"></i>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Inactive</p>
-                  <p className="text-2xl font-bold text-gray-900">{inactiveSellers.length}</p>
+                  <p className="text-sm font-medium text-gray-600">Approved</p>
+                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.approvedVendors || 0}</p>
                 </div>
               </div>
             </CardContent>
@@ -157,277 +225,174 @@ export default function AdminSellers() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-users text-primary text-xl"></i>
+                <div className="w-12 h-12 bg-destructive/10 rounded-lg flex items-center justify-center mr-4">
+                  <i className="fas fa-thumbs-down text-destructive text-xl"></i>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Sellers</p>
-                  <p className="text-2xl font-bold text-gray-900">{sellers?.length || 0}</p>
+                  <p className="text-sm font-medium text-gray-600">Rejected</p>
+                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.rejectedVendors || 0}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex-1">
+            <Input
+              placeholder="Search vendors by name, address, contact, or user..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-sm"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vendors</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="pending">Pending Approval</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Vendors Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Seller Accounts</CardTitle>
+            <CardTitle>Vendors ({filteredVendors.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="pending" className="space-y-6">
-              <TabsList>
-                <TabsTrigger value="pending">
-                  Pending Approval ({pendingSellers.length})
-                </TabsTrigger>
-                <TabsTrigger value="active">
-                  Active Sellers ({activeSellers.length})
-                </TabsTrigger>
-                <TabsTrigger value="all">
-                  All Sellers ({sellers?.length || 0})
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="pending">
-                {pendingSellers.length === 0 ? (
-                  <div className="text-center py-8">
-                    <i className="fas fa-user-check text-4xl text-gray-300 mb-4"></i>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No pending approvals</h3>
-                    <p className="text-gray-600">All seller applications have been reviewed.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Seller</TableHead>
-                          <TableHead>Shop Details</TableHead>
-                          <TableHead>Contact</TableHead>
-                          <TableHead>Applied</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pendingSellers.map((seller: any) => (
-                          <TableRow key={seller.id}>
-                            <TableCell>
-                              <div className="flex items-center space-x-3">
-                                <Avatar>
-                                  <AvatarFallback>
-                                    {seller.firstName[0]}{seller.lastName[0]}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">{seller.firstName} {seller.lastName}</p>
-                                  <p className="text-sm text-gray-500">{seller.username}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{seller.sellerProfile?.shopName}</p>
-                                <p className="text-sm text-gray-500">{seller.sellerProfile?.city}, {seller.sellerProfile?.state}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="text-sm">{seller.email}</p>
-                                <p className="text-sm text-gray-500">{seller.sellerProfile?.contactPhone}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {new Date(seller.createdAt).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center space-x-2">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm"
-                                      onClick={() => setSelectedSeller(seller)}
-                                    >
-                                      Review
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="max-w-2xl">
-                                    <DialogHeader>
-                                      <DialogTitle>Seller Application Review</DialogTitle>
-                                      <DialogDescription>
-                                        Review the seller application details
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    
-                                    {selectedSeller && (
-                                      <div className="space-y-6">
-                                        <div className="grid grid-cols-2 gap-4">
-                                          <div>
-                                            <h4 className="font-medium mb-2">Personal Information</h4>
-                                            <p className="text-sm"><strong>Name:</strong> {selectedSeller.firstName} {selectedSeller.lastName}</p>
-                                            <p className="text-sm"><strong>Email:</strong> {selectedSeller.email}</p>
-                                            <p className="text-sm"><strong>Username:</strong> {selectedSeller.username}</p>
-                                          </div>
-                                          <div>
-                                            <h4 className="font-medium mb-2">Shop Information</h4>
-                                            <p className="text-sm"><strong>Shop Name:</strong> {selectedSeller.sellerProfile?.shopName}</p>
-                                            <p className="text-sm"><strong>Description:</strong> {selectedSeller.sellerProfile?.shopDescription || 'N/A'}</p>
-                                            <p className="text-sm"><strong>Phone:</strong> {selectedSeller.sellerProfile?.contactPhone}</p>
-                                          </div>
-                                        </div>
-                                        
-                                        <div>
-                                          <h4 className="font-medium mb-2">Address</h4>
-                                          <p className="text-sm">
-                                            {selectedSeller.sellerProfile?.address}<br/>
-                                            {selectedSeller.sellerProfile?.city}, {selectedSeller.sellerProfile?.state} - {selectedSeller.sellerProfile?.pincode}
-                                          </p>
-                                        </div>
-                                        
-                                        <div className="flex justify-end space-x-2">
-                                          <Button 
-                                            variant="destructive" 
-                                            onClick={() => handleReject(selectedSeller.id)}
-                                            disabled={rejectMutation.isPending}
-                                          >
-                                            Reject
-                                          </Button>
-                                          <Button 
-                                            onClick={() => handleApprove(selectedSeller.id)}
-                                            disabled={approveMutation.isPending}
-                                          >
-                                            Approve
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </DialogContent>
-                                </Dialog>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="active">
-                {activeSellers.length === 0 ? (
-                  <div className="text-center py-8">
-                    <i className="fas fa-store text-4xl text-gray-300 mb-4"></i>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No active sellers</h3>
-                    <p className="text-gray-600">No sellers are currently active on the platform.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Seller</TableHead>
-                          <TableHead>Shop Details</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Joined</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {activeSellers.map((seller: any) => (
-                          <TableRow key={seller.id}>
-                            <TableCell>
-                              <div className="flex items-center space-x-3">
-                                <Avatar>
-                                  <AvatarFallback>
-                                    {seller.firstName[0]}{seller.lastName[0]}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">{seller.firstName} {seller.lastName}</p>
-                                  <p className="text-sm text-gray-500">{seller.email}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{seller.sellerProfile?.shopName}</p>
-                                <p className="text-sm text-gray-500">{seller.sellerProfile?.city}, {seller.sellerProfile?.state}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {getStatusBadge(seller)}
-                            </TableCell>
-                            <TableCell>
-                              {new Date(seller.createdAt).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="sm">
-                                <i className="fas fa-eye mr-2"></i>
-                                View Details
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="all">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Seller</TableHead>
-                        <TableHead>Shop Details</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Joined</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sellers?.map((seller: any) => (
-                        <TableRow key={seller.id}>
-                          <TableCell>
-                            <div className="flex items-center space-x-3">
-                              <Avatar>
-                                <AvatarFallback>
-                                  {seller.firstName[0]}{seller.lastName[0]}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium">{seller.firstName} {seller.lastName}</p>
-                                <p className="text-sm text-gray-500">{seller.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{seller.sellerProfile?.shopName}</p>
-                              <p className="text-sm text-gray-500">{seller.sellerProfile?.city}, {seller.sellerProfile?.state}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {getStatusBadge(seller)}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(seller.createdAt).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="sm">
-                              <i className="fas fa-eye mr-2"></i>
-                              View Details
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </TabsContent>
-            </Tabs>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Products</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredVendors.map((vendor: any) => (
+                    <TableRow key={vendor.id}>
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={vendor.profileImage?.url} />
+                            <AvatarFallback>{vendor.name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{vendor.name}</div>
+                            <div className="text-sm text-gray-500">{vendor.address}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{vendor.user?.username || 'No User'}</div>
+                          <div className="text-sm text-gray-500">{vendor.user?.email}</div>
+                          <div className="text-xs text-gray-400">{getUserRole(vendor.user)}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="text-sm">{vendor.contact}</div>
+                          <div className="text-sm text-gray-500">{vendor.email}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-center">
+                          <div className="font-medium">{getProductCount(vendor.id)}</div>
+                          <div className="text-sm text-gray-500">products</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(vendor)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleStatusUpdate(vendor)}
+                          >
+                            Update Status
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteVendor(vendor.id)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Status Update Dialog */}
+        <Dialog open={statusUpdateDialog} onOpenChange={setStatusUpdateDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Vendor Status</DialogTitle>
+              <DialogDescription>
+                Update the status for {selectedVendor?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <Select 
+                  value={statusUpdateData.status} 
+                  onValueChange={(value) => setStatusUpdateData(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Reason (Optional)</label>
+                <Textarea
+                  placeholder="Enter reason for status change..."
+                  value={statusUpdateData.reason}
+                  onChange={(e) => setStatusUpdateData(prev => ({ ...prev, reason: e.target.value }))}
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setStatusUpdateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleStatusSubmit}
+                  disabled={updateVendorStatusMutation.isPending}
+                >
+                  {updateVendorStatusMutation.isPending ? 'Updating...' : 'Update Status'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
 }
+

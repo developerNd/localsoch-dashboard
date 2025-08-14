@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Seller Products</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Test Seller Products Page</h1>
+    
+    <div class="test-section info">
+        <h3>Step 1: Login as Seller</h3>
+        <button onclick="loginAsSeller()">Login as testseller</button>
+        <div id="login-result"></div>
+    </div>
+    
+    <div class="test-section info">
+        <h3>Step 2: Test Products API</h3>
+        <button onclick="testProductsAPI()">Test Products API</button>
+        <div id="products-result"></div>
+    </div>
+    
+    <div class="test-section info">
+        <h3>Step 3: Test Filtered Products</h3>
+        <button onclick="testFilteredProducts()">Test Filtered Products (vendorId=5)</button>
+        <div id="filtered-result"></div>
+    </div>
+    
+    <div class="test-section info">
+        <h3>Step 4: Open Seller Products Page</h3>
+        <button onclick="openSellerProducts()">Open Seller Products Page</button>
+        <p>This will open the actual seller products page in a new tab.</p>
+    </div>
+
+    <script>
+        let authToken = null;
+        
+        async function loginAsSeller() {
+            const resultDiv = document.getElementById('login-result');
+            resultDiv.innerHTML = '<p>Logging in...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/auth/local', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identifier: 'testseller',
+                        password: 'password123'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.jwt) {
+                    authToken = data.jwt;
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Login Successful!</h4>
+                            <p><strong>User:</strong> ${data.user.username}</p>
+                            <p><strong>Role:</strong> ${data.user.role.name}</p>
+                            <p><strong>User ID:</strong> ${data.user.id}</p>
+                            <p><strong>Token:</strong> ${data.jwt.substring(0, 20)}...</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Login Failed</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Login Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testProductsAPI() {
+            const resultDiv = document.getElementById('products-result');
+            resultDiv.innerHTML = '<p>Testing products API...</p>';
+            
+            if (!authToken) {
+                resultDiv.innerHTML = '<div class="error"><p>❌ Please login first!</p></div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/products?populate=*', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const products = data.data || [];
+                    const sellerProducts = products.filter(p => 
+                        p.vendor?.id === 5 || p.vendorId === 5
+                    );
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Products API Working!</h4>
+                            <p><strong>Total Products:</strong> ${products.length}</p>
+                            <p><strong>Seller Products (vendorId=5):</strong> ${sellerProducts.length}</p>
+                            <h5>All Products:</h5>
+                            <pre>${JSON.stringify(products.map(p => ({
+                                id: p.id,
+                                name: p.name,
+                                vendorId: p.vendor?.id || p.vendorId,
+                                vendorName: p.vendor?.name
+                            })), null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Products API Failed</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Products API Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testFilteredProducts() {
+            const resultDiv = document.getElementById('filtered-result');
+            resultDiv.innerHTML = '<p>Testing filtered products...</p>';
+            
+            if (!authToken) {
+                resultDiv.innerHTML = '<div class="error"><p>❌ Please login first!</p></div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/products?populate=*', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const products = data.data || [];
+                    const sellerProducts = products.filter(p => 
+                        p.vendor?.id === 5 || p.vendorId === 5
+                    );
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Filtered Products Test!</h4>
+                            <p><strong>Seller Products (vendorId=5):</strong> ${sellerProducts.length}</p>
+                            <h5>Seller Products:</h5>
+                            <pre>${JSON.stringify(sellerProducts.map(p => ({
+                                id: p.id,
+                                name: p.name,
+                                price: p.price,
+                                stock: p.stock,
+                                vendorId: p.vendor?.id || p.vendorId
+                            })), null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Filtered Products Test Failed</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Filtered Products Test Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function openSellerProducts() {
+            if (!authToken) {
+                alert('Please login first!');
+                return;
+            }
+            
+            // Store the token in localStorage
+            localStorage.setItem('authToken', authToken);
+            
+            // Open the seller products page
+            window.open('http://localhost:5173/seller/products', '_blank');
+        }
+    </script>
+</body>
+</html> 
