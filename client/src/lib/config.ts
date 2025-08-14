@@ -1,8 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
-  // Always use production API URL
+  // Use production API URL
   get API_URL() {
-    // Force production URL regardless of environment
     return 'https://api.localsoch.com';
   },
   

@@ -16,6 +16,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
   const queryClient = useQueryClient();
 
   // Get user data from Strapi
@@ -55,12 +56,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (tokenParts.length === 3) {
                 const payload = JSON.parse(atob(tokenParts[1]));
                 console.log('🔍 JWT payload:', payload);
-                // Return a basic user object from JWT payload
+                // Return a basic user object from JWT payload and fetch vendor data
+                const basicUser = {
+                  id: payload.id,
+                  // Add other fields as needed
+                  role: { name: payload.role || 'admin' } // Use role from JWT or default to admin
+                };
+                
+                // Try to fetch vendor data even with basic user info
+                let vendorId = undefined;
+                try {
+                  const vendorRes = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}?populate=user`), {
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    },
+                  });
+                  
+                  if (vendorRes.ok) {
+                    const vendorData = await vendorRes.json();
+                    console.log('🔍 Vendor API response (JWT fallback):', vendorData);
+                    
+                    // Look for vendor with matching user
+                    const matchingVendor = vendorData.data.find((vendor: any) => 
+                      vendor.user && vendor.user.id === basicUser.id
+                    );
+                    
+                    if (matchingVendor) {
+                      vendorId = matchingVendor.id;
+                      console.log('🔍 Found matching vendor (JWT fallback)! ID:', vendorId);
+                    }
+                  }
+                } catch (vendorErr) {
+                  console.log('🔍 Vendor fetch error (JWT fallback):', vendorErr);
+                }
+                
                 return { 
                   user: {
-                    id: payload.id,
-                    // Add other fields as needed
-                    role: { name: 'seller' } // Assume seller if /me fails
+                    ...basicUser,
+                    vendorId
                   }
                 };
               }
@@ -82,15 +116,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('🔍 User role:', user.role);
         console.log('🔍 User role name:', user.role?.name);
         let vendorId = undefined;
+        
         // Only fetch vendor if user is a seller
         if (user.role && typeof user.role === 'object' && 'name' in user.role && (user.role as any).name === 'seller') {
-          console.log('🔍 User is seller, setting vendor ID for user ID:', user.id);
+          console.log('🔍 User is seller, fetching vendor for user ID:', user.id);
           
-          // No hardcoded mapping - rely on proper vendor-user relationships
-          console.log('🔍 Seller user, but no vendor ID available - check vendor-user relationships');
+          try {
+            // Fetch vendor data for this seller
+            const vendorRes = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}?populate=user`), {
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+            });
+            
+            if (vendorRes.ok) {
+              const vendorData = await vendorRes.json();
+              console.log('🔍 Vendor API response:', vendorData);
+              
+              // Look for vendor with matching user
+              const matchingVendor = vendorData.data.find((vendor: any) => 
+                vendor.user && vendor.user.id === user.id
+              );
+              
+              if (matchingVendor) {
+                vendorId = matchingVendor.id;
+                console.log('🔍 Found matching vendor! ID:', vendorId);
+              } else {
+                console.log('🔍 No vendor found for this user in vendor data');
+              }
+            } else {
+              const errorText = await vendorRes.text();
+              console.log('🔍 Error fetching vendor data:', errorText);
+            }
+          } catch (vendorErr) {
+            console.log('🔍 Vendor fetch error:', vendorErr);
+          }
         } else {
           console.log('🔍 User is not seller, role:', user.role);
-          console.log('🔍 Complete user object:', JSON.stringify(user, null, 2));
         }
         
         // Log the final user object with vendorId
@@ -110,9 +173,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    console.log('AuthProvider useEffect - userData:', userData, 'error:', error);
+    console.log('AuthProvider useEffect - userData:', userData, 'error:', error, 'justLoggedIn:', justLoggedIn);
+    
+    // If we just logged in, don't override the user data from the API
+    if (justLoggedIn) {
+      console.log('🔍 Just logged in, skipping API user data override');
+      setJustLoggedIn(false);
+      return;
+    }
+    
     if (userData?.user) {
-      console.log('Setting user in context:', userData.user);
+      console.log('🔍 Setting user in context from API:', userData.user);
+      console.log('🔍 API user role:', userData.user.role);
+      console.log('🔍 API role name:', typeof userData.user.role === 'object' ? userData.user.role.name : userData.user.role);
       
       // Preserve existing vendorId if the new user data doesn't have it
       if (user && user.vendorId && !userData.user.vendorId) {
@@ -141,7 +214,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Debug logging for user and isAuthenticated changes
   useEffect(() => {
-    console.log('AuthProvider - user state changed:', user, 'isAuthenticated:', !!user);
+    console.log('🔍 AuthProvider - user state changed:', user);
+    console.log('🔍 AuthProvider - user role:', user?.role);
+    console.log('🔍 AuthProvider - role name:', typeof user?.role === 'object' ? user?.role.name : user?.role);
+    console.log('🔍 AuthProvider - isAuthenticated:', !!user);
   }, [user]);
 
   const loginMutation = useMutation({
@@ -156,10 +232,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Login failed');
+      if (!response.ok) {
+        // Handle specific error cases with better messages
+        if (response.status === 400) {
+          if (data.error?.message === 'Invalid identifier or password') {
+            throw new Error('Invalid username or password. Please check your credentials and try again.');
+          } else if (data.error?.message) {
+            throw new Error(data.error.message);
+          }
+        }
+        throw new Error(data.message || 'Login failed. Please try again.');
+      }
       const jwt = data.jwt;
       const user = data.user;
       let vendorId = undefined;
+      
+      // Log user role information for debugging
+      console.log('🔍 User role object:', user.role);
+      console.log('🔍 User role type:', typeof user.role);
+      if (user.role && typeof user.role === 'object') {
+        console.log('🔍 User role name:', (user.role as any).name);
+      }
+      
       // Only fetch vendor if user is a seller
       if (user.role && typeof user.role === 'object' && 'name' in user.role && (user.role as any).name === 'seller') {
         console.log('🔍 User is seller, fetching vendor for user ID:', user.id);
@@ -235,9 +329,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         console.log('🔍 User is not seller, role:', user.role);
       }
-      if (vendorId) {
+      // Only set vendorId for seller users
+      const userRole = user.role;
+      const roleName = typeof userRole === 'object' ? userRole.name : userRole;
+      
+      if (vendorId && roleName === 'seller') {
         user.vendorId = vendorId;
-        console.log('🔍 Set vendorId for user:', vendorId);
+        console.log('🔍 Set vendorId for seller user:', vendorId);
+      } else if (vendorId && roleName !== 'seller') {
+        console.log('🔍 Found vendorId but user is not seller, not setting vendorId');
+        console.log('🔍 User role:', roleName);
       } else {
         console.log('🔍 No vendorId found for user');
       }
@@ -247,14 +348,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     },
     onSuccess: (data) => {
+      console.log('🔍 Login success - Setting user data:', data.user);
+      console.log('🔍 Login success - User role:', data.user.role);
+      console.log('🔍 Login success - Role name:', typeof data.user.role === 'object' ? data.user.role.name : data.user.role);
+      
       setAuthToken(data.token);
       setUser(data.user);
+      setJustLoggedIn(true);
+      
       // Don't invalidate the query to prevent overwriting the user with vendorId
       // queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-      // Navigate based on user role or vendorId
-      if (data.user.vendorId) {
+      
+      // Navigate based on user role
+      const userRole = data.user.role;
+      const roleName = typeof userRole === 'object' ? userRole.name : userRole;
+      
+      console.log('🔍 User role for navigation:', roleName);
+      
+      if (roleName === 'seller') {
         window.location.href = '/seller';
+      } else if (roleName === 'admin' || roleName === 'super-admin') {
+        window.location.href = '/admin';
       } else {
+        // Default to admin for unknown roles
+        console.log('🔍 Unknown role, defaulting to admin dashboard');
         window.location.href = '/admin';
       }
     },

@@ -1,21 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Phone, MessageCircle, Filter, TrendingUp, Calendar, Clock } from 'lucide-react';
+import { Phone, MessageCircle, TrendingUp, Calendar, Clock } from 'lucide-react';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useAuth } from '@/hooks/use-auth';
-import { useVendorButtonAnalytics, useVendor, useVendorButtonClickLogs } from '@/hooks/use-api';
-import { useState } from 'react';
+import { useVendorButtonAnalytics, useVendorButtonClickLogs } from '@/hooks/use-api';
 
 export default function SellerButtonTracking() {
   const { user } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
 
   // Use the vendorId from the user object (which is already set to the Strapi vendor ID)
   const vendorId = user?.vendorId;
@@ -25,22 +19,52 @@ export default function SellerButtonTracking() {
     data: buttonAnalytics, 
     isLoading: buttonAnalyticsLoading, 
     refetch: refetchAnalytics 
-  } = useVendorButtonAnalytics(vendorId || 0);
+  } = useVendorButtonAnalytics(vendorId || undefined);
 
   // Fetch detailed button click logs from database
   const { 
     data: clickLogs, 
     isLoading: clickLogsLoading 
-  } = useVendorButtonClickLogs(vendorId || 0);
+  } = useVendorButtonClickLogs(vendorId || undefined);
 
   const isLoading = buttonAnalyticsLoading || clickLogsLoading;
 
   // Generate real analytics data from backend
   const generateAnalyticsData = () => {
-    if (!clickLogs?.data) return [];
+    // Handle different response structures - Strapi returns data.results
+    const logsData = clickLogs?.data?.results || clickLogs?.data || clickLogs || [];
+    
+    // Ensure we have an array to map over
+    if (!Array.isArray(logsData)) {
+      console.warn('Button click logs data is not an array:', logsData);
+      return [];
+    }
+    
+    // If no real logs exist, generate sample data based on analytics
+    if (logsData.length === 0 && buttonAnalytics?.totalClicks > 0) {
+      const sampleData = [];
+      const buttonTypes = ['call', 'whatsapp', 'message', 'email'];
+      
+      for (let i = 0; i < Math.min(buttonAnalytics.totalClicks, 10); i++) {
+        const buttonType = buttonTypes[i % buttonTypes.length];
+        sampleData.push({
+          id: i + 1,
+          buttonType,
+          userName: `Customer ${i + 1}`,
+          userPhone: `+91 98765${String(i + 1).padStart(4, '0')}`,
+          contactNumber: `+91 98765${String(i + 1).padStart(4, '0')}`,
+          whatsappNumber: `+91 98765${String(i + 1).padStart(4, '0')}`,
+          clickedAt: new Date(Date.now() - (i * 24 * 60 * 60 * 1000)).toISOString(),
+          userLocation: 'Mobile App',
+          deviceInfo: { platform: 'Android', appVersion: '1.0.0' },
+          ipAddress: `192.168.1.${100 + i}`
+        });
+      }
+      return sampleData;
+    }
     
     // Use real click logs from database
-    return clickLogs.data.map((log: any, index: number) => ({
+    return logsData.map((log: any, index: number) => ({
       id: log.id || index + 1,
       buttonType: log.buttonType,
       userName: log.userInfo?.name || 'Anonymous User',
@@ -55,17 +79,6 @@ export default function SellerButtonTracking() {
   };
 
   const analyticsData = generateAnalyticsData();
-
-  // Filter data based on search term and filter type
-  const filteredData = analyticsData.filter((item: any) => {
-    const matchesSearch = item.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.userPhone.includes(searchTerm) ||
-                         item.userLocation.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesFilter = filterType === 'all' || item.buttonType === filterType;
-    
-    return matchesSearch && matchesFilter;
-  });
 
   if (isLoading) {
     return (
@@ -92,11 +105,6 @@ export default function SellerButtonTracking() {
               <p className="text-gray-600">
                 Monitor customer interactions with your call and WhatsApp buttons.
               </p>
-              {user?.vendorId && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Vendor ID: {user?.vendorId} | Store: myshop
-                </p>
-              )}
             </div>
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full ${buttonAnalyticsLoading ? 'bg-yellow-400' : 'bg-green-400'}`}></div>
@@ -170,78 +178,14 @@ export default function SellerButtonTracking() {
           </Card>
         </div>
 
-        {/* Contact Information */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Contact Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <Phone className="h-5 w-5 text-green-600" />
-                <div>
-                  <p className="font-medium text-gray-900">Call Number</p>
-                  <p className="text-sm text-gray-600">Not available in this demo</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <MessageCircle className="h-5 w-5 text-green-600" />
-                <div>
-                  <p className="font-medium text-gray-900">WhatsApp Number</p>
-                  <p className="text-sm text-gray-600">Not available in this demo</p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-              <div className="flex items-start">
-                <i className="fas fa-info-circle text-blue-500 mt-1 mr-2"></i>
-                <div>
-                  <p className="text-sm text-blue-800">
-                    <strong>Note:</strong> You can update these numbers in your{' '}
-                    <a href="/seller/profile" className="underline font-medium">Shop Settings</a>.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 p-3 bg-green-50 rounded-lg">
-              <div className="flex items-start">
-                <i className="fas fa-check-circle text-green-500 mt-1 mr-2"></i>
-                <div>
-                  <p className="text-sm text-green-800">
-                    <strong>✅ Enhanced Tracking:</strong> Button clicks now collect detailed user information including name, device, location, and timestamp. This data is stored securely for analytics purposes.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+
 
         {/* Detailed Analytics */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Detailed Analytics</CardTitle>
+            <CardTitle>Button Click Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 p-3 bg-yellow-50 rounded-lg">
-              <div className="flex items-start">
-                <i className="fas fa-info-circle text-yellow-500 mt-1 mr-2"></i>
-                <div>
-                  <p className="text-sm text-yellow-800">
-                    <strong>📊 Real Database Data:</strong> The table below shows actual user interactions from your mobile app. Each row represents a real user who clicked your buttons, with their device information and timestamps.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="mb-4 p-3 bg-purple-50 rounded-lg">
-              <div className="flex items-start">
-                <i className="fas fa-database text-purple-500 mt-1 mr-2"></i>
-                <div>
-                  <p className="text-sm text-purple-800">
-                    <strong>💾 Database Storage:</strong> Click counts are stored in the <code>vendors</code> table in the <code>buttonClicks</code> component. Detailed user logs are saved in the <code>button_click_logs</code> table with user information, device details, and timestamps.
-                  </p>
-                </div>
-              </div>
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <div className="flex items-center justify-between">
@@ -316,86 +260,36 @@ export default function SellerButtonTracking() {
               </div>
             </div>
 
-            {buttonAnalytics?.buttonClicks && (
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-3">Button Click Breakdown</h4>
-                <div className="space-y-2">
-                  {Object.entries(buttonAnalytics.buttonClicks).map(([key, value]) => {
-                    if (key === 'id' || key === 'totalClicks' || key === 'lastUpdated') return null;
-                    return (
-                      <div key={key} className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600 capitalize">
-                          {key.replace('Clicks', ' Clicks')}
-                        </span>
-                        <span className="text-sm font-medium text-gray-900">{String(value)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+
           </CardContent>
         </Card>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Filter className="h-5 w-5 mr-2" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by name, phone, or location..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by button type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Button Types</SelectItem>
-                  <SelectItem value="call">Call Button</SelectItem>
-                  <SelectItem value="whatsapp">WhatsApp Button</SelectItem>
-                  <SelectItem value="message">Message Button</SelectItem>
-                  <SelectItem value="email">Email Button</SelectItem>
-                  <SelectItem value="website">Website Button</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+
 
         {/* Button Clicks Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Button Click Details</CardTitle>
+            <CardTitle>Recent Button Clicks</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start">
-                <i className="fas fa-info-circle text-blue-600 mt-1 mr-2"></i>
-                <div>
-                  <p className="text-sm text-blue-800">
-                    <strong>Note:</strong> The detailed click data below is generated from your actual button click analytics. 
-                    Customer names are anonymized for privacy, but the click counts and types match your real data.
-                  </p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    <strong>Database:</strong> Button clicks are stored in the <code>vendors</code> table in the <code>buttonClicks</code> component field.
-                  </p>
-                </div>
-              </div>
-            </div>
             
-            {filteredData.length > 0 ? (
+            {analyticsData.length > 0 ? (
               <div className="overflow-x-auto">
+                {/* Show note if using sample data */}
+                {(clickLogs?.data?.results?.length === 0 || !clickLogs?.data?.results) && buttonAnalytics?.totalClicks > 0 && (
+                  <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div className="flex items-start">
+                      <i className="fas fa-info-circle text-yellow-600 mt-1 mr-2"></i>
+                      <div>
+                        <p className="text-sm text-yellow-800">
+                          <strong>📊 Sample Data:</strong> Detailed click logs are not yet available in the database. 
+                          The table below shows sample data based on your total click count. 
+                          Real user details will appear here once detailed logging is implemented.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
@@ -407,7 +301,7 @@ export default function SellerButtonTracking() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredData.map((item: any) => (
+                    {analyticsData.map((item: any) => (
                       <tr key={item.id} className="border-b hover:bg-gray-50">
                         <td className="py-3 px-4">
                           <div className="font-medium">{item.userName}</div>
@@ -466,23 +360,14 @@ export default function SellerButtonTracking() {
                 <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-600">No button clicks found</p>
                 <p className="text-sm text-gray-500 mt-2">
-                  {searchTerm || filterType !== 'all' 
-                    ? 'Try adjusting your filters' 
-                    : 'Button clicks will appear here when customers interact with your buttons'
-                  }
+                  Button clicks will appear here when customers interact with your buttons
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Refresh Button */}
-        <div className="mt-8 text-center">
-          <Button onClick={() => refetchAnalytics()} variant="outline">
-            <i className="fas fa-sync-alt mr-2"></i>
-            Refresh Data
-          </Button>
-        </div>
+
       </main>
     </div>
   );

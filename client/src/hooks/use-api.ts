@@ -224,7 +224,7 @@ export function useVendors() {
   });
 }
 
-export function useVendor(id: number) {
+export function useVendor(id: number | undefined) {
   return useQuery({
     queryKey: ['/api/vendors', id],
     queryFn: async () => {
@@ -235,7 +235,7 @@ export function useVendor(id: number) {
       const vendor = data.data || data;
       return normalizeVendor(vendor);
     },
-    enabled: !!id,
+    enabled: !!id && id > 0,
   });
 }
 
@@ -321,12 +321,12 @@ export function useVendorStats() {
   });
 }
 
-export function useVendorButtonAnalytics(vendorId: number) {
+export function useVendorButtonAnalytics(vendorId: number | undefined) {
   return useQuery({
     queryKey: ['/api/vendors/button-analytics', vendorId],
     queryFn: async () => {
       // Analytics endpoint is now public, no authentication required
-      const response = await fetch(`http://192.168.1.102:1337/api/vendors/${vendorId}?analytics=true`, {
+      const response = await fetch(`${API_URL}/api/vendors/${vendorId}?analytics=true`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -340,19 +340,23 @@ export function useVendorButtonAnalytics(vendorId: number) {
       const data = await response.json();
       return data.data || data;
     },
-    enabled: !!vendorId,
+    enabled: !!vendorId && vendorId > 0,
   });
 }
 
-export function useVendorButtonClickLogs(vendorId: number, page = 1, pageSize = 25) {
+export function useVendorButtonClickLogs(vendorId: number | undefined, page = 1, pageSize = 25) {
   return useQuery({
     queryKey: ['/api/vendors/button-click-logs', vendorId, page, pageSize],
     queryFn: async () => {
-      // Fetch real data from the database
-      const response = await fetch(`http://192.168.1.102:1337/api/vendors/${vendorId}/button-click-logs?page=${page}&pageSize=${pageSize}`, {
+      // Get auth token for authenticated request
+      const token = localStorage.getItem('authToken');
+      
+      // Fetch real data from the database with authentication
+      const response = await fetch(`${API_URL}/api/vendors/${vendorId}/button-click-logs?page=${page}&pageSize=${pageSize}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
         }
       });
       
@@ -363,7 +367,7 @@ export function useVendorButtonClickLogs(vendorId: number, page = 1, pageSize = 
       const data = await response.json();
       return data;
     },
-    enabled: !!vendorId,
+    enabled: !!vendorId && vendorId > 0,
   });
 }
 
@@ -541,7 +545,7 @@ export function useAdminAnalytics() {
   });
 }
 
-export function useSellerAnalytics(sellerId: number) {
+export function useSellerAnalytics(sellerId: number | undefined) {
   return useQuery({
     queryKey: ['/api/analytics/seller', sellerId],
     queryFn: async () => {
@@ -583,6 +587,6 @@ export function useSellerAnalytics(sellerId: number) {
         topProducts,
       };
     },
-    enabled: !!sellerId,
+    enabled: !!sellerId && sellerId > 0,
   });
 } 

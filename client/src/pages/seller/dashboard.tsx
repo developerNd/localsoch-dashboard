@@ -48,8 +48,8 @@ const normalizeProduct = (product: any) => {
 export default function SellerDashboard() {
   const { user } = useAuth();
 
-  // Fetch vendor data for the current seller
-  const { data: vendorData, isLoading: vendorLoading } = useVendor(user?.vendorId || 0);
+  // Fetch vendor data for the current seller only when we have a valid vendorId
+  const { data: vendorData, isLoading: vendorLoading } = useVendor(user?.vendorId || undefined);
 
   // Fetch products for the current seller
   const { data: products, isLoading: productsLoading } = useProducts();
@@ -57,8 +57,8 @@ export default function SellerDashboard() {
   // Fetch orders for the current seller
   const { data: orders, isLoading: ordersLoading } = useOrders();
 
-  // Fetch seller analytics
-  const { data: analytics, isLoading: analyticsLoading } = useSellerAnalytics(user?.vendorId || 0);
+  // Fetch seller analytics only when we have a valid vendorId
+  const { data: analytics, isLoading: analyticsLoading } = useSellerAnalytics(user?.vendorId || undefined);
 
   // Filter products and orders for the current seller
   // Use the same filtering logic as seller products page

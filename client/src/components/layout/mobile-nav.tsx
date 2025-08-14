@@ -2,6 +2,7 @@ import { Link, useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
+import { isAdmin } from '@/lib/auth-utils';
 
 export default function MobileNav() {
   const { user } = useAuth();
@@ -26,7 +27,13 @@ export default function MobileNav() {
     { href: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
   ];
 
-  const navItems = user?.role === 'admin' ? adminNavItems : sellerNavItems;
+  // Use utility functions for consistent role checking
+  const userIsAdmin = isAdmin(user);
+  
+  console.log('🔍 MobileNav - User role object:', user?.role);
+  console.log('🔍 MobileNav - isAdmin:', userIsAdmin);
+  
+  const navItems = userIsAdmin ? adminNavItems : sellerNavItems;
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40">

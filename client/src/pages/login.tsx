@@ -87,7 +87,7 @@ export default function Login() {
       setLoginStatus("");
       
       const credentials = role === 'admin' 
-        ? { username: 'admin', password: 'admin123' }
+        ? { username: 'admin@cityshopping.com', password: 'Admin@123' }
         : { username: 'seller1_demo@example.com', password: 'TestSeller123!' };
       
       setLoginStatus(`Logging in as ${role}...`);
@@ -207,9 +207,9 @@ export default function Login() {
         <div className="text-center text-sm text-gray-600">
           <p className="font-medium mb-2">Demo Credentials:</p>
           <div className="space-y-1">
-            <p><strong>Admin:</strong> admin / admin123</p>
-            <p><strong>Seller:</strong> seller1 / seller123</p>
-            <p><strong>Seller (alt):</strong> seller2 / seller123</p>
+            <p><strong>Admin:</strong> admin@cityshopping.com / Admin@123</p>
+            <p><strong>Seller:</strong> seller1_demo@example.com / TestSeller123!</p>
+            <p><strong>Note:</strong> Use the demo buttons above for quick login</p>
           </div>
           <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
             <p><strong>Note:</strong> These are real Strapi accounts</p>

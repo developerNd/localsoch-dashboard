@@ -12,11 +12,21 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/use-auth';
 import { useQuery } from '@tanstack/react-query';
+import { isAdmin, isSeller } from '@/lib/auth-utils';
 
 export default function Header() {
   const { user, logout } = useAuth();
-  const isAdmin = user?.role?.name === 'admin';
-  const isSeller = user?.role?.name === 'seller';
+  
+  console.log('🔍 Header - Received user:', user);
+  console.log('🔍 Header - User role object:', user?.role);
+  console.log('🔍 Header - User role type:', typeof user?.role);
+  
+  // Use utility functions for consistent role checking
+  const userIsAdmin = isAdmin(user);
+  const userIsSeller = isSeller(user);
+  
+  console.log('🔍 Header - User role object:', user?.role);
+  console.log('🔍 Header - isAdmin:', userIsAdmin, 'isSeller:', userIsSeller);
 
   const { data: notifications } = useQuery({
     queryKey: ['/api/notifications'],
@@ -36,7 +46,7 @@ export default function Header() {
             <div className="flex items-center ml-4 lg:ml-0">
               <i className="fas fa-store text-primary text-2xl mr-3"></i>
               <h1 className="text-xl font-bold text-gray-900">
-                {isAdmin ? 'Admin Panel' : 'SellerHub'}
+                {userIsAdmin ? 'Admin Panel' : 'SellerHub'}
               </h1>
             </div>
           </div>
@@ -76,7 +86,7 @@ export default function Header() {
                     {user?.firstName} {user?.lastName}
                   </span>
                   <span className="hidden md:block text-xs text-gray-500 font-normal ml-2">
-                    {isAdmin ? 'Admin' : isSeller ? 'Seller' : ''}
+                    {userIsAdmin ? 'Admin' : userIsSeller ? 'Seller' : ''}
                   </span>
                   <ChevronDown className="h-4 w-4 text-gray-500" />
                 </Button>

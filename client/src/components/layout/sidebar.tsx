@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/use-auth';
 import { useQuery } from '@tanstack/react-query';
+import { useSellerAnalytics, useAdminAnalytics } from '@/hooks/use-api';
+import { isAdmin, isSeller, getRoleDisplayName } from '@/lib/auth-utils';
 
 interface SidebarProps {
   className?: string;
@@ -13,12 +15,22 @@ interface SidebarProps {
 export default function Sidebar({ className }: SidebarProps) {
   const { user } = useAuth();
   const [location] = useLocation();
+  
+  console.log('🔍 Sidebar - Received user:', user);
+  console.log('🔍 Sidebar - User role object:', user?.role);
+  console.log('🔍 Sidebar - User role type:', typeof user?.role);
 
-  const { data: analyticsRaw } = useQuery({
-    queryKey: ['/api/analytics'],
-    enabled: !!user,
-  });
-  const analytics = analyticsRaw || {};
+  // Use seller-specific analytics for sellers, general analytics for admins
+  const { data: sellerAnalytics } = useSellerAnalytics(user?.vendorId || undefined);
+  const { data: adminAnalytics } = useAdminAnalytics();
+  
+  // Use utility functions for consistent role checking
+  const userIsAdmin = isAdmin(user);
+  const userIsSeller = isSeller(user);
+  
+  console.log('🔍 Sidebar - User role object:', user?.role);
+  console.log('🔍 Sidebar - isAdmin:', userIsAdmin, 'isSeller:', userIsSeller);
+  const analytics = userIsSeller ? sellerAnalytics : adminAnalytics;
 
   const isActive = (path: string) => location.startsWith(path);
 
@@ -34,7 +46,7 @@ export default function Sidebar({ className }: SidebarProps) {
       href: '/seller/orders', 
       icon: 'fas fa-shopping-cart', 
       label: 'Orders',
-      badge: analytics?.recentOrders?.length 
+      badge: analytics?.totalOrders 
     },
     { href: '/seller/inventory', icon: 'fas fa-warehouse', label: 'Inventory' },
     { href: '/seller/earnings', icon: 'fas fa-chart-line', label: 'Earnings' },
@@ -49,7 +61,7 @@ export default function Sidebar({ className }: SidebarProps) {
       href: '/admin/sellers', 
       icon: 'fas fa-users', 
       label: 'Sellers',
-      badge: analytics?.totalSellers 
+      badge: userIsAdmin ? (analytics as any)?.totalSellers : undefined
     },
     { 
       href: '/admin/products', 
@@ -68,9 +80,7 @@ export default function Sidebar({ className }: SidebarProps) {
     { href: '/admin/featured-products', icon: 'fas fa-star', label: 'Featured Products' },
   ];
 
-  const isAdmin = user?.role?.name === 'admin';
-  const isSeller = user?.role?.name === 'seller';
-  const navItems = isAdmin ? adminNavItems : sellerNavItems;
+  const navItems = userIsAdmin ? adminNavItems : sellerNavItems;
 
   return (
     <aside className={cn(
@@ -92,7 +102,7 @@ export default function Sidebar({ className }: SidebarProps) {
                 {user?.sellerProfile?.shopName || `${user?.firstName} ${user?.lastName}`}
               </p>
               <p className="text-xs text-gray-500 capitalize">
-                {user?.role === 'admin' ? 'Administrator' : 'Seller Account'}
+                {getRoleDisplayName(user)}
               </p>
             </div>
           </div>

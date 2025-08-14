@@ -115,8 +115,8 @@ export default function SellerProducts() {
            'Uncategorized';
   };
 
-  // Helper function to get image URL from product
-  const getImageUrl = (product: any) => {
+  // Helper function to get image path from product
+  const getProductImagePath = (product: any) => {
     // Try multiple paths for image URL
     return getProductNestedData(product, ['image', 'data', 'attributes', 'url']) ||
            getProductNestedData(product, ['image', 'url']) ||
@@ -152,8 +152,8 @@ export default function SellerProducts() {
   // Set current image URL when editing product changes
   useEffect(() => {
     if (editingProduct) {
-      const imageUrl = getProductNestedData(editingProduct, ['image', 'data', 'attributes', 'url']) || getProductNestedData(editingProduct, ['image', 'url']);
-              setCurrentImageUrl(imageUrl ? getImageUrl(imageUrl) : null);
+      const imagePath = getProductImagePath(editingProduct);
+      setCurrentImageUrl(imagePath ? getImageUrl(imagePath) : null);
     } else {
       setCurrentImageUrl(null);
     }
@@ -680,9 +680,9 @@ export default function SellerProducts() {
                       <TableRow key={product.id}>
                         <TableCell>
                           <div className="flex items-center space-x-3">
-                            {getImageUrl(product) ? (
+                            {getProductImagePath(product) ? (
                               <img 
-                                src={getImageUrl(getImageUrl(product))} 
+                                src={getImageUrl(getProductImagePath(product))} 
                                 alt={getProductData(product, 'name')}
                                 className="w-10 h-10 rounded-lg object-cover"
                               />
