@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { normalizeStrapiResponse, type StrapiResponse, type StrapiEntity } from "./strapi-adapter";
+import { getApiUrl } from './config';
 
 // Strapi API Configuration
 const STRAPI_API_URL = "https://api.localsoch.com"; // Production API
@@ -12,7 +13,7 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.localsoch.com';
+const API_URL = getApiUrl('');
 
 export async function apiRequest(method: string, url: string, body?: any, customHeaders?: Record<string, string>) {
   const token = localStorage.getItem('authToken');

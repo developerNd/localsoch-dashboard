@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { toStrapiFormat, normalizeProduct, normalizeVendor, normalizeOrder, normalizeCategory } from '@/lib/strapi-adapter';
+import { getApiUrl } from '@/lib/config';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:1337';
+const API_URL = getApiUrl('');
 
 // Products API hooks
 export function useProducts() {
@@ -59,7 +60,7 @@ export function useCreateProduct() {
           const imageFormData = new FormData();
           imageFormData.append('files', productData.image);
           
-          const uploadResponse = await fetch(`${API_URL}/api/upload`, {
+          const uploadResponse = await fetch(getApiUrl('/api/upload'), {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -81,7 +82,7 @@ export function useCreateProduct() {
             imagesFormData.append('files', file);
           });
           
-          const uploadResponse = await fetch(`${API_URL}/api/upload`, {
+          const uploadResponse = await fetch(getApiUrl('/api/upload'), {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('authToken')}`,

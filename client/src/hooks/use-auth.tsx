@@ -86,13 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (user.role && typeof user.role === 'object' && 'name' in user.role && (user.role as any).name === 'seller') {
           console.log('🔍 User is seller, setting vendor ID for user ID:', user.id);
           
-          // Temporary fix: Hardcode vendorId for known users
-          if (user.id === 10) {
-            vendorId = 5; // myshop vendor
-            console.log('🔍 Set vendor ID to 5 for user 10 (testseller)');
-          } else {
-            console.log('🔍 Unknown seller user, no vendor ID set');
-          }
+          // No hardcoded mapping - rely on proper vendor-user relationships
+          console.log('🔍 Seller user, but no vendor ID available - check vendor-user relationships');
         } else {
           console.log('🔍 User is not seller, role:', user.role);
           console.log('🔍 Complete user object:', JSON.stringify(user, null, 2));

@@ -128,8 +128,20 @@ export default function SellerProducts() {
   const { data: allProducts, isLoading, error } = useProducts();
   
   // Filter products for the current seller
-  // Temporary fix: If vendorId is undefined, use hardcoded vendorId for known users
-  const effectiveVendorId = user?.vendorId || (user?.id === 10 ? 5 : undefined);
+  // Use only the vendorId from the user object (no fallback)
+  const effectiveVendorId = user?.vendorId;
+  
+  // Debug logging
+  console.log('🔍 Seller Products Debug:', {
+    user: user,
+    userId: user?.id,
+    userRole: user?.role,
+    userRoleName: user?.role && typeof user.role === 'object' ? user.role.name : user?.role,
+    vendorId: user?.vendorId,
+    effectiveVendorId: effectiveVendorId,
+    isSeller: user?.role && typeof user.role === 'object' && user.role.name === 'seller',
+    shouldShowAddButton: effectiveVendorId || (user?.role && typeof user.role === 'object' && user.role.name === 'seller')
+  });
   
   const products = Array.isArray(allProducts) ? allProducts.filter((product: any) => {
     // Check multiple possible vendor ID fields
@@ -198,7 +210,7 @@ export default function SellerProducts() {
 
   const handleSubmit = async (data: ProductFormData) => {
     try {
-      const effectiveVendorId = user?.vendorId || (user?.id === 10 ? 5 : undefined);
+      const effectiveVendorId = user?.vendorId;
       
       // Convert form data to Strapi format
       const productData: any = {
@@ -207,7 +219,7 @@ export default function SellerProducts() {
         price: parseFloat(data.price),
         stock: data.stock,
         category: data.categoryId ? { id: data.categoryId } : undefined, // Relation format
-        // Don't send vendor - backend will set it automatically
+        vendor: effectiveVendorId ? { id: effectiveVendorId } : undefined, // Include vendor ID
       };
       
       // Handle image upload if present
@@ -345,7 +357,7 @@ export default function SellerProducts() {
               }
             </p>
           </div>
-          {effectiveVendorId && (
+          {(effectiveVendorId || (user?.role && typeof user.role === 'object' && user.role.name === 'seller')) && (
             <div className="flex-shrink-0">
               <Button onClick={() => {
                 clearForm();
@@ -392,7 +404,7 @@ export default function SellerProducts() {
         </div>
 
         {/* Add Product Dialog - Only show for sellers */}
-        {effectiveVendorId && (
+        {(effectiveVendorId || (user?.role && typeof user.role === 'object' && user.role.name === 'seller')) && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -644,7 +656,7 @@ export default function SellerProducts() {
                   }
                 </p>
                
-                {statusFilter === 'all' && !searchQuery && (user?.vendorId || user?.id === 10) && (
+                {statusFilter === 'all' && !searchQuery && (user?.vendorId || (user?.role && typeof user.role === 'object' && user.role.name === 'seller')) && (
                   <Button onClick={() => setIsAddDialogOpen(true)}>
                     <i className="fas fa-plus mr-2"></i>
                     Add Your First Product
