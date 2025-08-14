@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useProducts, useCategories, useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/use-api';
 import { z } from 'zod';
+import { getImageUrl } from '@/lib/config';
 
 // Product form schema
 const productFormSchema = z.object({
@@ -140,7 +141,7 @@ export default function SellerProducts() {
   useEffect(() => {
     if (editingProduct) {
       const imageUrl = getProductNestedData(editingProduct, ['image', 'data', 'attributes', 'url']) || getProductNestedData(editingProduct, ['image', 'url']);
-              setCurrentImageUrl(imageUrl ? `https://api.localsoch.com${imageUrl}` : null);
+              setCurrentImageUrl(imageUrl ? getImageUrl(imageUrl) : null);
     } else {
       setCurrentImageUrl(null);
     }
@@ -669,7 +670,7 @@ export default function SellerProducts() {
                           <div className="flex items-center space-x-3">
                             {getImageUrl(product) ? (
                               <img 
-                                src={`https://api.localsoch.com${getImageUrl(product)}`} 
+                                src={getImageUrl(getImageUrl(product))} 
                                 alt={getProductData(product, 'name')}
                                 className="w-10 h-10 rounded-lg object-cover"
                               />

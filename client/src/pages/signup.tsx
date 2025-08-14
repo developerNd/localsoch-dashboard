@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getApiUrl, API_ENDPOINTS } from "@/lib/config";
 
 interface SignupFormData {
   username: string;
@@ -91,7 +92,7 @@ export default function Signup() {
 
     try {
       // Step 1: Create user account
-      const userResponse = await fetch('https://api.localsoch.com/api/auth/local/register', {
+      const userResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.REGISTER), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -127,6 +128,8 @@ export default function Signup() {
         vendor: null, // Will be created after payment
         jwt: userData.jwt,
         formData: {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
           shopName: formData.shopName,
           shopDescription: formData.shopDescription,
           address: formData.address,

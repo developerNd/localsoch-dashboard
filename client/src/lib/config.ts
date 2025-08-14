@@ -1,14 +1,9 @@
 // API Configuration
 export const API_CONFIG = {
-  // Development
-  DEV_API_URL: 'http://localhost:1337',
-  
-  // Production
-  PROD_API_URL: 'https://api.localsoch.com',
-  
-  // Get the appropriate API URL based on environment
+  // Get API URL from environment variable or fallback to production
   get API_URL() {
-    return import.meta.env.PROD ? this.PROD_API_URL : this.DEV_API_URL;
+    return 'https://api.localsoch.com';
+    // return 'http://localhost:1337';
   },
   
   // Get the appropriate image URL based on environment

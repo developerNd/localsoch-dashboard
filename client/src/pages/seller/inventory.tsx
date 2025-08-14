@@ -15,6 +15,7 @@ import MobileNav from '@/components/layout/mobile-nav';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { getImageUrl } from '@/lib/config';
 
 // Helper function to normalize Strapi product data
 const normalizeProduct = (product: any) => {
@@ -343,7 +344,7 @@ export default function SellerInventory() {
                             <div className="flex items-center space-x-3">
                               {product.image ? (
                                 <img 
-                                  src={`https://api.localsoch.com${product.image}`} 
+                                  src={getImageUrl(product.image)} 
                                   alt={product.name}
                                   className="w-10 h-10 rounded-lg object-cover"
                                 />

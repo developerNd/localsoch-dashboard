@@ -16,6 +16,7 @@ import MobileNav from '@/components/layout/mobile-nav';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { getAuthToken } from '@/lib/auth';
+import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
 
 interface Product {
   id: number;
@@ -71,7 +72,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch('https://api.localsoch.com/api/featured-products?populate=product', {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.FEATURED_PRODUCTS}?populate=product`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -89,7 +90,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch('https://api.localsoch.com/api/products?populate=image', {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.PRODUCTS}?populate=image`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -106,7 +107,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch('https://api.localsoch.com/api/featured-products', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.FEATURED_PRODUCTS), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +142,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch(`https://api.localsoch.com/api/featured-products/${id}`, {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.FEATURED_PRODUCTS}/${id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +177,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch(`https://api.localsoch.com/api/featured-products/${id}`, {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.FEATURED_PRODUCTS}/${id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -490,7 +491,7 @@ export default function AdminFeaturedProducts() {
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <img
-                            src={featuredProduct.product.image?.url ? `https://api.localsoch.com${featuredProduct.product.image.url}` : '/placeholder-product.jpg'}
+                            src={featuredProduct.product.image?.url ? getImageUrl(featuredProduct.product.image.url) : '/placeholder-product.jpg'}
                             alt={featuredProduct.product.name}
                             className="w-12 h-12 rounded-lg object-cover"
                           />

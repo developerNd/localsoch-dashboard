@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Test - LocalSoch</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .button {
+            background: #3B82F6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background: #2563EB;
+        }
+        .button:disabled {
+            background: #9CA3AF;
+            cursor: not-allowed;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        .success {
+            background: #D1FAE5;
+            color: #065F46;
+            border: 1px solid #A7F3D0;
+        }
+        .error {
+            background: #FEE2E2;
+            color: #991B1B;
+            border: 1px solid #FECACA;
+        }
+        .info {
+            background: #DBEAFE;
+            color: #1E40AF;
+            border: 1px solid #BFDBFE;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Payment Integration Test</h1>
+        <p>This page tests the Razorpay integration for LocalSoch seller registration.</p>
+        
+        <div id="status" class="status info">
+            Ready to test payment integration
+        </div>
+        
+        <button class="button" onclick="testPayment()">Test Payment (₹1,625)</button>
+        <button class="button" onclick="testBackendConnection()">Test Backend Connection</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        async function testBackendConnection() {
+            updateStatus('Testing backend connection...', 'info');
+            
+            try {
+                const response = await fetch('https://api.localsoch.com/api/payment/create-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: 1625,
+                        currency: 'INR',
+                        receipt: `test_${Date.now()}`,
+                        notes: {
+                            customerName: 'Test User',
+                            customerEmail: 'test@example.com',
+                            customerPhone: '1234567890',
+                            address: 'Test Address',
+                        },
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    updateStatus('✅ Backend connection successful!', 'success');
+                    addResult(`Order created: ${data.order.id}`, 'success');
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    updateStatus('❌ Backend connection failed', 'error');
+                    addResult(`Error: ${errorData.message || response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus('❌ Backend connection failed', 'error');
+                addResult(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPayment() {
+            updateStatus('Initializing payment...', 'info');
+            
+            try {
+                // Test backend connection first
+                const response = await fetch('https://api.localsoch.com/api/payment/create-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: 1625,
+                        currency: 'INR',
+                        receipt: `test_${Date.now()}`,
+                        notes: {
+                            customerName: 'Test User',
+                            customerEmail: 'test@example.com',
+                            customerPhone: '1234567890',
+                            address: 'Test Address',
+                        },
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create payment order');
+                }
+
+                const data = await response.json();
+                addResult(`✅ Order created: ${data.order.id}`, 'success');
+
+                // Load Razorpay script
+                updateStatus('Loading Razorpay...', 'info');
+                await loadRazorpayScript();
+                addResult('✅ Razorpay script loaded', 'success');
+
+                // Initialize payment
+                updateStatus('Opening payment modal...', 'info');
+                const options = {
+                    key: 'rzp_test_lFR1xyqT46S2QF',
+                    amount: 162500, // ₹1,625 in paise
+                    currency: 'INR',
+                    name: 'LocalSoch',
+                    description: 'Seller Registration Test',
+                    order_id: data.order.id,
+                    prefill: {
+                        name: 'Test User',
+                        email: 'test@example.com',
+                        contact: '1234567890',
+                    },
+                    notes: {
+                        address: 'Test Address',
+                    },
+                    theme: {
+                        color: '#3B82F6',
+                    },
+                    handler: function(response) {
+                        updateStatus('✅ Payment successful!', 'success');
+                        addResult(`Payment ID: ${response.razorpay_payment_id}`, 'success');
+                        addResult(`Order ID: ${response.razorpay_order_id}`, 'success');
+                        addResult(`Signature: ${response.razorpay_signature}`, 'success');
+                    },
+                    modal: {
+                        ondismiss: function() {
+                            updateStatus('Payment modal dismissed', 'info');
+                        },
+                    },
+                };
+
+                const razorpay = new window.Razorpay(options);
+                razorpay.open();
+                
+            } catch (error) {
+                updateStatus('❌ Payment test failed', 'error');
+                addResult(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function loadRazorpayScript() {
+            return new Promise((resolve, reject) => {
+                if (window.Razorpay) {
+                    resolve();
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+                document.head.appendChild(script);
+            });
+        }
+    </script>
+</body>
+</html> 

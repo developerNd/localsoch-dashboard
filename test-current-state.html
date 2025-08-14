@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Current State</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { margin: 5px; padding: 10px 15px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Current State Test</h1>
+    
+    <div class="test-section info">
+        <h3>📋 Instructions</h3>
+        <p>This page helps test the current authentication and routing state. Use the buttons below to check different aspects.</p>
+    </div>
+
+    <div class="test-section">
+        <h3>🔐 Authentication Test</h3>
+        <button onclick="checkAuth()">Check Authentication State</button>
+        <button onclick="checkLocalStorage()">Check LocalStorage</button>
+        <button onclick="clearAuth()">Clear Authentication</button>
+        <div id="auth-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🌐 API Connectivity Test</h3>
+        <button onclick="testAPI()">Test Production API</button>
+        <button onclick="testPaymentAPI()">Test Payment API</button>
+        <div id="api-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🛒 Payment Flow Test</h3>
+        <button onclick="testPaymentFlow()">Test Payment Flow</button>
+        <button onclick="simulatePaymentSuccess()">Simulate Payment Success</button>
+        <div id="payment-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>📱 App Navigation Test</h3>
+        <button onclick="openApp()">Open App (http://localhost:5000)</button>
+        <button onclick="openSignup()">Open Signup Page</button>
+        <button onclick="openPayment()">Open Payment Page</button>
+        <button onclick="openSellerDashboard()">Open Seller Dashboard</button>
+        <div id="nav-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔧 Debug Information</h3>
+        <button onclick="showDebugInfo()">Show Debug Info</button>
+        <div id="debug-result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'https://api.localsoch.com';
+
+        async function checkAuth() {
+            const result = document.getElementById('auth-result');
+            result.innerHTML = '<p>Checking authentication...</p>';
+            
+            try {
+                const token = localStorage.getItem('authToken') || localStorage.getItem('jwt');
+                const userData = localStorage.getItem('userData');
+                const pendingData = localStorage.getItem('pendingSellerData');
+                
+                let html = '<div class="info">';
+                html += '<h4>Authentication Status:</h4>';
+                html += `<p><strong>Token:</strong> ${token ? '✅ Present' : '❌ Missing'}</p>`;
+                html += `<p><strong>User Data:</strong> ${userData ? '✅ Present' : '❌ Missing'}</p>`;
+                html += `<p><strong>Pending Seller Data:</strong> ${pendingData ? '✅ Present' : '❌ Missing'}</p>`;
+                
+                if (token) {
+                    html += '<p><strong>Token Preview:</strong> ' + token.substring(0, 20) + '...</p>';
+                }
+                
+                if (userData) {
+                    try {
+                        const user = JSON.parse(userData);
+                        html += '<p><strong>User Info:</strong> ' + (user.username || user.email || 'Unknown') + '</p>';
+                        html += '<p><strong>User Role:</strong> ' + (user.role?.name || user.role || 'Unknown') + '</p>';
+                    } catch (e) {
+                        html += '<p><strong>User Data:</strong> ❌ Invalid JSON</p>';
+                    }
+                }
+                
+                if (pendingData) {
+                    try {
+                        const pending = JSON.parse(pendingData);
+                        html += '<p><strong>Pending Shop Name:</strong> ' + (pending.formData?.shopName || 'Unknown') + '</p>';
+                    } catch (e) {
+                        html += '<p><strong>Pending Data:</strong> ❌ Invalid JSON</p>';
+                    }
+                }
+                
+                html += '</div>';
+                result.innerHTML = html;
+            } catch (error) {
+                result.innerHTML = '<div class="error"><p>Error checking auth: ' + error.message + '</p></div>';
+            }
+        }
+
+        function checkLocalStorage() {
+            const result = document.getElementById('auth-result');
+            const keys = Object.keys(localStorage);
+            
+            let html = '<div class="info">';
+            html += '<h4>LocalStorage Contents:</h4>';
+            html += '<ul>';
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                html += `<li><strong>${key}:</strong> ${value ? value.substring(0, 50) + '...' : 'empty'}</li>`;
+            });
+            html += '</ul>';
+            html += '</div>';
+            
+            result.innerHTML = html;
+        }
+
+        function clearAuth() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('jwt');
+            localStorage.removeItem('userData');
+            localStorage.removeItem('pendingSellerData');
+            localStorage.removeItem('pendingVendorData');
+            
+            document.getElementById('auth-result').innerHTML = 
+                '<div class="success"><p>✅ Authentication data cleared</p></div>';
+        }
+
+        async function testAPI() {
+            const result = document.getElementById('api-result');
+            result.innerHTML = '<p>Testing API connectivity...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/global`);
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML = '<div class="success"><p>✅ API is accessible</p><pre>' + JSON.stringify(data, null, 2) + '</pre></div>';
+                } else {
+                    result.innerHTML = '<div class="error"><p>❌ API returned status: ' + response.status + '</p></div>';
+                }
+            } catch (error) {
+                result.innerHTML = '<div class="error"><p>❌ API Error: ' + error.message + '</p></div>';
+            }
+        }
+
+        async function testPaymentAPI() {
+            const result = document.getElementById('api-result');
+            result.innerHTML = '<p>Testing payment API...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/payment/create-order`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: 1625,
+                        currency: 'INR',
+                        receipt: 'test_receipt_' + Date.now()
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    result.innerHTML = '<div class="success"><p>✅ Payment API is working</p><pre>' + JSON.stringify(data, null, 2) + '</pre></div>';
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    result.innerHTML = '<div class="error"><p>❌ Payment API Error: ' + response.status + '</p><pre>' + JSON.stringify(errorData, null, 2) + '</pre></div>';
+                }
+            } catch (error) {
+                result.innerHTML = '<div class="error"><p>❌ Payment API Error: ' + error.message + '</p></div>';
+            }
+        }
+
+        function testPaymentFlow() {
+            const result = document.getElementById('payment-result');
+            
+            // Simulate pending seller data
+            const mockPendingData = {
+                user: {
+                    id: 1,
+                    username: 'testuser',
+                    email: 'test@example.com'
+                },
+                vendor: null,
+                jwt: 'mock_jwt_token',
+                formData: {
+                    firstName: 'Test',
+                    lastName: 'User',
+                    shopName: 'Test Shop',
+                    shopDescription: 'A test shop',
+                    address: '123 Test St',
+                    city: 'Test City',
+                    state: 'Test State',
+                    pincode: '123456',
+                    businessType: 'retail',
+                    phone: '1234567890',
+                    email: 'test@example.com'
+                }
+            };
+            
+            localStorage.setItem('pendingSellerData', JSON.stringify(mockPendingData));
+            
+            result.innerHTML = '<div class="success"><p>✅ Mock payment data created</p><p>Now you can test the payment flow by going to the payment page</p></div>';
+        }
+
+        function simulatePaymentSuccess() {
+            const result = document.getElementById('payment-result');
+            
+            // Simulate successful payment
+            const mockPaymentResponse = {
+                razorpay_payment_id: 'pay_test_' + Date.now(),
+                razorpay_order_id: 'order_test_' + Date.now(),
+                razorpay_signature: 'mock_signature'
+            };
+            
+            // Store in localStorage for testing
+            localStorage.setItem('mockPaymentResponse', JSON.stringify(mockPaymentResponse));
+            
+            result.innerHTML = '<div class="success"><p>✅ Mock payment response created</p><p>Payment ID: ' + mockPaymentResponse.razorpay_payment_id + '</p></div>';
+        }
+
+        function openApp() {
+            window.open('http://localhost:5000', '_blank');
+            document.getElementById('nav-result').innerHTML = '<div class="info"><p>🌐 Opening app in new tab...</p></div>';
+        }
+
+        function openSignup() {
+            window.open('http://localhost:5000/signup', '_blank');
+            document.getElementById('nav-result').innerHTML = '<div class="info"><p>📝 Opening signup page...</p></div>';
+        }
+
+        function openPayment() {
+            window.open('http://localhost:5000/payment', '_blank');
+            document.getElementById('nav-result').innerHTML = '<div class="info"><p>💳 Opening payment page...</p></div>';
+        }
+
+        function openSellerDashboard() {
+            window.open('http://localhost:5000/seller', '_blank');
+            document.getElementById('nav-result').innerHTML = '<div class="info"><p>📊 Opening seller dashboard...</p></div>';
+        }
+
+        function showDebugInfo() {
+            const result = document.getElementById('debug-result');
+            
+            const debugInfo = {
+                userAgent: navigator.userAgent,
+                localStorage: Object.keys(localStorage),
+                sessionStorage: Object.keys(sessionStorage),
+                cookies: document.cookie,
+                currentUrl: window.location.href,
+                timestamp: new Date().toISOString()
+            };
+            
+            result.innerHTML = '<div class="info"><h4>Debug Information:</h4><pre>' + JSON.stringify(debugInfo, null, 2) + '</pre></div>';
+        }
+
+        // Auto-check auth on page load
+        window.addEventListener('load', () => {
+            checkAuth();
+            testAPI();
+        });
+    </script>
+</body>
+</html> 

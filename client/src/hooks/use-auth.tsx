@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { getAuthToken, setAuthToken, removeAuthToken, type AuthUser } from '@/lib/auth';
+import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Fetching user data with token:', token.substring(0, 20) + '...');
       try {
         // Always populate the role relation
-        const res = await fetch('https://api.localsoch.com/api/users/me?populate=role', {
+        const res = await fetch(getApiUrl(`${API_ENDPOINTS.AUTH.ME}?populate=role`), {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log('User API response status:', res.status);
@@ -151,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
       // Real Strapi login
-              const response = await fetch('https://api.localsoch.com/api/auth/local', {
+              const response = await fetch(getApiUrl(API_ENDPOINTS.AUTH.LOGIN), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -170,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         try {
           // First try to fetch all vendors to find the one linked to this user
-          const allVendorsRes = await fetch('https://api.localsoch.com/api/vendors?populate=user', {
+          const allVendorsRes = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}?populate=user`), {
             headers: { 
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${jwt}`
@@ -203,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
              
              try {
                // Use the custom vendor endpoint that respects seller permissions
-               const customVendorRes = await fetch('https://api.localsoch.com/api/vendors?populate=user', {
+                               const customVendorRes = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}?populate=user`), {
                  headers: { 
                    'Content-Type': 'application/json',
                    'Authorization': `Bearer ${jwt}`

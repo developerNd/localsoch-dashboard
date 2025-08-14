@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production API Test - LocalSoch</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Production API Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Test Production API Connection</h3>
+        <button onclick="testProductionAPI()">Test API Connection</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test Payment Order Creation</h3>
+        <button onclick="testPaymentOrder()">Test Payment Order</button>
+        <div id="paymentResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Test Razorpay Integration</h3>
+        <button onclick="testRazorpay()">Test Razorpay</button>
+        <div id="razorpayResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Test Registration Flow</h3>
+        <a href="http://localhost:5000/signup" target="_blank">
+            <button>Test Full Registration</button>
+        </a>
+        <p><strong>Steps:</strong></p>
+        <ol>
+            <li>Fill registration form</li>
+            <li>Submit form (uses production API)</li>
+            <li>Redirect to payment page</li>
+            <li>Test Razorpay payment</li>
+        </ol>
+    </div>
+
+    <script>
+        async function testProductionAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            resultDiv.innerHTML = '<div class="info">Testing production API...</div>';
+            
+            try {
+                const response = await fetch('https://api.localsoch.com/api/products');
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Production API is working!</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>Products found:</strong> ${data.data?.length || 0}</p>
+                            <details>
+                                <summary>API Response</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Production API Error</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Production API Connection Failed</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testPaymentOrder() {
+            const resultDiv = document.getElementById('paymentResult');
+            resultDiv.innerHTML = '<div class="info">Testing payment order creation...</div>';
+            
+            try {
+                const response = await fetch('https://api.localsoch.com/api/payment/create-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: 1625,
+                        currency: 'INR',
+                        receipt: `test_${Date.now()}`,
+                        notes: {
+                            customerName: 'Test User',
+                            customerEmail: 'test@example.com',
+                            customerPhone: '1234567890',
+                            address: 'Test Address',
+                        },
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Payment Order Created!</h4>
+                            <p><strong>Order ID:</strong> ${data.order.id}</p>
+                            <p><strong>Amount:</strong> ₹${data.order.amount / 100}</p>
+                            <details>
+                                <summary>Order Details</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Payment Order Failed</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>Error:</strong> ${errorData.message || 'Unknown error'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Payment Order Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testRazorpay() {
+            const resultDiv = document.getElementById('razorpayResult');
+            resultDiv.innerHTML = '<div class="info">Testing Razorpay integration...</div>';
+            
+            try {
+                // First create a payment order
+                const orderResponse = await fetch('https://api.localsoch.com/api/payment/create-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: 1625,
+                        currency: 'INR',
+                        receipt: `razorpay_test_${Date.now()}`,
+                        notes: {
+                            customerName: 'Test User',
+                            customerEmail: 'test@example.com',
+                            customerPhone: '1234567890',
+                            address: 'Test Address',
+                        },
+                    }),
+                });
+
+                if (!orderResponse.ok) {
+                    throw new Error('Failed to create payment order');
+                }
+
+                const orderData = await orderResponse.json();
+                
+                // Load Razorpay script
+                await loadRazorpayScript();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h4>✅ Razorpay Ready!</h4>
+                        <p><strong>Order ID:</strong> ${orderData.order.id}</p>
+                        <p>Click the button below to open Razorpay payment modal:</p>
+                        <button onclick="openRazorpay('${orderData.order.id}')">Open Razorpay Payment</button>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Razorpay Test Failed</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function openRazorpay(orderId) {
+            const options = {
+                key: 'rzp_test_lFR1xyqT46S2QF',
+                amount: 162500, // ₹1,625 in paise
+                currency: 'INR',
+                name: 'LocalSoch',
+                description: 'Seller Registration Test',
+                order_id: orderId,
+                prefill: {
+                    name: 'Test User',
+                    email: 'test@example.com',
+                    contact: '1234567890',
+                },
+                notes: {
+                    address: 'Test Address',
+                },
+                theme: {
+                    color: '#3B82F6',
+                },
+                handler: function(response) {
+                    document.getElementById('razorpayResult').innerHTML = `
+                        <div class="success">
+                            <h4>✅ Payment Successful!</h4>
+                            <p><strong>Payment ID:</strong> ${response.razorpay_payment_id}</p>
+                            <p><strong>Order ID:</strong> ${response.razorpay_order_id}</p>
+                            <p><strong>Signature:</strong> ${response.razorpay_signature}</p>
+                        </div>
+                    `;
+                },
+                modal: {
+                    ondismiss: function() {
+                        console.log('Payment modal dismissed');
+                    },
+                },
+            };
+
+            const razorpay = new window.Razorpay(options);
+            razorpay.open();
+        }
+
+        function loadRazorpayScript() {
+            return new Promise((resolve, reject) => {
+                if (window.Razorpay) {
+                    resolve();
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+                document.head.appendChild(script);
+            });
+        }
+    </script>
+</body>
+</html> 

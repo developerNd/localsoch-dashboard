@@ -16,6 +16,7 @@ import MobileNav from '@/components/layout/mobile-nav';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { getAuthToken } from '@/lib/auth';
+import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
 
 interface Banner {
   id: number;
@@ -69,7 +70,7 @@ export default function AdminBanners() {
       
       console.log('🔍 Fetching banners with token:', token.substring(0, 20) + '...');
       
-      const response = await fetch('https://api.localsoch.com/api/banners?populate=image', {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.BANNERS}?populate=image`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -98,7 +99,7 @@ export default function AdminBanners() {
       const formData = new FormData();
       formData.append('files', file);
       
-      const response = await fetch('https://api.localsoch.com/api/upload', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.UPLOAD), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -133,7 +134,7 @@ export default function AdminBanners() {
       
       console.log('Creating banner with data:', dataToSend);
       
-      const response = await fetch('https://api.localsoch.com/api/banners', {
+      const response = await fetch(getApiUrl(API_ENDPOINTS.BANNERS), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +190,7 @@ export default function AdminBanners() {
       
       console.log('Updating banner with data:', { id, dataToSend });
       
-      const response = await fetch(`https://api.localsoch.com/api/banners/${id}`, {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.BANNERS}/${id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -231,7 +232,7 @@ export default function AdminBanners() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch(`https://api.localsoch.com/api/banners/${id}`, {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.BANNERS}/${id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -320,7 +321,7 @@ export default function AdminBanners() {
     
     // Set image preview if banner has an image
     if (banner.image?.url) {
-              setImagePreview(`https://api.localsoch.com${banner.image.url}`);
+              setImagePreview(getImageUrl(banner.image.url));
       setSelectedImage(null); // Clear selected image since we're editing existing
     } else {
       setImagePreview(null);
@@ -607,7 +608,7 @@ export default function AdminBanners() {
                       <TableCell>
                         {banner.image?.url ? (
                           <img
-                            src={`https://api.localsoch.com${banner.image.url}`}
+                            src={getImageUrl(banner.image.url)}
                             alt={banner.title}
                             className="w-16 h-12 rounded-lg object-cover border"
                           />

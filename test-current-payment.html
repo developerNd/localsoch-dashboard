@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Current Payment Page</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Current Payment Page</h1>
+    
+    <div class="test-section">
+        <h3>1. Check Development Server</h3>
+        <button onclick="checkServer()">Check Server Status</button>
+        <div id="serverResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test Payment Page Directly</h3>
+        <a href="http://localhost:3000/payment" target="_blank">
+            <button>Open Payment Page</button>
+        </a>
+        <p><strong>Expected:</strong> Should show registration summary and "Pay ₹1,625.00" button</p>
+        <p><strong>If you see old payment form:</strong> Browser is caching old version</p>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Test Full Registration Flow</h3>
+        <a href="http://localhost:3000/signup" target="_blank">
+            <button>Start Registration</button>
+        </a>
+        <p><strong>Steps:</strong></p>
+        <ol>
+            <li>Fill out the registration form</li>
+            <li>Submit the form</li>
+            <li>Should redirect to payment page with new interface</li>
+            <li>Click "Pay ₹1,625.00" to test Razorpay</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Clear Browser Cache</h3>
+        <p>If you're still seeing the old payment page:</p>
+        <ul>
+            <li><strong>Chrome/Edge:</strong> Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)</li>
+            <li><strong>Firefox:</strong> Ctrl+F5 (Windows) or Cmd+Shift+R (Mac)</li>
+            <li><strong>Or:</strong> Open Developer Tools → Right-click refresh button → "Empty Cache and Hard Reload"</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h3>5. Check Console for Errors</h3>
+        <button onclick="checkConsole()">Check for JavaScript Errors</button>
+        <div id="consoleResult"></div>
+    </div>
+
+    <script>
+        async function checkServer() {
+            const resultDiv = document.getElementById('serverResult');
+            resultDiv.innerHTML = '<div>Checking server...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:5000');
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Server is running!</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>URL:</strong> http://localhost:5000</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Server Error</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Connection Error</h4>
+                        <p>${error.message}</p>
+                        <p><strong>Make sure:</strong></p>
+                        <ul>
+                            <li>Development server is running: <code>npm run dev</code></li>
+                            <li>Server is on port 5000</li>
+                            <li>No firewall blocking the connection</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+
+        function checkConsole() {
+            const resultDiv = document.getElementById('consoleResult');
+            resultDiv.innerHTML = `
+                <div class="success">
+                    <h4>📋 Console Check Instructions:</h4>
+                    <ol>
+                        <li>Open the payment page in a new tab</li>
+                        <li>Press F12 to open Developer Tools</li>
+                        <li>Go to "Console" tab</li>
+                        <li>Look for any red error messages</li>
+                        <li>Check if you see "Payment successful:" logs</li>
+                    </ol>
+                    <p><strong>Common Issues:</strong></p>
+                    <ul>
+                        <li>Module not found errors → Build issue</li>
+                        <li>Network errors → Backend not running</li>
+                        <li>Razorpay not defined → Script loading issue</li>
+                    </ul>
+                </div>
+            `;
+        }
+
+        // Auto-check server on page load
+        window.addEventListener('load', () => {
+            checkServer();
+        });
+    </script>
+</body>
+</html> 
