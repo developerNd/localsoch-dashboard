@@ -140,7 +140,7 @@ export default function SellerProducts() {
   useEffect(() => {
     if (editingProduct) {
       const imageUrl = getProductNestedData(editingProduct, ['image', 'data', 'attributes', 'url']) || getProductNestedData(editingProduct, ['image', 'url']);
-      setCurrentImageUrl(imageUrl ? `http://localhost:1337${imageUrl}` : null);
+              setCurrentImageUrl(imageUrl ? `https://api.localsoch.com${imageUrl}` : null);
     } else {
       setCurrentImageUrl(null);
     }
@@ -669,7 +669,7 @@ export default function SellerProducts() {
                           <div className="flex items-center space-x-3">
                             {getImageUrl(product) ? (
                               <img 
-                                src={`http://localhost:1337${getImageUrl(product)}`} 
+                                src={`https://api.localsoch.com${getImageUrl(product)}`} 
                                 alt={getProductData(product, 'name')}
                                 className="w-10 h-10 rounded-lg object-cover"
                               />

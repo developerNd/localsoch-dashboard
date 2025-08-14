@@ -91,7 +91,7 @@ export default function Signup() {
 
     try {
       // Step 1: Create user account
-      const userResponse = await fetch('http://localhost:1337/api/auth/local/register', {
+      const userResponse = await fetch('https://api.localsoch.com/api/auth/local/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

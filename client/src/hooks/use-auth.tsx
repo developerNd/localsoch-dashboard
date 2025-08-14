@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('Fetching user data with token:', token.substring(0, 20) + '...');
       try {
         // Always populate the role relation
-        const res = await fetch('http://localhost:1337/api/users/me?populate=role', {
+        const res = await fetch('https://api.localsoch.com/api/users/me?populate=role', {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log('User API response status:', res.status);
@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
       // Real Strapi login
-      const response = await fetch('http://localhost:1337/api/auth/local', {
+              const response = await fetch('https://api.localsoch.com/api/auth/local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -170,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         try {
           // First try to fetch all vendors to find the one linked to this user
-          const allVendorsRes = await fetch('http://localhost:1337/api/vendors?populate=user', {
+          const allVendorsRes = await fetch('https://api.localsoch.com/api/vendors?populate=user', {
             headers: { 
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${jwt}`
@@ -203,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
              
              try {
                // Use the custom vendor endpoint that respects seller permissions
-               const customVendorRes = await fetch('http://localhost:1337/api/vendors?populate=user', {
+               const customVendorRes = await fetch('https://api.localsoch.com/api/vendors?populate=user', {
                  headers: { 
                    'Content-Type': 'application/json',
                    'Authorization': `Bearer ${jwt}`

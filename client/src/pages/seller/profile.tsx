@@ -35,7 +35,7 @@ export default function SellerProfile() {
   // Find vendor by user ID if direct vendor ID is not available
   const findVendorByUserId = async (userId: number) => {
     try {
-      const response = await fetch(`http://localhost:1337/api/vendors?filters[user][id][$eq]=${userId}`, {
+      const response = await fetch(`https://api.localsoch.com/api/vendors?filters[user][id][$eq]=${userId}`, {
         headers: {
           'Authorization': 'Bearer e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5',
         },
@@ -74,7 +74,7 @@ export default function SellerProfile() {
       }
       
       try {
-        const response = await fetch(`http://localhost:1337/api/vendors/${targetVendorId}`, {
+        const response = await fetch(`https://api.localsoch.com/api/vendors/${targetVendorId}`, {
           headers: {
             'Authorization': 'Bearer e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5',
           },
@@ -168,7 +168,7 @@ export default function SellerProfile() {
         'Authorization': 'Bearer e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5',
       };
       
-      const response = await fetch(`http://localhost:1337/api/vendors/${currentVendorId}`, {
+      const response = await fetch(`https://api.localsoch.com/api/vendors/${currentVendorId}`, {
         method: 'PUT',
         headers,
         body: formData,

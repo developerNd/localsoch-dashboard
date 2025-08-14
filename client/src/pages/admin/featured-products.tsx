@@ -71,7 +71,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch('http://localhost:1337/api/featured-products?populate=product', {
+      const response = await fetch('https://api.localsoch.com/api/featured-products?populate=product', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -89,7 +89,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch('http://localhost:1337/api/products?populate=image', {
+      const response = await fetch('https://api.localsoch.com/api/products?populate=image', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -106,7 +106,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch('http://localhost:1337/api/featured-products', {
+      const response = await fetch('https://api.localsoch.com/api/featured-products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +141,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch(`http://localhost:1337/api/featured-products/${id}`, {
+      const response = await fetch(`https://api.localsoch.com/api/featured-products/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +176,7 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch(`http://localhost:1337/api/featured-products/${id}`, {
+      const response = await fetch(`https://api.localsoch.com/api/featured-products/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -490,7 +490,7 @@ export default function AdminFeaturedProducts() {
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <img
-                            src={featuredProduct.product.image?.url ? `http://localhost:1337${featuredProduct.product.image.url}` : '/placeholder-product.jpg'}
+                            src={featuredProduct.product.image?.url ? `https://api.localsoch.com${featuredProduct.product.image.url}` : '/placeholder-product.jpg'}
                             alt={featuredProduct.product.name}
                             className="w-12 h-12 rounded-lg object-cover"
                           />

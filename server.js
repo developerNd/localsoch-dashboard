@@ -17,8 +17,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "https://api.localsoch.com"],
+      connectSrc: ["'self'", "https:", "https://api.localsoch.com"],
     },
   },
 }));

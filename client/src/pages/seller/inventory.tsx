@@ -343,7 +343,7 @@ export default function SellerInventory() {
                             <div className="flex items-center space-x-3">
                               {product.image ? (
                                 <img 
-                                  src={`http://localhost:1337${product.image}`} 
+                                  src={`https://api.localsoch.com${product.image}`} 
                                   alt={product.name}
                                   className="w-10 h-10 rounded-lg object-cover"
                                 />

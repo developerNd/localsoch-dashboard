@@ -69,7 +69,7 @@ export default function AdminBanners() {
       
       console.log('🔍 Fetching banners with token:', token.substring(0, 20) + '...');
       
-      const response = await fetch('http://localhost:1337/api/banners?populate=image', {
+      const response = await fetch('https://api.localsoch.com/api/banners?populate=image', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -98,7 +98,7 @@ export default function AdminBanners() {
       const formData = new FormData();
       formData.append('files', file);
       
-      const response = await fetch('http://localhost:1337/api/upload', {
+      const response = await fetch('https://api.localsoch.com/api/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -133,7 +133,7 @@ export default function AdminBanners() {
       
       console.log('Creating banner with data:', dataToSend);
       
-      const response = await fetch('http://localhost:1337/api/banners', {
+      const response = await fetch('https://api.localsoch.com/api/banners', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +189,7 @@ export default function AdminBanners() {
       
       console.log('Updating banner with data:', { id, dataToSend });
       
-      const response = await fetch(`http://localhost:1337/api/banners/${id}`, {
+      const response = await fetch(`https://api.localsoch.com/api/banners/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -231,7 +231,7 @@ export default function AdminBanners() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch(`http://localhost:1337/api/banners/${id}`, {
+      const response = await fetch(`https://api.localsoch.com/api/banners/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -320,7 +320,7 @@ export default function AdminBanners() {
     
     // Set image preview if banner has an image
     if (banner.image?.url) {
-      setImagePreview(`http://localhost:1337${banner.image.url}`);
+              setImagePreview(`https://api.localsoch.com${banner.image.url}`);
       setSelectedImage(null); // Clear selected image since we're editing existing
     } else {
       setImagePreview(null);
@@ -607,7 +607,7 @@ export default function AdminBanners() {
                       <TableCell>
                         {banner.image?.url ? (
                           <img
-                            src={`http://localhost:1337${banner.image.url}`}
+                            src={`https://api.localsoch.com${banner.image.url}`}
                             alt={banner.title}
                             className="w-16 h-12 rounded-lg object-cover border"
                           />
