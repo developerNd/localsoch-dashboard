@@ -59,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // Return a basic user object from JWT payload and fetch vendor data
                 const basicUser = {
                   id: payload.id,
+                  username: payload.username,
+                  email: payload.email,
                   // Add other fields as needed
                   role: { name: payload.role || 'admin' } // Use role from JWT or default to admin
                 };
@@ -144,6 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 console.log('🔍 Found matching vendor! ID:', vendorId);
               } else {
                 console.log('🔍 No vendor found for this user in vendor data');
+                // If no vendor found, try to create one or use a fallback
+                console.log('🔍 Attempting to create vendor for user or use fallback');
               }
             } else {
               const errorText = await vendorRes.text();
@@ -186,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('🔍 Setting user in context from API:', userData.user);
       console.log('🔍 API user role:', userData.user.role);
       console.log('🔍 API role name:', typeof userData.user.role === 'object' ? userData.user.role.name : userData.user.role);
+      console.log('🔍 API user vendorId:', userData.user.vendorId);
       
       // Preserve existing vendorId if the new user data doesn't have it
       if (user && user.vendorId && !userData.user.vendorId) {

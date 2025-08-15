@@ -10,14 +10,19 @@ export function useProducts() {
   return useQuery({
     queryKey: ['/api/products'],
     queryFn: async () => {
+      console.log('🔍 useProducts - fetching products...');
       const response = await apiRequest('GET', '/api/products?populate=*');
       const data = await response.json();
+      
+      console.log('🔍 useProducts - raw data:', data);
       
       // Handle both Strapi format { data: [...], meta: {...} } and direct array format
       const products = data.data || data;
       
       if (Array.isArray(products)) {
-        return products.map((product: any) => normalizeProduct(product));
+        const normalizedProducts = products.map((product: any) => normalizeProduct(product));
+        console.log('🔍 useProducts - normalized products:', normalizedProducts);
+        return normalizedProducts;
       } else {
         console.error('Unexpected products data format:', data);
         return [];
@@ -228,14 +233,26 @@ export function useVendor(id: number | undefined) {
   return useQuery({
     queryKey: ['/api/vendors', id],
     queryFn: async () => {
+      console.log('🔍 useVendor - fetching vendor with ID:', id);
       const response = await apiRequest('GET', `/api/vendors/${id}?populate=*`);
       const data = await response.json();
       
+      console.log('🔍 useVendor - raw data:', data);
+      
       // Handle both Strapi format { data: {...} } and direct object format
       const vendor = data.data || data;
-      return normalizeVendor(vendor);
+      const normalizedVendor = normalizeVendor(vendor);
+      console.log('🔍 useVendor - normalized vendor:', normalizedVendor);
+      return normalizedVendor;
     },
     enabled: !!id && id > 0,
+    retry: (failureCount, error) => {
+      // Don't retry if vendor not found (404) or permission denied (403)
+      if (error instanceof Error && (error.message.includes('404') || error.message.includes('403'))) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 }
 
@@ -376,14 +393,19 @@ export function useOrders() {
   return useQuery({
     queryKey: ['/api/orders'],
     queryFn: async () => {
+      console.log('🔍 useOrders - fetching orders...');
       const response = await apiRequest('GET', '/api/orders?populate=*');
       const data = await response.json();
+      
+      console.log('🔍 useOrders - raw data:', data);
       
       // Handle both Strapi format { data: [...], meta: {...} } and direct array format
       const orders = data.data || data;
       
       if (Array.isArray(orders)) {
-        return orders.map((order: any) => normalizeOrder(order));
+        const normalizedOrders = orders.map((order: any) => normalizeOrder(order));
+        console.log('🔍 useOrders - normalized orders:', normalizedOrders);
+        return normalizedOrders;
       } else {
         console.error('Unexpected orders data format:', data);
         return [];
@@ -588,5 +610,12 @@ export function useSellerAnalytics(sellerId: number | undefined) {
       };
     },
     enabled: !!sellerId && sellerId > 0,
+    retry: (failureCount, error) => {
+      // Don't retry if permission denied (403) or not found (404)
+      if (error instanceof Error && (error.message.includes('403') || error.message.includes('404'))) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 } 

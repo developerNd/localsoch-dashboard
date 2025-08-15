@@ -27,6 +27,9 @@ export async function apiRequest(method: string, url: string, body?: any, custom
     headers['Content-Type'] = 'application/json';
   }
   
+  console.log('🔍 API Request:', method, `${API_URL}${url}`);
+  console.log('🔍 API Headers:', headers);
+  
   const res = await fetch(`${API_URL}${url}`, {
     method,
     headers,
@@ -34,6 +37,15 @@ export async function apiRequest(method: string, url: string, body?: any, custom
       body: body instanceof FormData ? body : JSON.stringify(body) 
     } : {}),
   });
+  
+  console.log('🔍 API Response status:', res.status);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.log('🔍 API Error response:', errorText);
+    throw new Error(`${res.status}: ${errorText}`);
+  }
+  
   return res;
 }
 
@@ -67,10 +79,11 @@ function convertToStrapiUrl(url: string): string {
     return 'mock://analytics';
   }
   
-  if (url.startsWith('/api/orders')) {
-    // Return mock orders data
-    return 'mock://orders';
-  }
+  // Don't mock orders - use real Strapi endpoint
+  // if (url.startsWith('/api/orders')) {
+  //   // Return mock orders data
+  //   return 'mock://orders';
+  // }
   
   if (url.startsWith('/api/admin/sellers')) {
     // Return mock admin sellers data
@@ -101,8 +114,16 @@ export const getQueryFn: <T>(options: {
     
     const headers: Record<string, string> = {};
     
-    // Always use Strapi API token for all endpoints
-    headers["Authorization"] = `Bearer ${STRAPI_API_TOKEN}`;
+    // Use user's auth token if available, otherwise use Strapi API token
+    const userToken = localStorage.getItem('authToken');
+    if (userToken) {
+      headers["Authorization"] = `Bearer ${userToken}`;
+    } else {
+      headers["Authorization"] = `Bearer ${STRAPI_API_TOKEN}`;
+    }
+
+    console.log('🔍 QueryFn - targetUrl:', targetUrl);
+    console.log('🔍 QueryFn - headers:', headers);
 
     const res = await fetch(targetUrl, {
       headers,
@@ -114,6 +135,8 @@ export const getQueryFn: <T>(options: {
 
     await throwIfResNotOk(res);
     const data = await res.json();
+    
+    console.log('🔍 QueryFn - response data:', data);
     
     // Always normalize Strapi responses
     if (data.data) {

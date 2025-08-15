@@ -18,6 +18,28 @@ import { useAuth } from '@/hooks/use-auth';
 import { getAuthToken } from '@/lib/auth';
 import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
 
+// Helper function to get image URL from Strapi data
+const getStrapiImageUrl = (imageData: any): string => {
+  if (!imageData) return 'https://via.placeholder.com/48x48?text=No+Image';
+  
+  // Handle Strapi v4 format: { data: { attributes: { url: string } } }
+  if (imageData.data?.attributes?.url) {
+    return getImageUrl(imageData.data.attributes.url);
+  }
+  
+  // Handle direct URL format: { url: string }
+  if (imageData.url) {
+    return getImageUrl(imageData.url);
+  }
+  
+  // Handle string format: "url"
+  if (typeof imageData === 'string') {
+    return getImageUrl(imageData);
+  }
+  
+  return 'https://via.placeholder.com/48x48?text=No+Image';
+};
+
 interface Product {
   id: number;
   name: string;
@@ -72,13 +94,14 @@ export default function AdminFeaturedProducts() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
-      const response = await fetch(getApiUrl(`${API_ENDPOINTS.FEATURED_PRODUCTS}?populate=product`), {
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.FEATURED_PRODUCTS}?populate=product.image`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       if (!response.ok) throw new Error('Failed to fetch featured products');
       const data = await response.json();
+      console.log('🔍 Featured products data:', data);
       return data.data || [];
     },
   });
@@ -97,6 +120,7 @@ export default function AdminFeaturedProducts() {
       });
       if (!response.ok) throw new Error('Failed to fetch products');
       const data = await response.json();
+      console.log('🔍 Products data:', data);
       return data.data || [];
     },
   });
@@ -486,14 +510,20 @@ export default function AdminFeaturedProducts() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {featuredProducts?.map((featuredProduct: FeaturedProduct) => (
+                  {featuredProducts?.map((featuredProduct: FeaturedProduct) => {
+                    console.log('🔍 Featured product:', featuredProduct);
+                    console.log('🔍 Product image data:', featuredProduct.product.image);
+                    return (
                     <TableRow key={featuredProduct.id}>
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <img
-                            src={featuredProduct.product.image?.url ? getImageUrl(featuredProduct.product.image.url) : '/placeholder-product.jpg'}
+                            src={getStrapiImageUrl(featuredProduct.product.image)}
                             alt={featuredProduct.product.name}
                             className="w-12 h-12 rounded-lg object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = 'https://via.placeholder.com/48x48?text=No+Image';
+                            }}
                           />
                           <div>
                             <p className="font-medium">{featuredProduct.product.name}</p>
@@ -557,7 +587,8 @@ export default function AdminFeaturedProducts() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );
+                  })}
                 </TableBody>
               </Table>
             )}
