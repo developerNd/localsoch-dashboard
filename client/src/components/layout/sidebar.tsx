@@ -7,6 +7,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useQuery } from '@tanstack/react-query';
 import { useSellerAnalytics, useAdminAnalytics } from '@/hooks/use-api';
 import { isAdmin, isSeller, getRoleDisplayName } from '@/lib/auth-utils';
+import { apiRequest } from '@/lib/queryClient';
+import { getImageUrl } from '@/lib/config';
 
 interface SidebarProps {
   className?: string;
@@ -31,6 +33,26 @@ export default function Sidebar({ className }: SidebarProps) {
   console.log('🔍 Sidebar - User role object:', user?.role);
   console.log('🔍 Sidebar - isAdmin:', userIsAdmin, 'isSeller:', userIsSeller);
   const analytics = userIsSeller ? sellerAnalytics : adminAnalytics;
+
+  // Fetch vendor data for sellers to get profile image
+  const { data: vendorData } = useQuery({
+    queryKey: ['vendor', user?.vendorId],
+    queryFn: async () => {
+      if (!user?.vendorId) return null;
+      const response = await apiRequest('GET', `/api/vendors/${user.vendorId}?populate=*`);
+      const data = await response.json();
+      return data.data;
+    },
+    enabled: !!user?.vendorId && userIsSeller,
+  });
+
+  // Get profile image URL
+  const getProfileImageUrl = () => {
+    if (vendorData?.profileImage) {
+      return getImageUrl(vendorData.profileImage.url || vendorData.profileImage.data?.attributes?.url);
+    }
+    return null;
+  };
 
   const isActive = (path: string) => location.startsWith(path);
 
@@ -75,9 +97,11 @@ export default function Sidebar({ className }: SidebarProps) {
       label: 'Orders',
       badge: analytics?.totalOrders 
     },
-    { href: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
+        { href: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
     { href: '/admin/banners', icon: 'fas fa-image', label: 'Banners' },
-    { href: '/admin/featured-products', icon: 'fas fa-star', label: 'Featured Products' },
+    { href: '/admin/business-categories', icon: 'fas fa-building', label: 'Business Categories' },
+    { href: '/admin/product-categories', icon: 'fas fa-tags', label: 'Product Categories' },
+    { href: '/admin/subscription-plans', icon: 'fas fa-credit-card', label: 'Subscription Plans' },
   ];
 
   const navItems = userIsAdmin ? adminNavItems : sellerNavItems;
@@ -92,14 +116,14 @@ export default function Sidebar({ className }: SidebarProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={user?.avatar || ""} alt="Profile" />
+              <AvatarImage src={getProfileImageUrl() || ""} alt="Profile" />
               <AvatarFallback className="bg-primary text-white">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
+                {user?.username?.[0] || user?.firstName?.[0]}
               </AvatarFallback>
             </Avatar>
             <div>
               <p className="font-medium text-sm">
-                {user?.sellerProfile?.shopName || `${user?.firstName} ${user?.lastName}`}
+                {user?.username || 'User'}
               </p>
               <p className="text-xs text-gray-500 capitalize">
                 {getRoleDisplayName(user)}

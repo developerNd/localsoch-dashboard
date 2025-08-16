@@ -115,14 +115,17 @@ export function normalizeProduct(strapiProduct: StrapiEntity) {
     category: normalized.category, // Keep the full category object for display
     name: normalized.name,
     description: normalized.description,
+    mrp: normalized.mrp?.toString() || normalized.price?.toString() || "0.00",
     price: normalized.price?.toString() || "0.00",
+    discount: normalized.discount?.toString() || "0.00",
     costPrice: normalized.costPrice?.toString() || "0.00",
     stock: normalized.stock || 0,
+    isActive: normalized.isActive !== false,
+    isApproved: normalized.isApproved !== false,
+    approvalStatus: normalized.approvalStatus || 'pending',
     sku: normalized.sku || `SKU-${normalized.id}`,
     image: normalized.image, // Keep the full image object for display
     images: normalized.image ? [normalized.image.url] : [],
-    isActive: normalized.isActive !== false,
-    isApproved: normalized.isApproved !== false,
     createdAt: normalized.createdAt,
   };
 }

@@ -18,13 +18,18 @@ import SellerEarnings from "@/pages/seller/earnings";
 import SellerButtonTracking from "@/pages/seller/button-tracking";
 import SellerReviews from "@/pages/seller/reviews";
 import SellerProfile from "@/pages/seller/profile";
+import PendingApproval from "@/pages/seller/pending-approval";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminSellers from "@/pages/admin/sellers";
 import AdminProducts from "@/pages/admin/products";
 import AdminOrders from "@/pages/admin/orders";
 import AdminAnalytics from "@/pages/admin/analytics";
 import AdminBanners from "@/pages/admin/banners";
-import AdminFeaturedProducts from "@/pages/admin/featured-products";
+import AdminBusinessCategories from "@/pages/admin/business-categories";
+import AdminProductCategories from "@/pages/admin/product-categories";
+import AdminSubscriptionPlans from "@/pages/admin/subscription-plans";
+import SubscriptionSelection from "@/pages/subscription-selection";
+
 
 // Root redirect component
 function RootRedirect() {
@@ -98,6 +103,11 @@ function Router() {
           <SellerProfile />
         </ProtectedRoute>
       </Route>
+      <Route path="/seller/pending-approval">
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
+          <PendingApproval />
+        </ProtectedRoute>
+      </Route>
       
       {/* Admin Routes */}
       <Route path="/admin">
@@ -130,11 +140,28 @@ function Router() {
           <AdminBanners />
         </ProtectedRoute>
       </Route>
-      <Route path="/admin/featured-products">
+      
+      <Route path="/admin/business-categories">
         <ProtectedRoute allowedRoles={['admin']}>
-          <AdminFeaturedProducts />
+          <AdminBusinessCategories />
         </ProtectedRoute>
       </Route>
+      
+      <Route path="/admin/product-categories">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminProductCategories />
+        </ProtectedRoute>
+      </Route>
+      
+              <Route path="/admin/subscription-plans">
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminSubscriptionPlans />
+          </ProtectedRoute>
+        </Route>
+        
+        <Route path="/subscription-selection">
+          <SubscriptionSelection />
+        </Route>
       
       {/* Redirect root to appropriate dashboard */}
       <Route path="/">

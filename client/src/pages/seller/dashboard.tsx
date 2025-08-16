@@ -5,28 +5,78 @@ import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useAuth } from '@/hooks/use-auth';
+import { useSellerOrders, useSellerEarnings, useProducts, useVendors } from '@/hooks/use-api';
 import { Link } from 'wouter';
 
 export default function SellerDashboard() {
   const { user } = useAuth();
 
-  // Simple mock data for faster loading
-  const mockData = {
-    totalProducts: 12,
-    totalOrders: 8,
-    totalRevenue: 45000,
-    totalStockValue: 125000,
-    lowStockProducts: 3,
-    outOfStockProducts: 1,
-    recentOrders: [
-      { id: 1, total: 2500, status: 'delivered' },
-      { id: 2, total: 1800, status: 'processing' },
-      { id: 3, total: 3200, status: 'shipped' }
-    ]
+  // Get vendor ID from user
+  const getVendorId = (user: any) => {
+    return user?.vendorId;
   };
+
+  const vendorId = getVendorId(user);
+
+  // Fetch real data
+  const { data: orders, isLoading: ordersLoading } = useSellerOrders(vendorId);
+  const { data: earnings, isLoading: earningsLoading } = useSellerEarnings(vendorId);
+  const { data: products, isLoading: productsLoading } = useProducts();
+  const { data: vendors, isLoading: vendorsLoading } = useVendors();
+
+  const isLoading = ordersLoading || earningsLoading || productsLoading || vendorsLoading;
+
+  // Filter products for this seller
+  const sellerProducts = Array.isArray(products) ? products.filter((product: any) => 
+    product.vendorId === vendorId || product.sellerId === vendorId
+  ) : [];
+
+  // Calculate real data
+  const totalProducts = sellerProducts.length;
+  const totalOrders = orders?.length || 0;
+  const totalRevenue = earnings?.totalRevenue || 0;
+  
+  // Calculate stock value and alerts
+  const totalStockValue = sellerProducts.reduce((sum: number, product: any) => {
+    const stock = product.stock || 0;
+    const price = parseFloat(product.price) || 0;
+    return sum + (stock * price);
+  }, 0);
+
+  const lowStockProducts = sellerProducts.filter((product: any) => 
+    (product.stock || 0) <= 5 && (product.stock || 0) > 0
+  ).length;
+
+  const outOfStockProducts = sellerProducts.filter((product: any) => 
+    (product.stock || 0) === 0
+  ).length;
+
+  // Get recent orders
+  const recentOrders = orders?.slice(0, 5) || [];
+
+  // Get vendor info
+  const vendorInfo = Array.isArray(vendors) ? vendors.find((vendor: any) => 
+    vendor.id === vendorId
+  ) : null;
 
   // Check if user is seller
   const isSeller = user && typeof user.role === 'object' && user.role?.name === 'seller';
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <Sidebar />
+        <MobileNav />
+        
+        <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+          </div>
+        </main>
+      </div>
+    );
+  }
   
   if (!isSeller) {
     return (
@@ -81,7 +131,7 @@ export default function SellerDashboard() {
               <i className="fas fa-rupee-sign text-2xl text-green-500"></i>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">₹{mockData.totalRevenue.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-green-600">₹{totalRevenue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">
                 All time revenue
               </p>
@@ -94,7 +144,7 @@ export default function SellerDashboard() {
               <i className="fas fa-shopping-bag text-2xl text-blue-500"></i>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockData.totalOrders}</div>
+              <div className="text-2xl font-bold">{totalOrders}</div>
               <p className="text-xs text-muted-foreground">
                 Orders received
               </p>
@@ -107,7 +157,7 @@ export default function SellerDashboard() {
               <i className="fas fa-box text-2xl text-purple-500"></i>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockData.totalProducts}</div>
+              <div className="text-2xl font-bold">{totalProducts}</div>
               <p className="text-xs text-muted-foreground">
                 Products in catalog
               </p>
@@ -120,7 +170,7 @@ export default function SellerDashboard() {
               <i className="fas fa-warehouse text-2xl text-orange-500"></i>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">₹{mockData.totalStockValue.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-orange-600">₹{totalStockValue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">
                 Total inventory value
               </p>
@@ -129,11 +179,11 @@ export default function SellerDashboard() {
         </div>
 
         {/* Alerts Section */}
-        {(mockData.lowStockProducts > 0 || mockData.outOfStockProducts > 0) && (
+        {(lowStockProducts > 0 || outOfStockProducts > 0) && (
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Stock Alerts</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {mockData.outOfStockProducts > 0 && (
+              {outOfStockProducts > 0 && (
                 <Card className="border-red-200 bg-red-50">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -141,10 +191,10 @@ export default function SellerDashboard() {
                         <i className="fas fa-times-circle text-red-500 text-xl mr-3"></i>
                         <div>
                           <p className="font-medium text-red-700">Out of Stock Items</p>
-                          <p className="text-sm text-red-600">{mockData.outOfStockProducts} products need restocking</p>
+                          <p className="text-sm text-red-600">{outOfStockProducts} products need restocking</p>
                         </div>
                       </div>
-                      <Link href="/seller/inventory">
+                      <Link href="/seller/products">
                         <Button variant="outline" size="sm">
                           View All
                         </Button>
@@ -154,7 +204,7 @@ export default function SellerDashboard() {
                 </Card>
               )}
 
-              {mockData.lowStockProducts > 0 && (
+              {lowStockProducts > 0 && (
                 <Card className="border-yellow-200 bg-yellow-50">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -162,10 +212,10 @@ export default function SellerDashboard() {
                         <i className="fas fa-exclamation-triangle text-yellow-500 text-xl mr-3"></i>
                         <div>
                           <p className="font-medium text-yellow-700">Low Stock Items</p>
-                          <p className="text-sm text-yellow-600">{mockData.lowStockProducts} products running low</p>
+                          <p className="text-sm text-yellow-600">{lowStockProducts} products running low</p>
                         </div>
                       </div>
-                      <Link href="/seller/inventory">
+                      <Link href="/seller/products">
                         <Button variant="outline" size="sm">
                           View All
                         </Button>
@@ -178,37 +228,7 @@ export default function SellerDashboard() {
           </div>
         )}
 
-        {/* Store Profile Summary */}
-        <div className="mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Store Profile</h3>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-start space-x-4">
-                <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                  <i className="fas fa-store text-2xl text-gray-500"></i>
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-xl font-semibold text-gray-900 mb-2">My Store</h4>
-                  <p className="text-gray-600 mb-2">Store address will be displayed here</p>
-                  <p className="text-gray-600 mb-4">Contact information will be displayed here</p>
-                  
-                  {/* Store Status */}
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-sm text-gray-500">Store status:</span>
-                    <Badge variant="outline" className="text-xs text-green-600">
-                      <i className="fas fa-check-circle mr-1"></i>
-                      Active
-                    </Badge>
-                    <Badge variant="outline" className="text-xs text-blue-600">
-                      <i className="fas fa-percentage mr-1"></i>
-                      Commission: 5.00%
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+
 
         {/* Quick Actions */}
         <div className="mb-8">
@@ -271,19 +291,19 @@ export default function SellerDashboard() {
               <CardTitle>Recent Orders</CardTitle>
             </CardHeader>
             <CardContent>
-              {mockData.recentOrders.length === 0 ? (
+              {recentOrders.length === 0 ? (
                 <div className="text-center py-8">
                   <i className="fas fa-shopping-bag text-4xl text-gray-300 mb-4"></i>
                   <p className="text-gray-600">No recent orders</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {mockData.recentOrders.map((order: any) => (
+                  {recentOrders.map((order: any) => (
                     <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900">Order #{order.id}</p>
+                        <p className="font-medium text-gray-900">Order #{order.orderNumber || order.id}</p>
                         <p className="text-sm text-gray-600">
-                          ₹{order.total.toLocaleString()}
+                          ₹{parseFloat(order.totalAmount || 0).toLocaleString()}
                         </p>
                       </div>
                       <Badge variant="secondary">
@@ -305,19 +325,19 @@ export default function SellerDashboard() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Total Products</span>
-                  <span className="font-semibold">{mockData.totalProducts}</span>
+                  <span className="font-semibold">{totalProducts}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Total Orders</span>
-                  <span className="font-semibold">{mockData.totalOrders}</span>
+                  <span className="font-semibold">{totalOrders}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Low Stock Items</span>
-                  <span className="font-semibold text-orange-600">{mockData.lowStockProducts}</span>
+                  <span className="font-semibold text-orange-600">{lowStockProducts}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Out of Stock</span>
-                  <span className="font-semibold text-red-600">{mockData.outOfStockProducts}</span>
+                  <span className="font-semibold text-red-600">{outOfStockProducts}</span>
                 </div>
               </div>
             </CardContent>

@@ -153,9 +153,9 @@ export default function SellerOrders() {
       // Use documentId if available, otherwise use id
       const orderIdentifier = order.documentId || order.id;
       
-      // Try to update the order
-      const response = await apiRequest('PUT', `/api/orders/${orderIdentifier}`, {
-        data: { status }
+      // Use the status-specific endpoint for notifications
+      const response = await apiRequest('PUT', `/api/orders/${orderIdentifier}/status`, {
+        status
       });
       
       if (!response.ok) {
@@ -166,6 +166,8 @@ export default function SellerOrders() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
       toast({
         title: "Order Updated",
         description: "Order status has been updated successfully.",
@@ -194,8 +196,8 @@ export default function SellerOrders() {
         const orderIdentifier = order.documentId || order.id;
         console.log('🔍 Bulk update - using order identifier:', orderIdentifier);
         
-        return apiRequest('PUT', `/api/orders/${orderIdentifier}`, {
-          data: { status }
+        return apiRequest('PUT', `/api/orders/${orderIdentifier}/status`, {
+          status
         });
       });
       await Promise.all(promises);

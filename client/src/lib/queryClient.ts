@@ -3,7 +3,7 @@ import { normalizeStrapiResponse, type StrapiResponse, type StrapiEntity } from 
 import { getApiUrl } from './config';
 
 // Strapi API Configuration
-const STRAPI_API_URL = "https://api.localsoch.com"; // Production API
+const STRAPI_API_URL = getApiUrl(''); // Use config instead of hardcoded URL
 const STRAPI_API_TOKEN = "e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5";
 
 async function throwIfResNotOk(res: Response) {
@@ -15,20 +15,26 @@ async function throwIfResNotOk(res: Response) {
 
 const API_URL = getApiUrl('');
 
-export async function apiRequest(method: string, url: string, body?: any, customHeaders?: Record<string, string>) {
+export async function apiRequest(method: string, url: string, body?: any, customHeaders?: Record<string, string> | null) {
   const token = localStorage.getItem('authToken');
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...customHeaders,
+    ...(customHeaders || {}),
   };
   
-  // Only set Content-Type if not provided in customHeaders (for FormData)
-  if (!customHeaders?.['Content-Type']) {
+  // Set Content-Type for JSON requests, but not for FormData
+  if (customHeaders === null) {
+    // Don't set Content-Type for FormData (browser will set it with boundary)
+  } else if (customHeaders && customHeaders['Content-Type']) {
+    // Use provided Content-Type
+  } else {
+    // Set default Content-Type for JSON requests
     headers['Content-Type'] = 'application/json';
   }
   
-  console.log('🔍 API Request:', method, `${API_URL}${url}`);
-  console.log('🔍 API Headers:', headers);
+          console.log('🔍 API Request:', method, `${API_URL}${url}`);
+        console.log('🔍 API Headers:', headers);
+        console.log('🔍 API Body:', body);
   
   const res = await fetch(`${API_URL}${url}`, {
     method,
@@ -73,10 +79,9 @@ function convertToStrapiUrl(url: string): string {
     return `${baseUrl}/api/categories${url.replace('/api/categories', '')}`;
   }
   
-  // Mock endpoints for development (not available in Strapi)
+  // Analytics endpoints - use real Strapi backend
   if (url.startsWith('/api/analytics')) {
-    // Return mock analytics data
-    return 'mock://analytics';
+    return `${baseUrl}/api/analytics/dashboard-stats`;
   }
   
   // Don't mock orders - use real Strapi endpoint
@@ -86,13 +91,13 @@ function convertToStrapiUrl(url: string): string {
   // }
   
   if (url.startsWith('/api/admin/sellers')) {
-    // Return mock admin sellers data
-    return 'mock://admin-sellers';
+    // Use real Strapi backend for admin sellers
+    return `${baseUrl}/api/vendors${url.replace('/api/admin/sellers', '')}`;
   }
   
   if (url.startsWith('/api/notifications')) {
-    // Return mock notifications data
-    return 'mock://notifications';
+    // Use real Strapi backend for notifications
+    return `${baseUrl}/api/notifications${url.replace('/api/notifications', '')}`;
   }
   
   // Default fallback to Strapi server
@@ -149,29 +154,8 @@ export const getQueryFn: <T>(options: {
 // Handle mock endpoints for development
 function handleMockEndpoint(url: string): any {
   switch (url) {
-    case 'mock://analytics':
-      return {
-        totalRevenue: 124999,
-        totalOrders: 156,
-        totalProducts: 89,
-        totalSellers: 12,
-        averageRating: 4.5,
-        topSellers: [
-          { id: 1, name: 'FreshMart', revenue: 45000, orders: 67 },
-          { id: 2, name: 'CityBakery', revenue: 32000, orders: 45 },
-          { id: 3, name: 'TechStore', revenue: 28000, orders: 34 }
-        ],
-        topProducts: [
-          { id: 1, name: 'Organic Bananas', sales: 234, revenue: 350 },
-          { id: 2, name: 'Whole Wheat Bread', sales: 189, revenue: 378 },
-          { id: 3, name: 'Fresh Milk', sales: 156, revenue: 780 }
-        ],
-        recentOrders: [
-          { id: 1, orderNumber: 'ORD-2024-001', customer: 'John Doe', amount: 45.99, status: 'delivered' },
-          { id: 2, orderNumber: 'ORD-2024-002', customer: 'Jane Smith', amount: 32.50, status: 'processing' },
-          { id: 3, orderNumber: 'ORD-2024-003', customer: 'Mike Johnson', amount: 67.25, status: 'shipped' }
-        ]
-      };
+    // Analytics is now handled by real Strapi backend
+    // case 'mock://analytics': removed
     
     case 'mock://orders':
       return [

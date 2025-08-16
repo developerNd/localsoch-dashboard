@@ -21,7 +21,7 @@ const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunc
     req.user = {
       id: 1,
       username: "admin",
-      email: "admin@cityshopping.com",
+      email: "admin@localsoch.com",
       firstName: "Admin",
       lastName: "User",
       role: "admin",

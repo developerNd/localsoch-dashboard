@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getApiUrl, API_ENDPOINTS } from "@/lib/config";
+
+interface BusinessCategory {
+  id: number;
+  name: string;
+  description: string;
+  isActive: boolean;
+  sortOrder: number;
+}
 
 interface SignupFormData {
   username: string;
@@ -25,7 +34,7 @@ interface SignupFormData {
   city: string;
   state: string;
   pincode: string;
-  businessType: string;
+  businessCategoryId: number | null;
   acceptTerms: boolean;
 }
 
@@ -44,7 +53,7 @@ export default function Signup() {
     city: "",
     state: "",
     pincode: "",
-    businessType: "",
+    businessCategoryId: null,
     acceptTerms: false,
   });
   const [error, setError] = useState("");
@@ -53,7 +62,19 @@ export default function Signup() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const handleInputChange = (field: keyof SignupFormData, value: string | boolean) => {
+  // Fetch business categories
+  const { data: businessCategories, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['/api/business-categories'],
+    queryFn: async () => {
+      const response = await fetch(getApiUrl('/api/business-categories?populate=*'));
+      if (!response.ok) throw new Error('Failed to fetch business categories');
+      const data = await response.json();
+      console.log(data);
+      return data.data || [];
+    },
+  });
+
+  const handleInputChange = (field: keyof SignupFormData, value: string | boolean | number | null) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -72,6 +93,9 @@ export default function Signup() {
     }
     if (!formData.shopName || !formData.address || !formData.city || !formData.state || !formData.pincode) {
       return "Shop details are required";
+    }
+    if (!formData.businessCategoryId) {
+      return "Please select a business category";
     }
     return null;
   };
@@ -136,14 +160,14 @@ export default function Signup() {
           city: formData.city,
           state: formData.state,
           pincode: formData.pincode,
-          businessType: formData.businessType,
+          businessCategoryId: formData.businessCategoryId,
           phone: formData.phone,
           email: formData.email,
         },
       }));
 
-      // Redirect to payment screen
-      setLocation('/payment');
+      // Redirect to subscription selection screen
+      setLocation('/subscription-selection');
 
     } catch (error) {
       console.error('Signup error:', error);
@@ -166,7 +190,7 @@ export default function Signup() {
             Become a Seller
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Join CityShopping as a seller and start selling your products
+            Join LocalSoch as a seller and start selling your products
           </p>
         </div>
         
@@ -297,23 +321,26 @@ export default function Signup() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="businessType">Business Type</Label>
-                  <Select value={formData.businessType} onValueChange={(value) => handleInputChange('businessType', value)}>
+                  <Label htmlFor="businessCategory">Business Category</Label>
+                  <Select 
+                    value={formData.businessCategoryId?.toString() || ""} 
+                    onValueChange={(value) => handleInputChange('businessCategoryId', value ? parseInt(value) : null)}
+                    disabled={categoriesLoading}
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select business type" />
+                      <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select business category"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="retail">Retail Store</SelectItem>
-                      <SelectItem value="restaurant">Restaurant</SelectItem>
-                      <SelectItem value="bakery">Bakery</SelectItem>
-                      <SelectItem value="grocery">Grocery Store</SelectItem>
-                      <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                      <SelectItem value="electronics">Electronics</SelectItem>
-                      <SelectItem value="fashion">Fashion & Apparel</SelectItem>
-                      <SelectItem value="home">Home & Garden</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      {businessCategories?.map((category: BusinessCategory) => (
+                        <SelectItem key={category.id} value={category.id.toString()}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {businessCategories?.length === 0 && !categoriesLoading && (
+                    <p className="text-sm text-gray-500 mt-1">No business categories available</p>
+                  )}
                 </div>
                 
                 <div>

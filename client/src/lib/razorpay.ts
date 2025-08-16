@@ -1,3 +1,5 @@
+import { API_CONFIG } from './config';
+
 // Razorpay integration for web app
 declare global {
   interface Window {
@@ -59,7 +61,7 @@ export const loadRazorpayScript = (): Promise<void> => {
 // Create payment order on backend
 export const createPaymentOrder = async (paymentData: PaymentData): Promise<{ orderId: string }> => {
   try {
-    const response = await fetch('https://api.localsoch.com/api/payment/create-order', {
+    const response = await fetch(`${API_CONFIG.API_URL}/api/payment/create-order`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,7 +156,7 @@ export const verifyPayment = async (
   signature: string
 ): Promise<boolean> => {
   try {
-    const response = await fetch('https://api.localsoch.com/api/payment/verify', {
+    const response = await fetch(`${API_CONFIG.API_URL}/api/payment/verify`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import { useAuth } from '@/hooks/use-auth';
+import { useVendorApproval } from '@/hooks/use-vendor-approval';
 import { useLocation } from 'wouter';
 import { useEffect } from 'react';
 
@@ -9,27 +10,31 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, isLoading, isAuthenticated } = useAuth();
+  const { isApproved, isPending, isLoading: approvalLoading } = useVendorApproval();
   const [, setLocation] = useLocation();
 
-  console.log('ProtectedRoute - user:', user, 'isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'allowedRoles:', allowedRoles);
+
 
   useEffect(() => {
-    console.log('ProtectedRoute useEffect - user:', user, 'isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
-    
     // Add a small delay to give authentication time to load
     const timer = setTimeout(() => {
       if (!isLoading && !isAuthenticated) {
-        console.log('ProtectedRoute - redirecting to login (not authenticated)');
         setLocation('/login');
         return;
+      }
+
+      // Check seller approval status
+      if (user?.vendorId && !approvalLoading) {
+        if (isPending || !isApproved) {
+          setLocation('/seller/pending-approval');
+          return;
+        }
       }
 
       if (user && allowedRoles) {
         // Check if user has vendorId (seller) or not (admin)
         const userType = user.vendorId ? 'seller' : 'admin';
-        console.log('ProtectedRoute - userType:', userType, 'allowedRoles:', allowedRoles);
         if (!allowedRoles.includes(userType)) {
-          console.log('ProtectedRoute - redirecting due to role mismatch');
           // Redirect to appropriate dashboard based on user type
           if (user.vendorId) {
             setLocation('/seller');
@@ -42,10 +47,9 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     }, 100); // 100ms delay
 
     return () => clearTimeout(timer);
-  }, [user, isLoading, isAuthenticated, allowedRoles, setLocation]);
+  }, [user, isLoading, isAuthenticated, allowedRoles, setLocation, isApproved, isPending, approvalLoading]);
 
-  if (isLoading) {
-    console.log('ProtectedRoute - showing loading spinner');
+  if (isLoading || (user?.vendorId && approvalLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -54,18 +58,15 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
   }
 
   if (!isAuthenticated) {
-    console.log('ProtectedRoute - not authenticated, returning null');
     return null;
   }
 
   if (allowedRoles && user) {
     const userType = user.vendorId ? 'seller' : 'admin';
     if (!allowedRoles.includes(userType)) {
-      console.log('ProtectedRoute - role mismatch, returning null');
       return null;
     }
   }
 
-  console.log('ProtectedRoute - rendering children');
   return <>{children}</>;
 }

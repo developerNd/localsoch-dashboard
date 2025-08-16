@@ -2,7 +2,8 @@
 export const API_CONFIG = {
   // Use production API URL
   get API_URL() {
-    return 'https://api.localsoch.com';
+    // return 'https://api.localsoch.com';
+    return 'http://192.168.1.101:1337';
   },
   
   // Get the appropriate image URL based on environment
@@ -25,10 +26,26 @@ export const API_ENDPOINTS = {
   VENDORS: '/api/vendors',
   PRODUCTS: '/api/products',
   ORDERS: '/api/orders',
-  CATEGORIES: '/api/categories',
+    CATEGORIES: '/api/categories',
   BANNERS: '/api/banners',
-  FEATURED_PRODUCTS: '/api/featured-products',
+  BUSINESS_CATEGORIES: '/api/business-categories',
   UPLOAD: '/api/upload',
+  SUBSCRIPTION: {
+    PLANS: '/api/subscription-plans?filters[isActive][$eq]=true&sort[0]=sortOrder:asc',
+    POPULAR_PLANS: '/api/subscription-plans?filters[isActive][$eq]=true&filters[isPopular][$eq]=true&sort[0]=sortOrder:asc',
+    CREATE: '/api/subscriptions/create-with-payment',
+    ACTIVATE: '/api/subscriptions',
+    CANCEL: '/api/subscriptions',
+    CURRENT: '/api/subscriptions/vendor',
+    HISTORY: '/api/subscriptions/vendor',
+  },
+  PAYMENT: {
+    CREATE_ORDER: '/api/payment/create-order',
+    VERIFY: '/api/payment/verify',
+  },
+  NOTIFICATIONS: {
+    UNREAD_COUNT: '/api/notifications/user',
+  },
 };
 
 // Helper function to get full API URL

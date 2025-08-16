@@ -91,6 +91,7 @@ export default function AdminSellers() {
     if (statusFilter === 'pending') return matchesSearch && vendor.status === 'pending';
     if (statusFilter === 'approved') return matchesSearch && vendor.status === 'approved';
     if (statusFilter === 'rejected') return matchesSearch && vendor.status === 'rejected';
+    if (statusFilter === 'suspended') return matchesSearch && vendor.status === 'suspended';
     
     return matchesSearch;
   }) : [];
@@ -100,6 +101,7 @@ export default function AdminSellers() {
   const pendingVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'pending') : [];
   const approvedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'approved') : [];
   const rejectedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'rejected') : [];
+  const suspendedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'suspended') : [];
 
   const handleStatusUpdate = (vendor: any) => {
     setSelectedVendor(vendor);
@@ -131,8 +133,14 @@ export default function AdminSellers() {
     if (vendor.status === 'rejected') {
       return <Badge variant="destructive">Rejected</Badge>;
     }
-    if (productCount > 0) {
-      return <Badge variant="default">Active ({productCount} products)</Badge>;
+    if (vendor.status === 'suspended') {
+      return <Badge variant="destructive">Suspended</Badge>;
+    }
+    if (vendor.status === 'approved') {
+      if (productCount > 0) {
+        return <Badge variant="default">Active ({productCount} products)</Badge>;
+      }
+      return <Badge variant="outline">Approved</Badge>;
     }
     return <Badge variant="outline">Inactive</Badge>;
   };
@@ -366,6 +374,7 @@ export default function AdminSellers() {
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

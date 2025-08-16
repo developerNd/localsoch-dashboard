@@ -1,39 +1,49 @@
-import { Bell, Search, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { NotificationBell } from '@/components/ui/notification-bell';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/use-auth';
-import { useQuery } from '@tanstack/react-query';
 import { isAdmin, isSeller } from '@/lib/auth-utils';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { getImageUrl } from '@/lib/config';
 
 export default function Header() {
   const { user, logout } = useAuth();
   
-  console.log('🔍 Header - Received user:', user);
-  console.log('🔍 Header - User role object:', user?.role);
-  console.log('🔍 Header - User role type:', typeof user?.role);
+
   
   // Use utility functions for consistent role checking
   const userIsAdmin = isAdmin(user);
   const userIsSeller = isSeller(user);
   
-  console.log('🔍 Header - User role object:', user?.role);
-  console.log('🔍 Header - isAdmin:', userIsAdmin, 'isSeller:', userIsSeller);
 
-  const { data: notifications } = useQuery({
-    queryKey: ['/api/notifications'],
-    enabled: !!user,
+
+  // Fetch vendor data for sellers to get profile image
+  const { data: vendorData } = useQuery({
+    queryKey: ['vendor', user?.vendorId],
+    queryFn: async () => {
+      if (!user?.vendorId) return null;
+      const response = await apiRequest('GET', `/api/vendors/${user.vendorId}?populate=*`);
+      const data = await response.json();
+      return data.data;
+    },
+    enabled: !!user?.vendorId && userIsSeller,
   });
 
-  const unreadCount = Array.isArray(notifications) ? notifications.filter((n: any) => !n.isRead).length : 0;
+  // Get profile image URL
+  const getProfileImageUrl = () => {
+    if (vendorData?.profileImage) {
+      return getImageUrl(vendorData.profileImage.url || vendorData.profileImage.data?.attributes?.url);
+    }
+    return null;
+  };
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 fixed top-0 left-0 right-0 z-50">
@@ -46,66 +56,32 @@ export default function Header() {
             <div className="flex items-center ml-4 lg:ml-0">
               <i className="fas fa-store text-primary text-2xl mr-3"></i>
               <h1 className="text-xl font-bold text-gray-900">
-                {userIsAdmin ? 'Admin Panel' : 'SellerHub'}
+                {userIsAdmin ? 'LocalSoch Admin' : 'LocalSoch Seller'}
               </h1>
             </div>
           </div>
           
-          <div className="flex items-center space-x-4">
-            {/* Search */}
-            <div className="hidden md:block relative">
-              <Input
-                type="text"
-                placeholder="Search products, orders..."
-                className="pl-10 pr-4 py-2 w-64"
-              />
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            </div>
-            
-            {/* Notifications */}
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
-                  {unreadCount}
-                </Badge>
-              )}
-            </Button>
+          <div className="flex items-center space-x-2">
+            {/* Notification Bell */}
+            <NotificationBell />
             
             {/* Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.avatar || ""} alt="Profile" />
+                    <AvatarImage src={getProfileImageUrl() || ""} alt="Profile" />
                     <AvatarFallback>
-                      {user?.firstName?.[0]}{user?.lastName?.[0]}
+                      {user?.username?.[0] || user?.firstName?.[0]}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="hidden md:block text-sm font-medium">
-                    {user?.firstName} {user?.lastName}
-                  </span>
-                  <span className="hidden md:block text-xs text-gray-500 font-normal ml-2">
+                  <span className="hidden md:block text-xs text-gray-500 font-normal">
                     {userIsAdmin ? 'Admin' : userIsSeller ? 'Seller' : ''}
                   </span>
                   <ChevronDown className="h-4 w-4 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem>
-                  <i className="fas fa-user mr-2"></i>
-                  Profile Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <i className="fas fa-cog mr-2"></i>
-                  Account Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <i className="fas fa-question-circle mr-2"></i>
-                  Help & Support
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+              <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={logout}>
                   <i className="fas fa-sign-out-alt mr-2"></i>
                   Logout

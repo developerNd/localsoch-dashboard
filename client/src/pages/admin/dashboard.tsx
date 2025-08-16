@@ -22,23 +22,10 @@ export default function AdminDashboard() {
   });
 
   const isLoading = analyticsLoading || sellersLoading || ordersLoading;
-  
-  // Data is loading successfully
 
-  // Generate sample chart data for platform revenue
-  const chartData = [
-    { date: 'Mon', sales: 45000 },
-    { date: 'Tue', sales: 52000 },
-    { date: 'Wed', sales: 38000 },
-    { date: 'Thu', sales: 67000 },
-    { date: 'Fri', sales: 59000 },
-    { date: 'Sat', sales: 78000 },
-    { date: 'Sun', sales: 62000 },
-  ];
-
-  const pendingSellers = sellers?.filter((s: any) => s.role === 'seller_pending') || [];
-  const activeSellers = sellers?.filter((s: any) => s.role === 'seller') || [];
-  const recentOrders = orders?.slice(-5) || [];
+  const pendingSellers = Array.isArray(sellers) ? sellers.filter((s: any) => s.role === 'seller_pending') : [];
+  const activeSellers = Array.isArray(sellers) ? sellers.filter((s: any) => s.role === 'seller') : [];
+  const recentOrders = Array.isArray(orders) ? orders.slice(-5) : [];
 
   // Show error state if there are errors
   if (analyticsError || sellersError || ordersError) {
@@ -76,7 +63,7 @@ export default function AdminDashboard() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Admin Dashboard 👑
+            LocalSoch Admin Dashboard 👑
           </h2>
           <p className="text-gray-600">Platform overview and management tools</p>
         </div>
@@ -89,12 +76,14 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{analytics?.totalRevenue?.toLocaleString() || '0'}
+                    ₹{(analytics as any)?.totalRevenue?.toLocaleString() || '0'}
                   </p>
-                  <p className="text-xs text-success mt-1">
-                    <i className="fas fa-arrow-up mr-1"></i>
-                    +15.3% from last month
-                  </p>
+                  {(analytics as any)?.totalRevenue > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      <i className="fas fa-chart-line mr-1"></i>
+                      Platform revenue
+                    </p>
+                  )}
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                   <i className="fas fa-chart-line text-primary text-xl"></i>
@@ -111,10 +100,12 @@ export default function AdminDashboard() {
                   <p className="text-2xl font-bold text-gray-900">
                     {activeSellers.length}
                   </p>
-                  <p className="text-xs text-warning mt-1">
-                    <i className="fas fa-clock mr-1"></i>
-                    {pendingSellers.length} pending approval
-                  </p>
+                  {pendingSellers.length > 0 && (
+                    <p className="text-xs text-warning mt-1">
+                      <i className="fas fa-clock mr-1"></i>
+                      {pendingSellers.length} pending approval
+                    </p>
+                  )}
                 </div>
                 <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
                   <i className="fas fa-users text-success text-xl"></i>
@@ -129,12 +120,14 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Orders</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {analytics?.totalOrders || 0}
+                    {(analytics as any)?.totalOrders || 0}
                   </p>
-                  <p className="text-xs text-success mt-1">
-                    <i className="fas fa-arrow-up mr-1"></i>
-                    +12.8% from last week
-                  </p>
+                  {(analytics as any)?.totalOrders > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      <i className="fas fa-shopping-cart mr-1"></i>
+                      Total platform orders
+                    </p>
+                  )}
                 </div>
                 <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
                   <i className="fas fa-shopping-cart text-warning text-xl"></i>
@@ -149,12 +142,14 @@ export default function AdminDashboard() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Products</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {analytics?.totalProducts || 0}
+                    {(analytics as any)?.totalProducts || 0}
                   </p>
-                  <p className="text-xs text-primary mt-1">
-                    <i className="fas fa-box mr-1"></i>
-                    Across all sellers
-                  </p>
+                  {(analytics as any)?.totalProducts > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      <i className="fas fa-box mr-1"></i>
+                      Across all sellers
+                    </p>
+                  )}
                 </div>
                 <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
                   <i className="fas fa-box text-gray-600 text-xl"></i>
@@ -180,7 +175,17 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="h-64">
-                  <SalesChart data={chartData} />
+                  {(analytics as any)?.revenueChartData && (analytics as any).revenueChartData.length > 0 ? (
+                    <SalesChart data={(analytics as any).revenueChartData} />
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-gray-500">
+                      <div className="text-center">
+                        <i className="fas fa-chart-line text-4xl mb-2"></i>
+                        <p>No revenue data available</p>
+                        <p className="text-sm">Revenue data will appear here once orders are placed</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -244,10 +249,14 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {analytics?.topSellers?.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">No seller data available</p>
+                {!(analytics as any)?.topSellers || (analytics as any).topSellers.length === 0 ? (
+                  <div className="text-center text-gray-500 py-4">
+                    <i className="fas fa-store text-2xl mb-2"></i>
+                    <p>No seller data available</p>
+                    <p className="text-sm">Top sellers will appear here once they start making sales</p>
+                  </div>
                 ) : (
-                  analytics?.topSellers?.slice(0, 5).map((seller: any) => (
+                  (analytics as any).topSellers.slice(0, 5).map((seller: any) => (
                     <div key={seller.id} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -268,7 +277,7 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                     </div>
-                  )) || []
+                  ))
                 )}
               </div>
             </CardContent>
@@ -289,7 +298,11 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="space-y-4">
                 {recentOrders.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">No recent orders</p>
+                  <div className="text-center text-gray-500 py-4">
+                    <i className="fas fa-shopping-cart text-2xl mb-2"></i>
+                    <p>No recent orders</p>
+                    <p className="text-sm">Recent orders will appear here once customers start placing orders</p>
+                  </div>
                 ) : (
                   recentOrders.map((order: any) => (
                     <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -335,7 +348,7 @@ export default function AdminDashboard() {
             <CardTitle>Admin Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-4">
               <Link href="/admin/sellers">
                 <div className="flex flex-col items-center p-4 bg-primary/5 hover:bg-primary/10 rounded-lg border border-primary/20 transition-colors cursor-pointer">
                   <i className="fas fa-users text-primary text-2xl mb-2"></i>
@@ -371,12 +384,27 @@ export default function AdminDashboard() {
                 </div>
               </Link>
 
-              <Link href="/admin/featured-products">
-                <div className="flex flex-col items-center p-4 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-colors cursor-pointer">
-                  <i className="fas fa-star text-yellow-600 text-2xl mb-2"></i>
-                  <span className="text-sm font-medium text-yellow-600">Featured Products</span>
+              <Link href="/admin/business-categories">
+                <div className="flex flex-col items-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer">
+                  <i className="fas fa-building text-blue-600 text-2xl mb-2"></i>
+                  <span className="text-sm font-medium text-blue-600">Business Categories</span>
                 </div>
               </Link>
+
+              <Link href="/admin/product-categories">
+                <div className="flex flex-col items-center p-4 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors cursor-pointer">
+                  <i className="fas fa-tags text-green-600 text-2xl mb-2"></i>
+                  <span className="text-sm font-medium text-green-600">Product Categories</span>
+                </div>
+              </Link>
+
+              <Link href="/admin/subscription-plans">
+                <div className="flex flex-col items-center p-4 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors cursor-pointer">
+                  <i className="fas fa-credit-card text-indigo-600 text-2xl mb-2"></i>
+                  <span className="text-sm font-medium text-indigo-600">Subscription Plans</span>
+                </div>
+              </Link>
+
             </div>
           </CardContent>
         </Card>

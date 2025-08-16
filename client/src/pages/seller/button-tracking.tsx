@@ -43,7 +43,7 @@ export default function SellerButtonTracking() {
     // If no real logs exist, generate sample data based on analytics
     if (logsData.length === 0 && buttonAnalytics?.totalClicks > 0) {
       const sampleData = [];
-      const buttonTypes = ['call', 'whatsapp', 'message', 'email'];
+      const buttonTypes = ['call', 'whatsapp'];
       
       for (let i = 0; i < Math.min(buttonAnalytics.totalClicks, 10); i++) {
         const buttonType = buttonTypes[i % buttonTypes.length];
@@ -116,7 +116,7 @@ export default function SellerButtonTracking() {
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
@@ -155,27 +155,6 @@ export default function SellerButtonTracking() {
               </p>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Last Updated</CardTitle>
-              <Clock className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm font-bold">
-                {buttonAnalytics?.lastUpdated 
-                  ? new Date(buttonAnalytics.lastUpdated).toLocaleDateString()
-                  : 'Never'
-                }
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {buttonAnalytics?.lastUpdated 
-                  ? new Date(buttonAnalytics.lastUpdated).toLocaleTimeString()
-                  : 'No data'
-                }
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
 
@@ -186,7 +165,7 @@ export default function SellerButtonTracking() {
             <CardTitle>Button Click Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -222,45 +201,7 @@ export default function SellerButtonTracking() {
                   </p>
                 </div>
               </div>
-
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-purple-800">Message Clicks</p>
-                    <p className="text-2xl font-bold text-purple-600">{buttonAnalytics?.buttonClicks?.messageClicks || 0}</p>
-                  </div>
-                  <MessageCircle className="h-8 w-8 text-purple-600" />
-                </div>
-                <div className="mt-2">
-                  <p className="text-xs text-purple-600">
-                    {buttonAnalytics?.totalClicks 
-                      ? `${Math.round((buttonAnalytics.buttonClicks?.messageClicks || 0) / buttonAnalytics.totalClicks * 100)}% of total`
-                      : '0% of total'
-                    }
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-orange-800">Email Clicks</p>
-                    <p className="text-2xl font-bold text-orange-600">{buttonAnalytics?.buttonClicks?.emailClicks || 0}</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-orange-600" />
-                </div>
-                <div className="mt-2">
-                  <p className="text-xs text-orange-600">
-                    {buttonAnalytics?.totalClicks 
-                      ? `${Math.round((buttonAnalytics.buttonClicks?.emailClicks || 0) / buttonAnalytics.totalClicks * 100)}% of total`
-                      : '0% of total'
-                    }
-                  </p>
-                </div>
-              </div>
             </div>
-
-
           </CardContent>
         </Card>
 
@@ -313,8 +254,6 @@ export default function SellerButtonTracking() {
                           <div className="text-xs text-gray-400">
                             {item.buttonType === 'call' ? 'Call Number' : 
                              item.buttonType === 'whatsapp' ? 'WhatsApp Number' :
-                             item.buttonType === 'message' ? 'Message Number' :
-                             item.buttonType === 'email' ? 'Email Contact' :
                              'Contact Info'}
                           </div>
                         </td>
@@ -327,17 +266,12 @@ export default function SellerButtonTracking() {
                             className={
                               item.buttonType === 'call' ? 'bg-green-100 text-green-800' :
                               item.buttonType === 'whatsapp' ? 'bg-blue-100 text-blue-800' :
-                              item.buttonType === 'message' ? 'bg-purple-100 text-purple-800' :
-                              item.buttonType === 'email' ? 'bg-orange-100 text-orange-800' :
                               'bg-gray-100 text-gray-800'
                             }
                           >
                             <div className="flex items-center">
                               {item.buttonType === 'call' && <Phone className="h-3 w-3 mr-1" />}
                               {item.buttonType === 'whatsapp' && <MessageCircle className="h-3 w-3 mr-1" />}
-                              {item.buttonType === 'message' && <MessageCircle className="h-3 w-3 mr-1" />}
-                              {item.buttonType === 'email' && <Calendar className="h-3 w-3 mr-1" />}
-                              {item.buttonType === 'website' && <i className="fas fa-globe h-3 w-3 mr-1" />}
                               {item.buttonType.charAt(0).toUpperCase() + item.buttonType.slice(1)}
                             </div>
                           </Badge>

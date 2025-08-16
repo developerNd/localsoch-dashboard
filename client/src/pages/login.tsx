@@ -81,30 +81,12 @@ export default function Login() {
     }
   };
 
-  const handleDemoLogin = async (role: 'admin' | 'seller') => {
-    try {
-      setError("");
-      setLoginStatus("");
-      
-      const credentials = role === 'admin' 
-        ? { username: 'admin@cityshopping.com', password: 'Admin@123' }
-        : { username: 'seller1_demo@example.com', password: 'TestSeller123!' };
-      
-      setLoginStatus(`Logging in as ${role}...`);
-      
-      await login(credentials);
-      // Navigation will be handled by the auth context
-    } catch (err) {
-      setError("Demo login failed");
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            CityShopping Admin
+            LocalSoch Admin
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to your account
@@ -171,50 +153,10 @@ export default function Login() {
                 {isLoading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
-            
-            <div className="mt-6 space-y-3">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or try demo accounts
-                  </span>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => handleDemoLogin('admin')}
-                  disabled={isLoading}
-                >
-                  Admin Demo
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleDemoLogin('seller')}
-                  disabled={isLoading}
-                >
-                  Seller Demo
-                </Button>
-              </div>
-            </div>
           </CardContent>
         </Card>
         
         <div className="text-center text-sm text-gray-600">
-          <p className="font-medium mb-2">Demo Credentials:</p>
-          <div className="space-y-1">
-            <p><strong>Admin:</strong> admin@cityshopping.com / Admin@123</p>
-            <p><strong>Seller:</strong> seller1_demo@example.com / TestSeller123!</p>
-            <p><strong>Note:</strong> Use the demo buttons above for quick login</p>
-          </div>
-          <div className="mt-3 p-2 bg-blue-50 rounded text-xs">
-            <p><strong>Note:</strong> These are real Strapi accounts</p>
-            <p>Login will show only your products/orders</p>
-          </div>
           <div className="mt-4 pt-4 border-t">
             <p className="text-sm text-gray-600">
               Want to become a seller?{" "}

@@ -37,16 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       const token = getAuthToken();
       if (!token) throw new Error('No token');
-      console.log('Fetching user data with token:', token.substring(0, 20) + '...');
+
       try {
         // Always populate the role relation
         const res = await fetch(getApiUrl(`${API_ENDPOINTS.AUTH.ME}?populate=role`), {
           headers: { Authorization: `Bearer ${token}` },
         });
-        console.log('User API response status:', res.status);
         if (!res.ok) {
           const errorText = await res.text();
-          console.log('User API error response:', errorText);
           if (res.status === 401 || res.status === 403) {
             // For 403 errors, don't remove the token - it might be a permission issue
             // Instead, try to decode the JWT to get user info
@@ -112,16 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('Invalid token');
         }
         const user = await res.json();
-        console.log('User API response:', user);
-        console.log('🔍 User data structure:', JSON.stringify(user, null, 2));
-        console.log('🔍 User ID:', user.id);
-        console.log('🔍 User role:', user.role);
-        console.log('🔍 User role name:', user.role?.name);
         let vendorId = undefined;
         
         // Only fetch vendor if user is a seller
         if (user.role && typeof user.role === 'object' && 'name' in user.role && (user.role as any).name === 'seller') {
-          console.log('🔍 User is seller, fetching vendor for user ID:', user.id);
           
           try {
             // Fetch vendor data for this seller
@@ -134,7 +126,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             if (vendorRes.ok) {
               const vendorData = await vendorRes.json();
-              console.log('🔍 Vendor API response:', vendorData);
               
               // Look for vendor with matching user
               const matchingVendor = vendorData.data.find((vendor: any) => 
@@ -143,27 +134,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               
               if (matchingVendor) {
                 vendorId = matchingVendor.id;
-                console.log('🔍 Found matching vendor! ID:', vendorId);
-              } else {
-                console.log('🔍 No vendor found for this user in vendor data');
-                // If no vendor found, try to create one or use a fallback
-                console.log('🔍 Attempting to create vendor for user or use fallback');
               }
-            } else {
-              const errorText = await vendorRes.text();
-              console.log('🔍 Error fetching vendor data:', errorText);
             }
           } catch (vendorErr) {
-            console.log('🔍 Vendor fetch error:', vendorErr);
+            // Handle vendor fetch error silently
           }
-        } else {
-          console.log('🔍 User is not seller, role:', user.role);
         }
         
         // Log the final user object with vendorId
         const finalUser = { ...user, vendorId };
-        console.log('🔍 Final user object with vendorId:', finalUser);
-        console.log('🔍 VendorId in final user:', finalUser.vendorId);
         
         return { user: finalUser };
       } catch (err) {
@@ -177,53 +156,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    console.log('AuthProvider useEffect - userData:', userData, 'error:', error, 'justLoggedIn:', justLoggedIn);
-    
     // If we just logged in, don't override the user data from the API
     if (justLoggedIn) {
-      console.log('🔍 Just logged in, skipping API user data override');
       setJustLoggedIn(false);
       return;
     }
     
     if (userData?.user) {
-      console.log('🔍 Setting user in context from API:', userData.user);
-      console.log('🔍 API user role:', userData.user.role);
-      console.log('🔍 API role name:', typeof userData.user.role === 'object' ? userData.user.role.name : userData.user.role);
-      console.log('🔍 API user vendorId:', userData.user.vendorId);
-      
       // Preserve existing vendorId if the new user data doesn't have it
       if (user && user.vendorId && !userData.user.vendorId) {
         const userWithVendorId = { ...userData.user, vendorId: user.vendorId };
-        console.log('🔍 Preserving existing vendorId:', user.vendorId);
-        console.log('🔍 Updated user object:', userWithVendorId);
         setUser(userWithVendorId);
       } else {
         setUser(userData.user);
       }
     } else if (error) {
-      console.log('Auth error, clearing token and user:', error);
       // Only clear token if it's an authentication error, not a network error or permission error
       if (error instanceof Error && error.message === 'Invalid token') {
         removeAuthToken();
         setUser(null);
       } else if (error instanceof Error && error.message.includes('403')) {
-        // For 403 errors (permission issues), don't clear the user - just log the error
-        console.log('Permission error occurred, keeping user data:', error);
+        // For 403 errors (permission issues), don't clear the user
       } else {
-        // For other network errors, don't clear the token - just log the error
-        console.log('Network error occurred, keeping token:', error);
+        // For other network errors, don't clear the token
       }
     }
   }, [userData, error]);
 
-  // Debug logging for user and isAuthenticated changes
-  useEffect(() => {
-    console.log('🔍 AuthProvider - user state changed:', user);
-    console.log('🔍 AuthProvider - user role:', user?.role);
-    console.log('🔍 AuthProvider - role name:', typeof user?.role === 'object' ? user?.role.name : user?.role);
-    console.log('🔍 AuthProvider - isAuthenticated:', !!user);
-  }, [user]);
+
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {

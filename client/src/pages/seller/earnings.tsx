@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -7,42 +7,57 @@ import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import SalesChart from '@/components/charts/sales-chart';
 import { useAuth } from '@/hooks/use-auth';
+import { useSellerEarnings, useProducts } from '@/hooks/use-api';
 
 export default function SellerEarnings() {
   const { user } = useAuth();
+  const [timeRange, setTimeRange] = useState('7days');
 
-  const { data: analytics, isLoading } = useQuery({
-    queryKey: ['/api/analytics'],
-  });
+  // Get seller-specific earnings data
+  const { data: earnings, isLoading } = useSellerEarnings(user?.vendorId);
+  
+  // Get seller's products for active products count
+  const { data: products } = useProducts();
+  
+  // Filter products for current seller
+  const sellerProducts = Array.isArray(products) ? products.filter((product: any) => 
+    product.vendorId === user?.vendorId || product.sellerId === user?.vendorId
+  ) : [];
+  
+  const activeProducts = sellerProducts.filter((p: any) => p.isActive).length;
+  const totalProducts = sellerProducts.length;
 
-  const { data: orders } = useQuery({
-    queryKey: ['/api/orders'],
-  });
+  // Get chart data based on selected time range
+  const getChartData = () => {
+    if (!earnings) return [];
+    
+    switch (timeRange) {
+      case '7days':
+        return earnings.weeklyEarnings;
+      case '30days':
+        return earnings.monthlyEarnings;
+      default:
+        return earnings.weeklyEarnings;
+    }
+  };
 
-  const { data: products } = useQuery({
-    queryKey: ['/api/products'],
-  });
+  // Calculate today's, this week's, and this month's earnings
+  const getTodayEarnings = () => {
+    if (!earnings?.weeklyEarnings) return 0;
+    return earnings.weeklyEarnings[earnings.weeklyEarnings.length - 1]?.sales || 0;
+  };
 
-  // Generate sample chart data for earnings
-  const earningsChartData = [
-    { date: 'Mon', sales: 4500 },
-    { date: 'Tue', sales: 5200 },
-    { date: 'Wed', sales: 3800 },
-    { date: 'Thu', sales: 6100 },
-    { date: 'Fri', sales: 4800 },
-    { date: 'Sat', sales: 7200 },
-    { date: 'Sun', sales: 5500 },
-  ];
+  const getThisWeekEarnings = () => {
+    if (!earnings?.weeklyEarnings) return 0;
+    return earnings.weeklyEarnings.reduce((sum: number, day: any) => sum + day.sales, 0);
+  };
 
-  // Calculate additional metrics
-  const totalRevenue = (analytics as any)?.totalRevenue || 0;
-  const totalOrders = (analytics as any)?.totalOrders || 0;
-  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-  const totalProducts = Array.isArray(products) ? products.length : 0;
-  const activeProducts = Array.isArray(products) ? products.filter((p: any) => p.isActive).length : 0;
+  const getThisMonthEarnings = () => {
+    if (!earnings?.monthlyEarnings) return 0;
+    return earnings.monthlyEarnings.reduce((sum: number, day: any) => sum + day.sales, 0);
+  };
 
-  // Recent orders for earnings breakdown
-  const recentOrders = Array.isArray(orders) ? orders.slice(-10) : [];
+
 
   if (isLoading) {
     return (
@@ -75,11 +90,11 @@ export default function SellerEarnings() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{totalRevenue.toLocaleString()}
+                    ₹{earnings?.totalRevenue?.toLocaleString() || '0'}
                   </p>
                   <p className="text-xs text-success mt-1">
                     <i className="fas fa-arrow-up mr-1"></i>
-                    +15.3% from last month
+                    +{earnings?.performanceMetrics?.revenueGrowth || 0}% from last month
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
@@ -95,11 +110,11 @@ export default function SellerEarnings() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Orders</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {totalOrders}
+                    {earnings?.totalOrders || 0}
                   </p>
                   <p className="text-xs text-success mt-1">
                     <i className="fas fa-arrow-up mr-1"></i>
-                    +8.7% from last month
+                    {earnings?.totalOrders > 0 ? 'Active orders' : 'No orders yet'}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -115,11 +130,11 @@ export default function SellerEarnings() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Avg Order Value</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{averageOrderValue.toFixed(0)}
+                    ₹{earnings?.averageOrderValue?.toFixed(0) || '0'}
                   </p>
                   <p className="text-xs text-success mt-1">
                     <i className="fas fa-arrow-up mr-1"></i>
-                    +5.2% from last month
+                    {earnings?.averageOrderValue > 0 ? 'Good average' : 'No orders yet'}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
@@ -155,17 +170,20 @@ export default function SellerEarnings() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Weekly Earnings</CardTitle>
-                  <select className="text-sm border border-gray-300 rounded-lg px-3 py-1">
+                  <CardTitle>Earnings Chart</CardTitle>
+                  <select 
+                    className="text-sm border border-gray-300 rounded-lg px-3 py-1"
+                    value={timeRange}
+                    onChange={(e) => setTimeRange(e.target.value)}
+                  >
                     <option value="7days">Last 7 days</option>
                     <option value="30days">Last 30 days</option>
-                    <option value="3months">Last 3 months</option>
                   </select>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="h-64">
-                  <SalesChart data={earningsChartData} />
+                  <SalesChart data={getChartData()} />
                 </div>
               </CardContent>
             </Card>
@@ -181,22 +199,29 @@ export default function SellerEarnings() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Order Completion Rate</span>
-                    <span className="text-sm text-gray-600">94%</span>
+                    <span className="text-sm text-gray-600">
+                      {earnings?.totalOrders > 0 ? `${earnings?.performanceMetrics?.orderCompletionRate || 0}%` : 'No orders'}
+                    </span>
                   </div>
-                  <Progress value={94} className="h-2" />
+                  <Progress 
+                    value={earnings?.totalOrders > 0 ? (earnings?.performanceMetrics?.orderCompletionRate || 0) : 0} 
+                    className="h-2" 
+                  />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Customer Satisfaction</span>
-                    <span className="text-sm text-gray-600">4.5/5</span>
+                    <span className="text-sm text-gray-600">
+                      {earnings?.totalOrders > 0 ? `${earnings?.performanceMetrics?.customerSatisfaction || 0}/5` : 'No data yet'}
+                    </span>
                   </div>
                   <div className="flex items-center">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <i 
                         key={star}
                         className={`fas fa-star text-sm ${
-                          star <= 4.5 
+                          star <= (earnings?.performanceMetrics?.customerSatisfaction || 0)
                             ? 'text-warning' 
                             : 'text-gray-300'
                         }`}
@@ -208,17 +233,27 @@ export default function SellerEarnings() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Product Performance</span>
-                    <span className="text-sm text-gray-600">78%</span>
+                    <span className="text-sm text-gray-600">
+                      {earnings?.topProducts?.length > 0 ? `${earnings?.performanceMetrics?.productPerformance || 0}%` : 'No products'}
+                    </span>
                   </div>
-                  <Progress value={78} className="h-2" />
+                  <Progress 
+                    value={earnings?.topProducts?.length > 0 ? (earnings?.performanceMetrics?.productPerformance || 0) : 0} 
+                    className="h-2" 
+                  />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Revenue Growth</span>
-                    <span className="text-sm text-success">+15.3%</span>
+                    <span className="text-sm text-success">
+                      {earnings?.totalOrders > 0 ? `+${earnings?.performanceMetrics?.revenueGrowth || 0}%` : 'No data yet'}
+                    </span>
                   </div>
-                  <Progress value={75} className="h-2" />
+                  <Progress 
+                    value={earnings?.totalOrders > 0 ? Math.abs(earnings?.performanceMetrics?.revenueGrowth || 0) : 0} 
+                    className="h-2" 
+                  />
                 </div>
               </div>
             </CardContent>
@@ -234,10 +269,10 @@ export default function SellerEarnings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {(analytics as any)?.topProducts?.length === 0 ? (
+                {earnings?.topProducts?.length === 0 ? (
                   <p className="text-center text-gray-500 py-4">No products found</p>
                 ) : (
-                  (analytics as any)?.topProducts?.slice(0, 5).map((product: any, index: number) => (
+                  earnings?.topProducts?.slice(0, 5).map((product: any, index: number) => (
                     <div key={product.id} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -275,10 +310,10 @@ export default function SellerEarnings() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentOrders.length === 0 ? (
+                {earnings?.recentOrders?.length === 0 ? (
                   <p className="text-center text-gray-500 py-4">No recent orders</p>
                 ) : (
-                  recentOrders.map((order: any) => (
+                  earnings?.recentOrders?.map((order: any) => (
                     <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-success/10 rounded-lg flex items-center justify-center">
@@ -328,8 +363,8 @@ export default function SellerEarnings() {
                   <i className="fas fa-calendar-day text-success text-xl"></i>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">Today's Earnings</h3>
-                <p className="text-2xl font-bold text-success">₹{Math.floor(totalRevenue * 0.15).toLocaleString()}</p>
-                <p className="text-sm text-gray-600">+12.5% from yesterday</p>
+                <p className="text-2xl font-bold text-success">₹{getTodayEarnings().toLocaleString()}</p>
+                <p className="text-sm text-gray-600">Today's earnings</p>
               </div>
 
               <div className="text-center p-4 bg-primary/5 rounded-lg">
@@ -337,8 +372,8 @@ export default function SellerEarnings() {
                   <i className="fas fa-calendar-week text-primary text-xl"></i>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">This Week</h3>
-                <p className="text-2xl font-bold text-primary">₹{Math.floor(totalRevenue * 0.25).toLocaleString()}</p>
-                <p className="text-sm text-gray-600">+8.3% from last week</p>
+                <p className="text-2xl font-bold text-primary">₹{getThisWeekEarnings().toLocaleString()}</p>
+                <p className="text-sm text-gray-600">This week's earnings</p>
               </div>
 
               <div className="text-center p-4 bg-warning/5 rounded-lg">
@@ -346,8 +381,8 @@ export default function SellerEarnings() {
                   <i className="fas fa-calendar-alt text-warning text-xl"></i>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900">This Month</h3>
-                <p className="text-2xl font-bold text-warning">₹{Math.floor(totalRevenue * 0.85).toLocaleString()}</p>
-                <p className="text-sm text-gray-600">+15.7% from last month</p>
+                <p className="text-2xl font-bold text-warning">₹{getThisMonthEarnings().toLocaleString()}</p>
+                <p className="text-sm text-gray-600">This month's earnings</p>
               </div>
             </div>
           </CardContent>

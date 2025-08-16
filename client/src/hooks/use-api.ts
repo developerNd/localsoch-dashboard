@@ -10,18 +10,14 @@ export function useProducts() {
   return useQuery({
     queryKey: ['/api/products'],
     queryFn: async () => {
-      console.log('🔍 useProducts - fetching products...');
       const response = await apiRequest('GET', '/api/products?populate=*');
       const data = await response.json();
-      
-      console.log('🔍 useProducts - raw data:', data);
       
       // Handle both Strapi format { data: [...], meta: {...} } and direct array format
       const products = data.data || data;
       
       if (Array.isArray(products)) {
         const normalizedProducts = products.map((product: any) => normalizeProduct(product));
-        console.log('🔍 useProducts - normalized products:', normalizedProducts);
         return normalizedProducts;
       } else {
         console.error('Unexpected products data format:', data);
@@ -109,7 +105,9 @@ export function useCreateProduct() {
         const productDataWithFiles: any = {
           name: productData.name,
           description: productData.description,
+          mrp: productData.mrp,
           price: productData.price,
+          discount: productData.discount,
           stock: productData.stock,
           image: uploadedFiles[0]?.id, // Use first uploaded file as main image
           images: uploadedFiles.map(file => file.id), // Use all uploaded files as images array
@@ -155,6 +153,172 @@ export function useUpdateProduct() {
     },
   });
 }
+
+export function useToggleProductActive() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, isActive }: { id: number; isActive: boolean }) => {
+      const response = await apiRequest('PUT', `/api/products/${id}/toggle-active`, { isActive });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+    },
+  });
+}
+
+// Review API hooks
+export function useSellerReviews(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/reviews/seller', vendorId],
+    queryFn: async () => {
+      console.log('🔍 useSellerReviews - fetching for vendorId:', vendorId, 'Type:', typeof vendorId);
+      const response = await apiRequest('GET', `/api/reviews/seller/${vendorId}?populate=*`);
+      const data = await response.json();
+      console.log('🔍 useSellerReviews - response data:', data);
+      return data.data || data;
+    },
+    enabled: !!vendorId && vendorId > 0,
+  });
+}
+
+export function useSellerReviewStats(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/reviews/seller/stats', vendorId],
+    queryFn: async () => {
+      console.log('🔍 useSellerReviewStats - fetching for vendorId:', vendorId, 'Type:', typeof vendorId);
+      const response = await apiRequest('GET', `/api/reviews/seller/${vendorId}/stats?populate=*`);
+      const data = await response.json();
+      console.log('🔍 useSellerReviewStats - response data:', data);
+      return data.data || data;
+    },
+    enabled: !!vendorId && vendorId > 0,
+  });
+}
+
+export function useCreateReview() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (reviewData: any) => {
+      const response = await apiRequest('POST', '/api/reviews', { data: reviewData });
+      return await response.json();
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate all review-related queries
+      queryClient.invalidateQueries({ queryKey: ['/api/reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/reviews/seller'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/reviews/seller/stats'] });
+      
+      // If we have vendor ID, invalidate specific vendor queries
+      if (variables.vendor) {
+        queryClient.invalidateQueries({ queryKey: ['/api/reviews/seller', variables.vendor] });
+        queryClient.invalidateQueries({ queryKey: ['/api/reviews/seller/stats', variables.vendor] });
+      }
+    },
+  });
+}
+
+// Notification API hooks
+export function useNotifications(userId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications/user', userId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/notifications/user/${userId}?populate=*`);
+      const data = await response.json();
+      return data.data || data;
+    },
+    enabled: !!userId && userId > 0,
+  });
+}
+
+export function useVendorNotifications(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications/vendor', vendorId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/notifications/vendor/${vendorId}?populate=*`);
+      const data = await response.json();
+      return data.data || data;
+    },
+    enabled: !!vendorId && vendorId > 0,
+  });
+}
+
+export function useUnreadCount(userId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications/unread-count', userId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/notifications/user/${userId}/unread-count`);
+      const data = await response.json();
+      return data.data || data;
+    },
+    enabled: !!userId && userId > 0,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+}
+
+export function useMarkNotificationAsRead() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (notificationId: number) => {
+      const response = await apiRequest('PUT', `/api/notifications/${notificationId}/read`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsAsRead() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await apiRequest('PUT', `/api/notifications/user/${userId}/read-all`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+  });
+}
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (notificationId: number) => {
+      const response = await apiRequest('DELETE', `/api/notifications/${notificationId}/delete`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+  });
+}
+
+export function useClearAllNotifications() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await apiRequest('DELETE', `/api/notifications/user/${userId}/clear-all`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+  });
+}
+
+
 
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
@@ -276,12 +440,34 @@ export function useUpdateVendor() {
   
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const strapiData = toStrapiFormat(data);
-      const response = await apiRequest('PUT', `/api/vendors/${id}`, strapiData);
+      console.log('🔍 useUpdateVendor called with id:', id, 'data:', data);
+      console.log('🔍 Data type:', typeof data, 'is FormData:', data instanceof FormData);
+      
+      let requestData: any;
+      let headers: any = {};
+      
+      // Check if data is FormData (for file uploads)
+      if (data instanceof FormData) {
+        requestData = data;
+        console.log('🔍 Using FormData, not setting Content-Type');
+        // Don't set Content-Type for FormData, let browser set it with boundary
+        // Pass null to prevent apiRequest from setting Content-Type
+        headers = null;
+      } else {
+        // Regular JSON data - wrap in data property for Strapi
+        requestData = { data };
+        headers = { 'Content-Type': 'application/json' };
+        console.log('🔍 Using JSON, requestData:', requestData);
+        console.log('🔍 Headers:', headers);
+      }
+      
+      console.log('🔍 Final requestData:', requestData);
+      const response = await apiRequest('PUT', `/api/vendors/${id}`, requestData, headers);
       return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor'] });
     },
   });
 }
@@ -334,6 +520,26 @@ export function useVendorStats() {
       const response = await apiRequest('GET', '/api/vendors?admin=stats');
       const data = await response.json();
       return data.data || data;
+    },
+  });
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (userData: any) => {
+      // Extract id and wrap the rest in data property for Strapi
+      const { id, ...updateData } = userData;
+      console.log('🔍 useUpdateUser - userData:', userData);
+      console.log('🔍 useUpdateUser - updateData:', updateData);
+      console.log('🔍 useUpdateUser - sending:', { data: updateData });
+      
+      const response = await apiRequest('PUT', `/api/users/${id}`, { data: updateData });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
     },
   });
 }
@@ -393,24 +599,42 @@ export function useOrders() {
   return useQuery({
     queryKey: ['/api/orders'],
     queryFn: async () => {
-      console.log('🔍 useOrders - fetching orders...');
       const response = await apiRequest('GET', '/api/orders?populate=*');
       const data = await response.json();
-      
-      console.log('🔍 useOrders - raw data:', data);
       
       // Handle both Strapi format { data: [...], meta: {...} } and direct array format
       const orders = data.data || data;
       
       if (Array.isArray(orders)) {
         const normalizedOrders = orders.map((order: any) => normalizeOrder(order));
-        console.log('🔍 useOrders - normalized orders:', normalizedOrders);
         return normalizedOrders;
       } else {
         console.error('Unexpected orders data format:', data);
         return [];
       }
     },
+  });
+}
+
+export function useSellerOrders(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/orders/seller', vendorId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/orders?filters[vendor][id][$eq]=${vendorId}&populate=*`);
+      const data = await response.json();
+      
+      // Handle both Strapi format { data: [...], meta: {...} } and direct array format
+      const orders = data.data || data;
+      
+      if (Array.isArray(orders)) {
+        const normalizedOrders = orders.map((order: any) => normalizeOrder(order));
+        return normalizedOrders;
+      } else {
+        console.error('Unexpected orders data format:', data);
+        return [];
+      }
+    },
+    enabled: !!vendorId && vendorId > 0,
   });
 }
 
@@ -433,12 +657,15 @@ export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      const response = await apiRequest('PUT', `/api/orders/${id}`, { data: { status } });
+    mutationFn: async ({ id, status, reason }: { id: number; status: string; reason?: string }) => {
+      const response = await apiRequest('PUT', `/api/orders/${id}/status`, { status, reason });
       return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders/seller'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
     },
   });
 }
@@ -617,5 +844,195 @@ export function useSellerAnalytics(sellerId: number | undefined) {
       }
       return failureCount < 2;
     },
+  });
+}
+
+export function useSellerEarnings(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/earnings/seller', vendorId],
+    queryFn: async () => {
+      // Fetch seller-specific orders
+      const response = await apiRequest('GET', `/api/orders?filters[vendor][id][$eq]=${vendorId}&populate=*`);
+      const data = await response.json();
+      const orders = data.data || data;
+      
+      if (!Array.isArray(orders)) {
+        return {
+          totalRevenue: 0,
+          totalOrders: 0,
+          averageOrderValue: 0,
+          weeklyEarnings: [],
+          monthlyEarnings: [],
+          topProducts: [],
+          recentOrders: [],
+          performanceMetrics: {
+            orderCompletionRate: 0,
+            customerSatisfaction: 0,
+            productPerformance: 0,
+            revenueGrowth: 0
+          }
+        };
+      }
+      
+      // Calculate total revenue and orders
+      const totalRevenue = orders.reduce((sum: number, order: any) => 
+        sum + parseFloat(order.totalAmount || 0), 0);
+      const totalOrders = orders.length;
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      
+      // Calculate weekly earnings (last 7 days)
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const weeklyOrders = orders.filter((order: any) => 
+        new Date(order.createdAt) >= weekAgo);
+      
+      const weeklyEarnings = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dayOrders = weeklyOrders.filter((order: any) => {
+          const orderDate = new Date(order.createdAt);
+          return orderDate.toDateString() === date.toDateString();
+        });
+        const dayRevenue = dayOrders.reduce((sum: number, order: any) => 
+          sum + parseFloat(order.totalAmount || 0), 0);
+        
+        weeklyEarnings.push({
+          date: date.toLocaleDateString('en-US', { weekday: 'short' }),
+          sales: dayRevenue
+        });
+      }
+      
+      // Calculate monthly earnings (last 30 days)
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const monthlyOrders = orders.filter((order: any) => 
+        new Date(order.createdAt) >= monthAgo);
+      
+      const monthlyEarnings = [];
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dayOrders = monthlyOrders.filter((order: any) => {
+          const orderDate = new Date(order.createdAt);
+          return orderDate.toDateString() === date.toDateString();
+        });
+        const dayRevenue = dayOrders.reduce((sum: number, order: any) => 
+          sum + parseFloat(order.totalAmount || 0), 0);
+        
+        monthlyEarnings.push({
+          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          sales: dayRevenue
+        });
+      }
+      
+      // Calculate top products
+      const productRevenue: { [key: string]: { revenue: number; count: number; name: string } } = {};
+      orders.forEach((order: any) => {
+        if (order.products && Array.isArray(order.products)) {
+          order.products.forEach((product: any) => {
+            const productId = product.id || product.product?.id;
+            const productName = product.name || product.product?.name || 'Unknown Product';
+            if (productId) {
+              if (!productRevenue[productId]) {
+                productRevenue[productId] = { revenue: 0, count: 0, name: productName };
+              }
+              productRevenue[productId].revenue += parseFloat(order.totalAmount || 0) / order.products.length;
+              productRevenue[productId].count += 1;
+            }
+          });
+        }
+      });
+      
+      const topProducts = Object.values(productRevenue)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5)
+        .map(product => ({
+          id: product.name,
+          name: product.name,
+          revenue: product.revenue,
+          salesCount: product.count
+        }));
+      
+      // Calculate performance metrics
+      const completedOrders = orders.filter((order: any) => 
+        order.status === 'delivered' || order.status === 'completed').length;
+      const orderCompletionRate = totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0;
+      
+      // Calculate revenue growth (compare current month vs previous month)
+      const currentDate = new Date();
+      const currentMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const previousMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+      const previousMonthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0);
+      
+      const currentMonthOrders = orders.filter((order: any) => 
+        new Date(order.createdAt) >= currentMonthStart);
+      const previousMonthOrders = orders.filter((order: any) => 
+        new Date(order.createdAt) >= previousMonthStart && new Date(order.createdAt) <= previousMonthEnd);
+      
+      const currentMonthRevenue = currentMonthOrders.reduce((sum: number, order: any) => 
+        sum + parseFloat(order.totalAmount || 0), 0);
+      const previousMonthRevenue = previousMonthOrders.reduce((sum: number, order: any) => 
+        sum + parseFloat(order.totalAmount || 0), 0);
+      
+      const revenueGrowth = previousMonthRevenue > 0 
+        ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100 
+        : 0;
+      
+      // Calculate product performance (percentage of products with sales)
+      const productsWithSales = new Set();
+      orders.forEach((order: any) => {
+        if (order.products && Array.isArray(order.products)) {
+          order.products.forEach((product: any) => {
+            const productId = product.id || product.product?.id;
+            if (productId) {
+              productsWithSales.add(productId);
+            }
+          });
+        }
+      });
+      
+      // Get total products count from topProducts length or use a default
+      const totalProductsCount = topProducts.length;
+      const productPerformance = totalProductsCount > 0 
+        ? (productsWithSales.size / totalProductsCount) * 100 
+        : 0;
+      
+      // Calculate customer satisfaction (placeholder - would need reviews system)
+      // For now, calculate based on order completion rate
+      let customerSatisfaction = 4.0; // Default rating
+      
+      if (totalOrders > 0) {
+        // Only calculate satisfaction if there are orders
+        if (orderCompletionRate > 80) customerSatisfaction = 4.5;
+        else if (orderCompletionRate > 60) customerSatisfaction = 4.0;
+        else if (orderCompletionRate > 40) customerSatisfaction = 3.5;
+        else if (orderCompletionRate > 20) customerSatisfaction = 3.0;
+        else customerSatisfaction = 2.5;
+      } else {
+        // No orders yet - show neutral rating
+        customerSatisfaction = 4.0;
+      }
+      
+      // Recent orders (last 10)
+      const recentOrders = orders
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10)
+        .map((order: any) => normalizeOrder(order));
+      
+      return {
+        totalRevenue,
+        totalOrders,
+        averageOrderValue,
+        weeklyEarnings,
+        monthlyEarnings,
+        topProducts,
+        recentOrders,
+        performanceMetrics: {
+          orderCompletionRate: Math.round(orderCompletionRate),
+          customerSatisfaction: customerSatisfaction,
+          productPerformance: Math.round(productPerformance),
+          revenueGrowth: Math.round(revenueGrowth)
+        }
+      };
+    },
+    enabled: !!vendorId && vendorId > 0,
   });
 } 

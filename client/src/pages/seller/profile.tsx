@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,14 +10,48 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
-import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
+import { useUpdateVendor, useUpdateUser, useCreateVendor } from '@/hooks/use-api';
+import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
+import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
+
+// Form validation schemas
+const userFormSchema = z.object({
+  username: z.string().min(1, 'Username is required'),
+  email: z.string().email('Invalid email address'),
+  phone: z.string().optional(),
+});
+
+const shopFormSchema = z.object({
+  name: z.string().min(1, 'Shop name is required'),
+  description: z.string().optional(),
+  contact: z.string().min(1, 'Contact number is required'),
+  whatsapp: z.string().optional(),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
+  address: z.string().min(1, 'Address is required'),
+  city: z.string().min(1, 'City is required'),
+  state: z.string().min(1, 'State is required'),
+  pincode: z.string().min(6, 'Pincode must be at least 6 characters'),
+  gstNumber: z.string().optional(),
+  businessType: z.string().optional(),
+});
+
+const bankingFormSchema = z.object({
+  bankAccountNumber: z.string().min(1, 'Bank account number is required'),
+  ifscCode: z.string().min(1, 'IFSC code is required'),
+});
+
+type UserFormData = z.infer<typeof userFormSchema>;
+type ShopFormData = z.infer<typeof shopFormSchema>;
+type BankingFormData = z.infer<typeof bankingFormSchema>;
 
 export default function SellerProfile() {
   const { user } = useAuth();
@@ -23,195 +59,330 @@ export default function SellerProfile() {
   const { toast } = useToast();
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('personal');
 
-  // Get vendor ID from user object or vendor relationship
+  // Get vendor ID from user object
   const getVendorId = () => {
     if (user?.vendorId) return user.vendorId;
-    if (user?.vendor?.id) return user.vendor.id;
-    // Temporary workaround: hardcode vendor ID for user ID 3
-    if (user?.id === 3) return 1; // FreshMart vendor ID
-    return null;
-  };
-
-  // Find vendor by user ID if direct vendor ID is not available
-  const findVendorByUserId = async (userId: number) => {
-    try {
-      const response = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}?filters[user][id][$eq]=${userId}`), {
-        headers: {
-          'Authorization': 'Bearer e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5',
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data && data.data.length > 0) {
-          return data.data[0].id;
-        }
-      }
-    } catch (error) {
-      // Silently handle error
-    }
     return null;
   };
 
   const vendorId = getVendorId();
 
-  // Fetch vendor data for the current user
-  const { data: vendorData, isLoading, error: vendorError } = useQuery({
-    queryKey: ['/api/vendors/vendor-data', vendorId, user?.id],
+  // Fetch vendor data
+  const { data: vendorData, isLoading: vendorLoading, error: vendorError } = useQuery({
+    queryKey: ['vendor', vendorId],
     queryFn: async () => {
-      let targetVendorId = vendorId;
+      if (!vendorId) return null;
       
-      // If no direct vendor ID, try to find vendor by user ID
-      if (!targetVendorId && user?.id) {
-        console.log('No direct vendor ID, searching by user ID:', user.id);
-        targetVendorId = await findVendorByUserId(user.id);
-        if (targetVendorId) {
-          console.log('Found vendor ID by user ID:', targetVendorId);
-        }
-      }
-      
-      if (!targetVendorId) {
-        return null;
-      }
-      
-      try {
-        const response = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}/${targetVendorId}`), {
-          headers: {
-            'Authorization': 'Bearer e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5',
-          },
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch vendor data: ${response.status}`);
-        }
+      const response = await apiRequest('GET', `/api/vendors/${vendorId}?populate=*`);
         const data = await response.json();
         return data.data;
-      } catch (error) {
-        console.error('Error fetching vendor data:', error);
-        return null;
-      }
     },
-    enabled: !!(vendorId || user?.id),
+    enabled: !!vendorId,
   });
 
-  // Store the resolved vendor ID for use in mutations
-  const [resolvedVendorId, setResolvedVendorId] = useState<number | null>(null);
-
-  // Update resolved vendor ID when vendor data is loaded
-  useEffect(() => {
-    if (vendorData?.id) {
-      setResolvedVendorId(vendorData.id);
-    }
-  }, [vendorData]);
-
-  const userForm = useForm({
+  // Form instances
+  const userForm = useForm<UserFormData>({
+    resolver: zodResolver(userFormSchema),
     defaultValues: {
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || '',
-      username: user?.username || '',
+      username: '',
+      email: '',
+      phone: '',
     },
   });
 
-  const shopForm = useForm({
+  const shopForm = useForm<ShopFormData>({
+    resolver: zodResolver(shopFormSchema),
     defaultValues: {
-      shopName: '',
-      shopDescription: '',
-      contactPhone: '',
-      whatsappNumber: '',
+      name: '',
+      description: '',
+      contact: '',
+      whatsapp: '',
+      email: '',
       address: '',
       city: '',
       state: '',
       pincode: '',
       gstNumber: '',
+      businessType: '',
+    },
+  });
+
+  const bankingForm = useForm<BankingFormData>({
+    resolver: zodResolver(bankingFormSchema),
+    defaultValues: {
       bankAccountNumber: '',
       ifscCode: '',
     },
   });
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: any) => {
-      // Use resolved vendor ID from vendor data
-      let currentVendorId = resolvedVendorId;
-      
-      // Fallback: Get vendor ID dynamically if not resolved yet
-      if (!currentVendorId) {
-        currentVendorId = getVendorId();
-        
-        // If no direct vendor ID, try to find vendor by user ID
-        if (!currentVendorId && user?.id) {
-          currentVendorId = await findVendorByUserId(user.id);
-        }
-      }
-      
-      if (!currentVendorId) {
-        throw new Error('Vendor ID not found. Please try logging in again.');
-      }
-      
-      // Prepare form data for file upload
-      const formData = new FormData();
-      
-      // Add text fields
-      formData.append('data', JSON.stringify({
-        name: data.shopName,
-        contact: data.contactPhone,
-        whatsapp: data.whatsappNumber,
-        address: data.address,
-        description: data.shopDescription,
-      }));
-      
-      // Add image file if selected
-      if (selectedImage) {
-        formData.append('files.profileImage', selectedImage);
-      }
-      
-      // Custom request for file upload - use Strapi API token for vendor operations
-      const headers: Record<string, string> = {
-        'Authorization': 'Bearer e84e26b9a4c2d8f27bde949afc61d52117e19563be11d5d9ebc8598313d72d1b49d230e28458cfcee1bccd7702ca542a929706c35cde1a62b8f0ab6f185ae74c9ce64c0d8782c15bf4186c29f4fc5c7fdd4cfdd00938a59a636a32cb243b9ca7c94242438ff5fcd2fadbf40a093ea593e96808af49ad97cbeaed977e319614b5',
-      };
-      
-              const response = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}/${currentVendorId}`), {
-        method: 'PUT',
-        headers,
-        body: formData,
+  // Mutations
+  const updateUserMutation = useUpdateUser();
+  const updateVendorMutation = useUpdateVendor();
+  const createVendorMutation = useCreateVendor();
+
+  // Update form values when data loads
+  useEffect(() => {
+    if (user) {
+      userForm.reset({
+        username: user.username || '',
+        email: user.email || '',
+        phone: user.phone || '',
       });
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/vendors/vendor-data'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+    }
+  }, [user, userForm]);
+
+  // Don't reset form during mutation to prevent clearing
+  const isUpdatingUser = updateUserMutation.isPending;
+
+  useEffect(() => {
+    if (vendorData) {
+      shopForm.reset({
+        name: vendorData.name || '',
+        description: vendorData.description || '',
+        contact: vendorData.contact || '',
+        whatsapp: vendorData.whatsapp || '',
+        email: vendorData.email || '',
+        address: vendorData.address || '',
+        city: vendorData.city || '',
+        state: vendorData.state || '',
+        pincode: vendorData.pincode || '',
+        gstNumber: vendorData.gstNumber || '',
+        businessType: vendorData.businessType || '',
+      });
+
+      bankingForm.reset({
+        bankAccountNumber: vendorData.bankAccountNumber || '',
+        ifscCode: vendorData.ifscCode || '',
+      });
+    }
+  }, [vendorData, shopForm, bankingForm]);
+
+  // Form submission handlers
+  const handleUserUpdate = async (data: UserFormData) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User information not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('🔍 handleUserUpdate - form data:', data);
+    console.log('🔍 handleUserUpdate - user.id:', user.id);
+
+    try {
+      const updateData = {
+        id: user.id,
+        ...data,
+      };
+      console.log('🔍 handleUserUpdate - updateData:', updateData);
+      
+      await updateUserMutation.mutateAsync(updateData);
+
+      // Update the form with the new data immediately to prevent clearing
+      userForm.reset(data);
+
+      toast({
+        title: "Success",
+        description: "Personal information updated successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update personal information",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleShopUpdate = async (data: ShopFormData) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User information not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let currentVendorId = vendorId;
+
+      // If no vendor exists, create one first
+      if (!currentVendorId) {
+        toast({
+          title: "Creating Shop Profile",
+          description: "Setting up your shop profile...",
+        });
+
+        const vendorData = {
+          name: data.name || 'My Shop',
+          description: data.description || '',
+          contact: data.contact || '',
+          whatsapp: data.whatsapp || '',
+          email: data.email || user.email,
+          address: data.address || '',
+          city: data.city || '',
+          state: data.state || '',
+          pincode: data.pincode || '',
+          gstNumber: data.gstNumber || '',
+          businessType: data.businessType || '',
+          bankAccountNumber: '',
+          ifscCode: '',
+          user: user.id,
+          isActive: true,
+          isApproved: false,
+          status: 'pending'
+        };
+
+        const newVendor = await createVendorMutation.mutateAsync(vendorData);
+        currentVendorId = newVendor.data.id;
+        
+        // Update the user context with the new vendor ID
+        // This will trigger a re-fetch of user data
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      }
+
+      // Now update the vendor with the form data
+      console.log('🔍 Updating vendor with data:', data);
+      console.log('🔍 Selected image:', selectedImage);
+      
+      if (selectedImage) {
+        // If there's an image, use FormData
+        const formData = new FormData();
+        formData.append('data', JSON.stringify(data));
+        formData.append('files.profileImage', selectedImage);
+        
+        console.log('🔍 Using FormData for update');
+        console.log('🔍 FormData data field:', JSON.stringify(data));
+
+        const response = await updateVendorMutation.mutateAsync({
+          id: currentVendorId!,
+          data: formData,
+        });
+        
+        console.log('🔍 Update response:', response);
+        console.log('🔍 Vendor data after update:', vendorData);
+        console.log('🔍 Profile image data:', vendorData?.profileImage);
+      } else {
+        // If no image, send as regular JSON
+        console.log('🔍 Using JSON for update');
+        console.log('🔍 JSON data:', data);
+
+        const response = await updateVendorMutation.mutateAsync({
+          id: currentVendorId!,
+          data: data,
+        });
+        
+        console.log('🔍 Update response:', response);
+        console.log('🔍 Vendor data after update:', vendorData);
+        console.log('🔍 Profile image data:', vendorData?.profileImage);
+      }
+
       // Clear selected image after successful upload
       setSelectedImage(null);
       setImagePreview(null);
+
+      // Update the form with the new data immediately to prevent clearing
+      shopForm.reset(data);
+
       toast({
-        title: "Profile Updated",
-        description: "Your shop profile has been updated successfully.",
+        title: "Success",
+        description: "Shop details updated successfully",
       });
-    },
-    onError: (error: any) => {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update profile",
+        description: error.message || "Failed to update shop details",
         variant: "destructive",
       });
-    },
-  });
+    }
+  };
 
-  const handleUserUpdate = async (data: any) => {
-    // For now, just show a message that user profile updates are not implemented
+  const handleBankingUpdate = async (data: BankingFormData) => {
+    if (!user?.id) {
     toast({
-      title: "Not Implemented",
-      description: "User profile updates are not yet implemented.",
+        title: "Error",
+        description: "User information not available",
       variant: "destructive",
     });
+      return;
+    }
+
+    try {
+      let currentVendorId = vendorId;
+
+      // If no vendor exists, create one first
+      if (!currentVendorId) {
+        toast({
+          title: "Creating Shop Profile",
+          description: "Setting up your shop profile...",
+        });
+
+        const vendorData = {
+          name: 'My Shop',
+          description: '',
+          contact: '',
+          whatsapp: '',
+          email: user.email,
+          address: '',
+          city: '',
+          state: '',
+          pincode: '',
+          gstNumber: '',
+          businessType: '',
+          bankAccountNumber: data.bankAccountNumber || '',
+          ifscCode: data.ifscCode || '',
+          user: user.id,
+          isActive: true,
+          isApproved: false,
+          status: 'pending'
+        };
+
+        const newVendor = await createVendorMutation.mutateAsync(vendorData);
+        currentVendorId = newVendor.data.id;
+        
+        // Update the user context with the new vendor ID
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      }
+
+      await updateVendorMutation.mutateAsync({
+        id: currentVendorId!,
+        data,
+      });
+
+      // Update the form with the new data immediately to prevent clearing
+      bankingForm.reset(data);
+
+      toast({
+        title: "Success",
+        description: "Banking information updated successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update banking information",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleShopUpdate = async (data: any) => {
-    await updateProfileMutation.mutateAsync(data);
-  };
-
+  // Image handling
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast({
+          title: "Error",
+          description: "Image size must be less than 2MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -226,39 +397,26 @@ export default function SellerProfile() {
     setImagePreview(null);
   };
 
-  const getImageUrl = (imageData: any) => {
-    if (!imageData) return null;
-    if (imageData.url) return imageData.url;
-    if (imageData.data?.attributes?.url) return imageData.data.attributes.url;
-    return null;
-  };
 
-  // Update form values when vendor data loads
-  useEffect(() => {
-    if (vendorData) {
-      const formData = {
-        shopName: vendorData.name || '',
-        shopDescription: vendorData.description || '',
-        contactPhone: vendorData.contact || '',
-        whatsappNumber: vendorData.whatsapp || '',
-        address: vendorData.address || '',
-        city: user?.sellerProfile?.city || '',
-        state: user?.sellerProfile?.state || '',
-        pincode: user?.sellerProfile?.pincode || '',
-        gstNumber: user?.sellerProfile?.gstNumber || '',
-        bankAccountNumber: user?.sellerProfile?.bankAccountNumber || '',
-        ifscCode: user?.sellerProfile?.ifscCode || '',
-      };
-      shopForm.reset(formData);
-    }
-  }, [vendorData, shopForm, user?.sellerProfile]);
 
-  if (isLoading) {
+  if (vendorLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-gray-600">Loading shop settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (vendorError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Profile</h2>
+          <p className="text-gray-600">Unable to load your shop settings. Please try again later.</p>
         </div>
       </div>
     );
@@ -272,8 +430,9 @@ export default function SellerProfile() {
       
       <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
         <div className="max-w-4xl mx-auto">
+          {/* Header */}
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Profile Settings</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Shop Settings</h2>
             <p className="text-gray-600">Manage your personal and shop information</p>
           </div>
 
@@ -282,97 +441,123 @@ export default function SellerProfile() {
             <CardContent className="p-6">
               <div className="flex items-center space-x-6">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={user?.avatar || ""} alt="Profile" />
+                  <AvatarImage 
+                    src={imagePreview || getImageUrl(vendorData?.profileImage?.url || vendorData?.profileImage?.data?.attributes?.url) || ""} 
+                    alt="Profile" 
+                  />
                   <AvatarFallback className="text-2xl">
-                    {user?.firstName?.[0]}{user?.lastName?.[0]}
+                    {vendorData?.name?.[0] || user?.username?.[0]}
                   </AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="flex-1">
                   <h3 className="text-xl font-bold text-gray-900">
-                    {user?.firstName} {user?.lastName}
+                    {vendorData?.name || 'Shop Name'}
                   </h3>
-                  <p className="text-gray-600">{vendorData?.name || user?.sellerProfile?.shopName}</p>
+                  <p className="text-gray-600">{user?.username}</p>
                   <p className="text-sm text-gray-500">{user?.email}</p>
-                  <div className="mt-2">
-                    <Button variant="outline" size="sm">
-                      <i className="fas fa-camera mr-2"></i>
-                      Change Photo
-                    </Button>
+                  <div className="mt-2 flex items-center space-x-2">
+                    <Badge variant={vendorData?.isApproved ? "default" : "secondary"}>
+                      {vendorData?.isApproved ? "Approved" : "Pending Approval"}
+                    </Badge>
+                    <Badge variant={vendorData?.isActive ? "default" : "destructive"}>
+                      {vendorData?.isActive ? "Active" : "Inactive"}
+                    </Badge>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="personal" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="personal">Personal Information</TabsTrigger>
-              <TabsTrigger value="shop">Shop Details</TabsTrigger>
-              <TabsTrigger value="banking">Banking Information</TabsTrigger>
+          {/* Settings Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="personal" className="flex items-center space-x-2">
+                <User className="w-4 h-4" />
+                <span>Personal</span>
+              </TabsTrigger>
+              <TabsTrigger value="shop" className="flex items-center space-x-2">
+                <Store className="w-4 h-4" />
+                <span>Shop Details</span>
+              </TabsTrigger>
+              <TabsTrigger value="banking" className="flex items-center space-x-2">
+                <CreditCard className="w-4 h-4" />
+                <span>Banking</span>
+              </TabsTrigger>
             </TabsList>
 
-
-
-
-
+            {/* Personal Information Tab */}
             <TabsContent value="personal">
               <Card>
                 <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
+                  <CardTitle className="flex items-center space-x-2">
+                    <User className="w-5 h-5" />
+                    <span>Personal Information</span>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={userForm.handleSubmit(handleUserUpdate)} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <Label htmlFor="firstName">First Name</Label>
+                      <Label htmlFor="username">Username *</Label>
                         <Input
-                          id="firstName"
-                          {...userForm.register('firstName')}
-                          placeholder="Enter your first name"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="lastName">Last Name</Label>
-                        <Input
-                          id="lastName"
-                          {...userForm.register('lastName')}
-                          placeholder="Enter your last name"
-                        />
-                      </div>
+                        id="username"
+                        {...userForm.register('username')}
+                        placeholder="Enter your username"
+                      />
+                      {userForm.formState.errors.username && (
+                        <p className="text-sm text-red-500 mt-1">
+                          {userForm.formState.errors.username.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <Label htmlFor="email">Email Address</Label>
+                        <Label htmlFor="email">Email Address *</Label>
                         <Input
                           id="email"
                           type="email"
                           {...userForm.register('email')}
                           placeholder="Enter your email"
                         />
+                        {userForm.formState.errors.email && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {userForm.formState.errors.email.message}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <Label htmlFor="username">Username</Label>
+                        <Label htmlFor="phone">Phone Number</Label>
                         <Input
-                          id="username"
-                          {...userForm.register('username')}
-                          placeholder="Enter your username"
+                          id="phone"
+                          {...userForm.register('phone')}
+                          placeholder="Enter your phone number"
                         />
+                        {userForm.formState.errors.phone && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {userForm.formState.errors.phone.message}
+                          </p>
+                        )}
                       </div>
                     </div>
+
+                    <Separator />
 
                     <div className="flex justify-end">
                       <Button 
                         type="submit"
-                        disabled={updateProfileMutation.isPending}
+                        disabled={updateUserMutation.isPending}
+                        className="flex items-center space-x-2"
                       >
-                        {updateProfileMutation.isPending ? (
-                          <div className="flex items-center space-x-2">
+                        {updateUserMutation.isPending ? (
+                          <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                             <span>Updating...</span>
-                          </div>
+                          </>
                         ) : (
-                          'Update Personal Info'
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Update Personal Info</span>
+                          </>
                         )}
                       </Button>
                     </div>
@@ -381,10 +566,14 @@ export default function SellerProfile() {
               </Card>
             </TabsContent>
 
+            {/* Shop Details Tab */}
             <TabsContent value="shop">
               <Card>
                 <CardHeader>
-                  <CardTitle>Shop Details</CardTitle>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Store className="w-5 h-5" />
+                    <span>Shop Details</span>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={shopForm.handleSubmit(handleShopUpdate)} className="space-y-6">
@@ -397,7 +586,7 @@ export default function SellerProfile() {
                           <div className="flex items-center space-x-4">
                             <div className="relative">
                               <img
-                                src={imagePreview || getImageUrl(vendorData?.profileImage)}
+                                src={imagePreview || getImageUrl(vendorData?.profileImage?.url || vendorData?.profileImage?.data?.attributes?.url)}
                                 alt="Profile"
                                 className="w-24 h-24 rounded-lg object-cover border-2 border-gray-200"
                               />
@@ -449,104 +638,169 @@ export default function SellerProfile() {
                     </div>
 
                     <div>
-                      <Label htmlFor="shopName">Shop Name</Label>
+                      <Label htmlFor="name">Shop Name *</Label>
                       <Input
-                        id="shopName"
-                        {...shopForm.register('shopName')}
+                        id="name"
+                        {...shopForm.register('name')}
                         placeholder="Enter your shop name"
                       />
+                      {shopForm.formState.errors.name && (
+                        <p className="text-sm text-red-500 mt-1">
+                          {shopForm.formState.errors.name.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="description">Shop Description</Label>
+                      <Textarea
+                        id="description"
+                        {...shopForm.register('description')}
+                        placeholder="Brief description of your shop and what you offer"
+                        rows={3}
+                      />
+                      {shopForm.formState.errors.description && (
+                        <p className="text-sm text-red-500 mt-1">
+                          {shopForm.formState.errors.description.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <Label htmlFor="contactPhone">Contact Phone</Label>
+                        <Label htmlFor="contact">Contact Phone *</Label>
                         <Input
-                          id="contactPhone"
-                          {...shopForm.register('contactPhone')}
+                          id="contact"
+                          {...shopForm.register('contact')}
                           placeholder="+91-9876543210"
                         />
                         <p className="text-xs text-gray-500 mt-1">Used for call button</p>
+                        {shopForm.formState.errors.contact && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.contact.message}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <Label htmlFor="whatsappNumber">WhatsApp Number</Label>
+                        <Label htmlFor="whatsapp">WhatsApp Number</Label>
                         <Input
-                          id="whatsappNumber"
-                          {...shopForm.register('whatsappNumber')}
+                          id="whatsapp"
+                          {...shopForm.register('whatsapp')}
                           placeholder="+91-9876543210"
                         />
                         <p className="text-xs text-gray-500 mt-1">Used for WhatsApp button (optional)</p>
+                        {shopForm.formState.errors.whatsapp && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.whatsapp.message}
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <Label htmlFor="gstNumber">GST Number (Optional)</Label>
+                        <Label htmlFor="email">Shop Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          {...shopForm.register('email')}
+                          placeholder="shop@example.com"
+                        />
+                        {shopForm.formState.errors.email && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.email.message}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="gstNumber">GST Number</Label>
                         <Input
                           id="gstNumber"
                           {...shopForm.register('gstNumber')}
                           placeholder="Enter GST number"
                         />
-                      </div>
-                      <div>
-                        <Label htmlFor="shopDescription">Shop Description</Label>
-                        <Input
-                          id="shopDescription"
-                          {...shopForm.register('shopDescription')}
-                          placeholder="Brief description of your shop"
-                        />
+                        {shopForm.formState.errors.gstNumber && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.gstNumber.message}
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div>
-                      <Label htmlFor="address">Address</Label>
+                      <Label htmlFor="address">Address *</Label>
                       <Input
                         id="address"
                         {...shopForm.register('address')}
                         placeholder="Enter your business address"
                       />
+                      {shopForm.formState.errors.address && (
+                        <p className="text-sm text-red-500 mt-1">
+                          {shopForm.formState.errors.address.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
-                        <Label htmlFor="city">City</Label>
+                        <Label htmlFor="city">City *</Label>
                         <Input
                           id="city"
                           {...shopForm.register('city')}
                           placeholder="Enter city"
                         />
+                        {shopForm.formState.errors.city && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.city.message}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <Label htmlFor="state">State</Label>
+                        <Label htmlFor="state">State *</Label>
                         <Input
                           id="state"
                           {...shopForm.register('state')}
                           placeholder="Enter state"
                         />
+                        {shopForm.formState.errors.state && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.state.message}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <Label htmlFor="pincode">Pincode</Label>
+                        <Label htmlFor="pincode">Pincode *</Label>
                         <Input
                           id="pincode"
                           {...shopForm.register('pincode')}
                           placeholder="Enter pincode"
                         />
+                        {shopForm.formState.errors.pincode && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.pincode.message}
+                          </p>
+                        )}
                       </div>
                     </div>
+
+                    <Separator />
 
                     <div className="flex justify-end">
                       <Button 
                         type="submit"
-                        disabled={updateProfileMutation.isPending || !resolvedVendorId}
+                        disabled={updateVendorMutation.isPending || createVendorMutation.isPending}
+                        className="flex items-center space-x-2"
                       >
-                        {updateProfileMutation.isPending ? (
-                          <div className="flex items-center space-x-2">
+                        {updateVendorMutation.isPending || createVendorMutation.isPending ? (
+                          <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                             <span>Updating...</span>
-                          </div>
-                        ) : !resolvedVendorId ? (
-                          'Loading Vendor Data...'
+                          </>
                         ) : (
-                          'Update Shop Details'
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Update Shop Details</span>
+                          </>
                         )}
                       </Button>
                     </div>
@@ -555,59 +809,72 @@ export default function SellerProfile() {
               </Card>
             </TabsContent>
 
+            {/* Banking Information Tab */}
             <TabsContent value="banking">
               <Card>
                 <CardHeader>
-                  <CardTitle>Banking Information</CardTitle>
+                  <CardTitle className="flex items-center space-x-2">
+                    <CreditCard className="w-5 h-5" />
+                    <span>Banking Information</span>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={shopForm.handleSubmit(handleShopUpdate)} className="space-y-6">
+                  <Alert className="mb-6">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      This information is used for payment processing and earnings withdrawal. 
+                      Your data is encrypted and secure.
+                    </AlertDescription>
+                  </Alert>
+
+                  <form onSubmit={bankingForm.handleSubmit(handleBankingUpdate)} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                        <Label htmlFor="bankAccountNumber">Bank Account Number</Label>
+                        <Label htmlFor="bankAccountNumber">Bank Account Number *</Label>
                         <Input
                           id="bankAccountNumber"
-                          {...shopForm.register('bankAccountNumber')}
+                          {...bankingForm.register('bankAccountNumber')}
                           placeholder="Enter account number"
                         />
+                        {bankingForm.formState.errors.bankAccountNumber && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {bankingForm.formState.errors.bankAccountNumber.message}
+                          </p>
+                        )}
                       </div>
                       <div>
-                        <Label htmlFor="ifscCode">IFSC Code</Label>
+                        <Label htmlFor="ifscCode">IFSC Code *</Label>
                         <Input
                           id="ifscCode"
-                          {...shopForm.register('ifscCode')}
+                          {...bankingForm.register('ifscCode')}
                           placeholder="Enter IFSC code"
                         />
+                        {bankingForm.formState.errors.ifscCode && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {bankingForm.formState.errors.ifscCode.message}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex">
-                        <i className="fas fa-info-circle text-blue-500 mt-0.5 mr-3"></i>
-                        <div>
-                          <h4 className="text-sm font-medium text-blue-900">Banking Information</h4>
-                          <p className="text-sm text-blue-700 mt-1">
-                            This information is used for payment processing and earnings withdrawal. 
-                            Your data is encrypted and secure.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    <Separator />
 
                     <div className="flex justify-end">
                       <Button 
                         type="submit"
-                        disabled={updateProfileMutation.isPending || !resolvedVendorId}
+                        disabled={updateVendorMutation.isPending || createVendorMutation.isPending}
+                        className="flex items-center space-x-2"
                       >
-                        {updateProfileMutation.isPending ? (
-                          <div className="flex items-center space-x-2">
+                        {updateVendorMutation.isPending || createVendorMutation.isPending ? (
+                          <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                             <span>Updating...</span>
-                          </div>
-                        ) : !resolvedVendorId ? (
-                          'Loading Vendor Data...'
+                          </>
                         ) : (
-                          'Update Banking Info'
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Update Banking Info</span>
+                          </>
                         )}
                       </Button>
                     </div>

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -17,15 +18,17 @@ import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { useProducts, useCategories, useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/use-api';
+import { useProducts, useCategories, useCreateProduct, useUpdateProduct, useDeleteProduct, useUpdateProductStatus, useToggleProductActive } from '@/hooks/use-api';
 import { z } from 'zod';
-import { getImageUrl } from '@/lib/config';
+import { getImageUrl, API_CONFIG } from '@/lib/config';
 
 // Product form schema
 const productFormSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   description: z.string().min(1, "Description is required"),
-  price: z.string().min(1, "Price is required"),
+  mrp: z.string().min(1, "MRP is required"),
+  price: z.string().min(1, "Selling price is required"),
+  discount: z.string().optional(),
   stock: z.number().min(0, "Stock must be 0 or greater"),
   categoryId: z.number().optional(),
   image: z.any().optional(), // For single image upload
@@ -36,12 +39,21 @@ type ProductFormData = z.infer<typeof productFormSchema>;
 
 // Helper function to normalize Strapi product data
 const normalizeProduct = (product: any) => {
+  const price = product.attributes?.price || product.price || 0;
+  const mrp = product.attributes?.mrp || product.mrp || price; // Default MRP to price if not set
+  const discount = product.attributes?.discount || product.discount || 0;
+  
   return {
     id: product.id,
     name: product.attributes?.name || product.name,
     description: product.attributes?.description || product.description,
-    price: product.attributes?.price || product.price,
+    mrp: mrp,
+    price: price,
+    discount: discount,
     stock: product.attributes?.stock || product.stock,
+    isActive: product.attributes?.isActive !== false,
+    isApproved: product.attributes?.isApproved !== false,
+    approvalStatus: product.attributes?.approvalStatus || 'pending',
     image: product.attributes?.image?.data?.attributes?.url || product.image?.data?.attributes?.url,
     category: product.attributes?.category?.data?.attributes?.name || product.category?.data?.attributes?.name,
     vendor: product.attributes?.vendor?.data?.attributes?.name || product.vendor?.data?.attributes?.name,
@@ -58,7 +70,9 @@ export default function SellerProducts() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [stockFilter, setStockFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [calculatedDiscount, setCalculatedDiscount] = useState<string>('');
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user, isLoading: userLoading } = useAuth();
@@ -89,7 +103,17 @@ export default function SellerProducts() {
       return product.attributes[field];
     }
     // Fallback to normalized format
-    return product[field];
+    const value = product[field];
+    
+    // Handle missing MRP and discount for old products
+    if (field === 'mrp' && (value === undefined || value === null)) {
+      return product.attributes?.price || product.price || 0;
+    }
+    if (field === 'discount' && (value === undefined || value === null)) {
+      return 0;
+    }
+    
+    return value;
   };
 
   // Helper function to safely access nested product data
@@ -124,24 +148,65 @@ export default function SellerProducts() {
            null;
   };
 
+  // Helper function to get status display info
+  const getStatusInfo = (product: any) => {
+    const approvalStatus = getProductData(product, 'approvalStatus') || 'pending';
+    const isActive = getProductData(product, 'isActive') !== false;
+    
+    if (approvalStatus === 'rejected') {
+      return {
+        text: 'Rejected',
+        variant: 'destructive' as const,
+        color: 'text-red-600',
+        bgColor: 'bg-red-100'
+      };
+    }
+    
+    if (approvalStatus === 'pending') {
+      return {
+        text: 'Pending Approval',
+        variant: 'secondary' as const,
+        color: 'text-yellow-600',
+        bgColor: 'bg-yellow-100'
+      };
+    }
+    
+    if (approvalStatus === 'approved') {
+      if (isActive) {
+        return {
+          text: 'Active',
+          variant: 'default' as const,
+          color: 'text-green-600',
+          bgColor: 'bg-green-100'
+        };
+      } else {
+        return {
+          text: 'Inactive',
+          variant: 'outline' as const,
+          color: 'text-gray-600',
+          bgColor: 'bg-gray-100'
+        };
+      }
+    }
+    
+    return {
+      text: 'Unknown',
+      variant: 'outline' as const,
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-100'
+    };
+  };
+
   // Fetch all products and filter by seller
   const { data: allProducts, isLoading, error } = useProducts();
+  
+
   
   // Filter products for the current seller
   // Use only the vendorId from the user object (no fallback)
   const effectiveVendorId = user?.vendorId;
   
-  // Debug logging
-  console.log('🔍 Seller Products Debug:', {
-    user: user,
-    userId: user?.id,
-    userRole: user?.role,
-    userRoleName: user?.role && typeof user.role === 'object' ? user.role.name : user?.role,
-    vendorId: user?.vendorId,
-    effectiveVendorId: effectiveVendorId,
-    isSeller: user?.role && typeof user.role === 'object' && user.role.name === 'seller',
-    shouldShowAddButton: effectiveVendorId || (user?.role && typeof user.role === 'object' && user.role.name === 'seller')
-  });
+
   
   const products = Array.isArray(allProducts) ? allProducts.filter((product: any) => {
     // Check multiple possible vendor ID fields
@@ -163,11 +228,21 @@ export default function SellerProducts() {
 
   // Filter and search products
   const filteredProducts = products.filter((product: any) => {
+    // Status filter
+    const approvalStatus = getProductData(product, 'approvalStatus') || 'pending';
+    const isActive = getProductData(product, 'isActive') !== false;
+    
+    if (statusFilter === 'pending') return approvalStatus === 'pending';
+    if (statusFilter === 'approved') return approvalStatus === 'approved';
+    if (statusFilter === 'rejected') return approvalStatus === 'rejected';
+    if (statusFilter === 'active') return approvalStatus === 'approved' && isActive;
+    if (statusFilter === 'inactive') return approvalStatus === 'approved' && !isActive;
+    
     // Stock filter
     const stock = getProductData(product, 'stock') || 0;
-    if (statusFilter === 'low') return stock <= 5;
-    if (statusFilter === 'out') return stock === 0;
-    if (statusFilter === 'normal') return stock > 5;
+    if (stockFilter === 'low') return stock <= 5;
+    if (stockFilter === 'out') return stock === 0;
+    if (stockFilter === 'normal') return stock > 5;
     
     // Search filter
     if (searchQuery) {
@@ -189,12 +264,26 @@ export default function SellerProducts() {
   // Fetch categories for the form
   const { data: categories } = useCategories();
 
+  // Function to calculate discount
+  const calculateDiscount = (mrp: string, sellingPrice: string) => {
+    const mrpValue = parseFloat(mrp) || 0;
+    const sellingPriceValue = parseFloat(sellingPrice) || 0;
+    
+    if (mrpValue > 0 && sellingPriceValue > 0 && mrpValue >= sellingPriceValue) {
+      const discount = ((mrpValue - sellingPriceValue) / mrpValue) * 100;
+      return discount.toFixed(2);
+    }
+    return '0.00';
+  };
+
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productFormSchema),
     defaultValues: {
       name: '',
       description: '',
+      mrp: '',
       price: '',
+      discount: '',
       stock: 0,
       categoryId: undefined,
       image: undefined,
@@ -203,10 +292,10 @@ export default function SellerProducts() {
   });
 
   const createProductMutation = useCreateProduct();
-
   const updateProductMutation = useUpdateProduct();
-
   const deleteProductMutation = useDeleteProduct();
+  const updateProductStatusMutation = useUpdateProductStatus();
+  const toggleProductActiveMutation = useToggleProductActive();
 
   const handleSubmit = async (data: ProductFormData) => {
     try {
@@ -216,11 +305,15 @@ export default function SellerProducts() {
       const productData: any = {
         name: data.name,
         description: data.description,
+        mrp: parseFloat(data.mrp),
         price: parseFloat(data.price),
+        discount: parseFloat(calculatedDiscount),
         stock: data.stock,
         category: data.categoryId ? { id: data.categoryId } : undefined, // Relation format
         vendor: effectiveVendorId ? { id: effectiveVendorId } : undefined, // Include vendor ID
       };
+      
+
       
       // Handle image upload if present
       if (data.image) {
@@ -236,6 +329,8 @@ export default function SellerProducts() {
       
       if (editingProduct) {
         await updateProductMutation.mutateAsync({ id: editingProduct.id, data: productData });
+        // Force refresh the products data
+        queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       } else {
         await createProductMutation.mutateAsync(productData);
       }
@@ -249,15 +344,23 @@ export default function SellerProducts() {
   const handleEdit = (product: any) => {
     setEditingProduct(product);
     
+    const price = (getProductData(product, 'price') || 0).toString();
+    const mrp = (getProductData(product, 'mrp') || price).toString(); // Use price as MRP if MRP is not set
+    const discount = calculateDiscount(mrp, price);
+    
     form.reset({
       name: getProductData(product, 'name') || '',
       description: getProductData(product, 'description') || '',
-      price: (getProductData(product, 'price') || 0).toString(),
+      mrp: mrp,
+      price: price,
+      discount: discount,
       stock: getProductData(product, 'stock') || 0,
       categoryId: getProductNestedData(product, ['category', 'data', 'id']) || 
                   getProductNestedData(product, ['category', 'id']),
       image: undefined, // Reset image for edit
     });
+    
+    setCalculatedDiscount(discount);
     setIsAddDialogOpen(true);
   };
 
@@ -291,10 +394,13 @@ export default function SellerProducts() {
   const clearForm = () => {
     setEditingProduct(null);
     setCurrentImageUrl(null);
+    setCalculatedDiscount('');
     form.reset({
       name: '',
       description: '',
+      mrp: '',
       price: '',
+      discount: '',
       stock: 0,
       categoryId: undefined,
       image: undefined,
@@ -358,7 +464,21 @@ export default function SellerProducts() {
             </p>
           </div>
           {(effectiveVendorId || (user?.role && typeof user.role === 'object' && user.role.name === 'seller')) && (
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex space-x-2">
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+                  toast({
+                    title: "Refreshed",
+                    description: "Product data has been refreshed",
+                  });
+                }}
+              >
+                <i className="fas fa-refresh mr-2"></i>
+                Refresh
+              </Button>
+
               <Button onClick={() => {
                 clearForm();
                 setIsAddDialogOpen(true);
@@ -366,9 +486,41 @@ export default function SellerProducts() {
                 <i className="fas fa-plus mr-2"></i>
                 Add Product
               </Button>
+
+
             </div>
           )}
         </div>
+
+        {/* Status Summary */}
+        {effectiveVendorId && (
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+            <div className="bg-white p-4 rounded-lg border">
+              <div className="text-2xl font-bold text-gray-900">{products.filter((p: any) => getProductData(p, 'approvalStatus') === 'pending').length}</div>
+              <div className="text-sm text-gray-600">Pending</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border">
+              <div className="text-2xl font-bold text-green-600">{products.filter((p: any) => getProductData(p, 'approvalStatus') === 'approved' && getProductData(p, 'isActive') !== false).length}</div>
+              <div className="text-sm text-gray-600">Active</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border">
+              <div className="text-2xl font-bold text-gray-600">{products.filter((p: any) => getProductData(p, 'approvalStatus') === 'approved' && getProductData(p, 'isActive') === false).length}</div>
+              <div className="text-sm text-gray-600">Inactive</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border">
+              <div className="text-2xl font-bold text-red-600">{products.filter((p: any) => getProductData(p, 'approvalStatus') === 'rejected').length}</div>
+              <div className="text-sm text-gray-600">Rejected</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border">
+              <div className="text-2xl font-bold text-yellow-600">{products.filter((p: any) => (getProductData(p, 'stock') || 0) <= 5).length}</div>
+              <div className="text-sm text-gray-600">Low Stock</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg border">
+              <div className="text-2xl font-bold text-gray-900">{products.length}</div>
+              <div className="text-sm text-gray-600">Total</div>
+            </div>
+          </div>
+        )}
 
         {/* Search and Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
@@ -382,13 +534,26 @@ export default function SellerProducts() {
           </div>
           {effectiveVendorId ? (
             // Seller filters
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex space-x-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Products</SelectItem>
+                  <SelectItem value="pending">Pending Approval</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={stockFilter} onValueChange={setStockFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Filter by stock" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Products</SelectItem>
+                  <SelectItem value="all">All Stock</SelectItem>
                   <SelectItem value="low">Low Stock (≤5)</SelectItem>
                   <SelectItem value="out">Out of Stock</SelectItem>
                   <SelectItem value="normal">Normal Stock (&gt;5)</SelectItem>
@@ -413,7 +578,7 @@ export default function SellerProducts() {
                 </DialogTitle>
                 <DialogDescription>
                   {editingProduct 
-                    ? 'Update your product information'
+                    ? 'Update your product information. Old products will be updated with MRP and discount fields.'
                     : 'Create a new product for your store'
                   }
                 </DialogDescription>
@@ -558,7 +723,30 @@ export default function SellerProducts() {
                   )}
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="mrp">MRP (₹) *</Label>
+                    <Input
+                      id="mrp"
+                      type="number"
+                      step="0.01"
+                      {...form.register('mrp')}
+                      placeholder="0.00"
+                      onChange={(e) => {
+                        const mrp = e.target.value;
+                        const price = form.watch('price');
+                        const discount = calculateDiscount(mrp, price);
+                        setCalculatedDiscount(discount);
+                        form.setValue('discount', discount);
+                      }}
+                    />
+                    {form.formState.errors.mrp && (
+                      <p className="text-sm text-destructive mt-1">
+                        {form.formState.errors.mrp.message}
+                      </p>
+                    )}
+                  </div>
+                  
                   <div>
                     <Label htmlFor="price">Selling Price (₹) *</Label>
                     <Input
@@ -567,6 +755,13 @@ export default function SellerProducts() {
                       step="0.01"
                       {...form.register('price')}
                       placeholder="0.00"
+                      onChange={(e) => {
+                        const price = e.target.value;
+                        const mrp = form.watch('mrp');
+                        const discount = calculateDiscount(mrp, price);
+                        setCalculatedDiscount(discount);
+                        form.setValue('discount', discount);
+                      }}
                     />
                     {form.formState.errors.price && (
                       <p className="text-sm text-destructive mt-1">
@@ -576,19 +771,33 @@ export default function SellerProducts() {
                   </div>
                   
                   <div>
-                    <Label htmlFor="stock">Stock Quantity *</Label>
+                    <Label htmlFor="discount">Discount (%)</Label>
                     <Input
-                      id="stock"
+                      id="discount"
                       type="number"
-                      {...form.register('stock', { valueAsNumber: true })}
-                      placeholder="0"
+                      step="0.01"
+                      value={calculatedDiscount}
+                      readOnly
+                      className="bg-gray-50"
+                      placeholder="0.00"
                     />
-                    {form.formState.errors.stock && (
-                      <p className="text-sm text-destructive mt-1">
-                        {form.formState.errors.stock.message}
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500 mt-1">Auto-calculated</p>
                   </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="stock">Stock Quantity *</Label>
+                  <Input
+                    id="stock"
+                    type="number"
+                    {...form.register('stock', { valueAsNumber: true })}
+                    placeholder="0"
+                  />
+                  {form.formState.errors.stock && (
+                    <p className="text-sm text-destructive mt-1">
+                      {form.formState.errors.stock.message}
+                    </p>
+                  )}
                 </div>
 
 
@@ -666,15 +875,18 @@ export default function SellerProducts() {
             ) : (
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                          <TableHeader>
+          <TableRow>
+            <TableHead>Product</TableHead>
+            <TableHead>MRP</TableHead>
+            <TableHead>Selling Price</TableHead>
+            <TableHead>Discount</TableHead>
+            <TableHead>Stock</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
                   <TableBody>
                     {filteredProducts.map((product: any) => (
                       <TableRow key={product.id}>
@@ -697,7 +909,17 @@ export default function SellerProducts() {
                             </div>
                           </div>
                         </TableCell>
+                        <TableCell>₹{parseFloat(getProductData(product, 'mrp') || getProductData(product, 'price') || 0).toLocaleString()}</TableCell>
                         <TableCell>₹{parseFloat(getProductData(product, 'price') || 0).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            parseFloat(getProductData(product, 'discount') || '0') > 0
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {parseFloat(getProductData(product, 'discount') || '0').toFixed(1)}%
+                          </span>
+                        </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                             (getProductData(product, 'stock') || 0) === 0 
@@ -713,6 +935,43 @@ export default function SellerProducts() {
                           <Badge variant="secondary">
                             {getCategoryName(product)}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            {getProductData(product, 'approvalStatus') === 'approved' ? (
+                              <div className="flex items-center space-x-2">
+                                <Switch
+                                  checked={getProductData(product, 'isActive') !== false && getProductData(product, 'isActive') !== undefined}
+                                  onCheckedChange={async (checked) => {
+                                    try {
+                                      await toggleProductActiveMutation.mutateAsync({
+                                        id: product.id,
+                                        isActive: checked
+                                      });
+                                      toast({
+                                        title: "Success",
+                                        description: `Product ${checked ? 'activated' : 'deactivated'} successfully`,
+                                      });
+                                    } catch (error) {
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to update product status",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  disabled={toggleProductActiveMutation.isPending}
+                                />
+                                <span className="text-xs text-gray-600">
+                                  {getProductData(product, 'isActive') !== false ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                            ) : (
+                              <Badge variant={getStatusInfo(product).variant}>
+                                {getStatusInfo(product).text}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">

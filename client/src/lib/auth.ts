@@ -8,6 +8,7 @@ export interface AuthUser {
   avatar?: string;
   sellerProfile?: any;
   vendorId?: number;
+  phone?: string;
 }
 
 export const getAuthToken = (): string | null => {

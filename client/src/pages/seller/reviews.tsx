@@ -7,32 +7,109 @@ import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import { useSellerReviews, useSellerReviewStats, useVendors } from '@/hooks/use-api';
+import { getImageUrl } from '@/lib/config';
 
 export default function SellerReviews() {
   const [ratingFilter, setRatingFilter] = useState<string>('all');
+  const { user } = useAuth();
 
-  const { data: reviews, isLoading } = useQuery({
-    queryKey: ['/api/reviews'],
-  });
-
-  const filteredReviews = reviews?.filter((review: any) => {
-    if (ratingFilter === 'all') return true;
-    return review.rating.toString() === ratingFilter;
-  }) || [];
-
-  const averageRating = reviews?.length > 0 
-    ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length 
-    : 0;
-
-  const ratingDistribution = {
-    5: reviews?.filter((r: any) => r.rating === 5).length || 0,
-    4: reviews?.filter((r: any) => r.rating === 4).length || 0,
-    3: reviews?.filter((r: any) => r.rating === 3).length || 0,
-    2: reviews?.filter((r: any) => r.rating === 2).length || 0,
-    1: reviews?.filter((r: any) => r.rating === 1).length || 0,
+  // Get vendor ID from user
+  const getVendorId = (user: any) => {
+    console.log('🔍 Getting vendor ID from user:', user);
+    // Try different possible locations for vendor ID
+    const vendorId = user?.vendorId || user?.vendor?.id || user?.sellerProfile?.vendorId;
+    console.log('🔍 Extracted vendor ID:', vendorId);
+    return vendorId;
   };
 
-  const totalReviews = reviews?.length || 0;
+  const vendorId = getVendorId(user);
+
+  // If no vendor ID from user, try to fetch vendor data
+  const { data: vendors } = useVendors();
+  const vendor = Array.isArray(vendors) ? vendors.find((v: any) => 
+    v.user?.id === user?.id || v.userId === user?.id
+  ) : null;
+  
+  const finalVendorId = vendorId || vendor?.id;
+
+  // Fetch seller-specific reviews and stats
+  const { data: reviews, isLoading: reviewsLoading, error: reviewsError } = useSellerReviews(finalVendorId);
+  const { data: reviewStats, isLoading: statsLoading, error: statsError } = useSellerReviewStats(finalVendorId);
+
+  // Debug logging
+  console.log('🔍 Seller Reviews Debug:', {
+    vendorId,
+    finalVendorId,
+    vendor,
+    vendors: vendors?.length || 0,
+    reviews: reviews?.length || 0,
+    reviewStats,
+    reviewsError,
+    statsError,
+    user: {
+      id: user?.id,
+      username: user?.username,
+      vendorId: user?.vendorId,
+      role: user?.role?.name
+    }
+  });
+
+  // Test API call directly
+  if (finalVendorId) {
+    console.log('🔍 Testing direct API call for vendor:', finalVendorId);
+    fetch(`http://192.168.1.102:1337/api/reviews/seller/${finalVendorId}?populate=*`)
+      .then(res => res.json())
+      .then(data => console.log('🔍 Direct API call result:', data))
+      .catch(err => console.error('🔍 Direct API call error:', err));
+  }
+
+  const isLoading = reviewsLoading || statsLoading;
+
+  // Helper function to normalize review data
+  const normalizeReview = (review: any) => {
+    if (review.attributes) {
+      return {
+        id: review.id,
+        rating: review.attributes.rating,
+        comment: review.attributes.comment,
+        customerName: review.attributes.customerName,
+        customerEmail: review.attributes.customerEmail,
+        isVerified: review.attributes.isVerified,
+        isApproved: review.attributes.isApproved,
+        createdAt: review.attributes.createdAt,
+        order: review.attributes.order?.data || review.attributes.order,
+        vendor: review.attributes.vendor?.data || review.attributes.vendor
+      };
+    }
+    return review;
+  };
+
+  // Normalize reviews data
+  const normalizedReviews = reviews?.map(normalizeReview) || [];
+
+  // Filter reviews by rating
+  const filteredReviews = normalizedReviews.filter((review: any) => {
+    if (ratingFilter === 'all') return true;
+    return review.rating.toString() === ratingFilter;
+  });
+
+  // Use stats from API or calculate from reviews
+  const averageRating = reviewStats?.averageRating || 
+    (normalizedReviews.length > 0 
+      ? normalizedReviews.reduce((sum: number, review: any) => sum + review.rating, 0) / normalizedReviews.length 
+      : 0);
+
+  const ratingDistribution = reviewStats?.ratingDistribution || {
+    5: normalizedReviews.filter((r: any) => r.rating === 5).length || 0,
+    4: normalizedReviews.filter((r: any) => r.rating === 4).length || 0,
+    3: normalizedReviews.filter((r: any) => r.rating === 3).length || 0,
+    2: normalizedReviews.filter((r: any) => r.rating === 2).length || 0,
+    1: normalizedReviews.filter((r: any) => r.rating === 1).length || 0,
+  };
+
+  const totalReviews = reviewStats?.totalReviews || normalizedReviews.length || 0;
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, index) => (
@@ -62,8 +139,8 @@ export default function SellerReviews() {
       <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Reviews & Ratings</h2>
-            <p className="text-gray-600">Customer feedback and product ratings</p>
+            <h2 className="text-2xl font-bold text-gray-900">Seller Reviews & Ratings</h2>
+            <p className="text-gray-600">Customer feedback about your shop and service</p>
           </div>
           <Select value={ratingFilter} onValueChange={setRatingFilter}>
             <SelectTrigger className="w-40">
@@ -133,10 +210,12 @@ export default function SellerReviews() {
           </Card>
         </div>
 
+
+
         {/* Reviews List */}
         <Card>
           <CardHeader>
-            <CardTitle>Customer Reviews</CardTitle>
+            <CardTitle>Shop Reviews</CardTitle>
           </CardHeader>
           <CardContent>
             {filteredReviews.length === 0 ? (
@@ -159,14 +238,14 @@ export default function SellerReviews() {
                     <div className="flex items-start space-x-4">
                       <Avatar>
                         <AvatarFallback>
-                          {review.customerName.split(' ').map((n: string) => n[0]).join('')}
+                          {review.customerName?.split(' ').map((n: string) => n[0]).join('') || 'CU'}
                         </AvatarFallback>
                       </Avatar>
                       
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-2">
                           <div>
-                            <h4 className="font-medium text-gray-900">{review.customerName}</h4>
+                            <h4 className="font-medium text-gray-900">{review.customerName || 'Anonymous'}</h4>
                             <div className="flex items-center space-x-2 mt-1">
                               <div className="flex">
                                 {renderStars(review.rating)}
@@ -176,29 +255,27 @@ export default function SellerReviews() {
                               </span>
                             </div>
                           </div>
-                          <Badge variant="outline">
-                            Verified Purchase
-                          </Badge>
-                        </div>
-                        
-                        <div className="mb-3">
-                          <div className="flex items-center space-x-2 mb-2">
-                            {review.product?.images?.[0] ? (
-                              <img 
-                                src={review.product.images[0]} 
-                                alt={review.product.name}
-                                className="w-8 h-8 rounded object-cover"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
-                                <i className="fas fa-image text-gray-400 text-xs"></i>
-                              </div>
+                          <div className="flex space-x-2">
+                            {!review.isApproved && (
+                              <Badge variant="secondary">
+                                Pending Approval
+                              </Badge>
                             )}
-                            <span className="text-sm font-medium text-gray-700">
-                              {review.product?.name}
-                            </span>
                           </div>
                         </div>
+                        
+                        {review.order && (
+                          <div className="mb-3">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                                <i className="fas fa-shopping-bag text-blue-600 text-xs"></i>
+                              </div>
+                              <span className="text-sm font-medium text-gray-700">
+                                Order #{review.order.orderNumber}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                         
                         {review.comment && (
                           <p className="text-gray-700 leading-relaxed">
