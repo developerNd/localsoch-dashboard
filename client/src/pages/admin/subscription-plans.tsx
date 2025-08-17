@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
+import { getAuthToken } from '@/lib/auth';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
@@ -20,23 +21,21 @@ import { Plus, Edit, Trash2, Star, Package } from 'lucide-react';
 
 interface SubscriptionPlan {
   id: number;
-  attributes: {
-    name: string;
-    description: string;
-    price: number;
-    currency: string;
-    duration: number;
-    durationType: string;
-    isActive: boolean;
-    isPopular: boolean;
-    sortOrder: number;
-    features: string[];
-    maxProducts: number;
-    maxOrders: number;
-    commissionRate: number;
-    createdAt: string;
-    updatedAt: string;
-  };
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  duration: number;
+  durationType: string;
+  isActive: boolean;
+  isPopular: boolean;
+  sortOrder: number;
+  features: string[];
+  maxProducts: number;
+  maxOrders: number;
+  commissionRate: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function AdminSubscriptionPlans() {
@@ -65,7 +64,12 @@ export default function AdminSubscriptionPlans() {
   const { data: plans, isLoading, error } = useQuery({
     queryKey: ['subscription-plans'],
     queryFn: async () => {
-      const response = await fetch(getApiUrl(API_ENDPOINTS.SUBSCRIPTION.PLANS));
+      const token = getAuthToken();
+      const response = await fetch(getApiUrl(API_ENDPOINTS.SUBSCRIPTION.PLANS), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       if (!response.ok) throw new Error('Failed to fetch plans');
       const data = await response.json();
       return data.data || [];
@@ -75,11 +79,12 @@ export default function AdminSubscriptionPlans() {
   // Create plan mutation
   const createPlanMutation = useMutation({
     mutationFn: async (planData: any) => {
+      const token = getAuthToken();
       const response = await fetch(getApiUrl('/api/subscription-plans'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ data: planData }),
       });
@@ -107,11 +112,12 @@ export default function AdminSubscriptionPlans() {
   // Update plan mutation
   const updatePlanMutation = useMutation({
     mutationFn: async ({ id, planData }: { id: number; planData: any }) => {
+      const token = getAuthToken();
       const response = await fetch(getApiUrl(`/api/subscription-plans/${id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ data: planData }),
       });
@@ -171,18 +177,18 @@ export default function AdminSubscriptionPlans() {
   const handleEdit = (plan: SubscriptionPlan) => {
     setEditingPlan(plan);
     setFormData({
-      name: plan.attributes.name,
-      description: plan.attributes.description,
-      price: plan.attributes.price.toString(),
-      duration: plan.attributes.duration.toString(),
-      durationType: plan.attributes.durationType,
-      isActive: plan.attributes.isActive,
-      isPopular: plan.attributes.isPopular,
-      sortOrder: plan.attributes.sortOrder,
-      features: plan.attributes.features.length > 0 ? plan.attributes.features : [''],
-      maxProducts: plan.attributes.maxProducts?.toString() || '',
-      maxOrders: plan.attributes.maxOrders?.toString() || '',
-      commissionRate: plan.attributes.commissionRate?.toString() || ''
+      name: plan.name,
+      description: plan.description,
+      price: plan.price.toString(),
+      duration: plan.duration.toString(),
+      durationType: plan.durationType,
+      isActive: plan.isActive,
+      isPopular: plan.isPopular,
+      sortOrder: plan.sortOrder,
+      features: plan.features.length > 0 ? plan.features : [''],
+      maxProducts: plan.maxProducts?.toString() || '',
+      maxOrders: plan.maxOrders?.toString() || '',
+      commissionRate: plan.commissionRate?.toString() || ''
     });
     setIsEditDialogOpen(true);
   };
@@ -230,7 +236,7 @@ export default function AdminSubscriptionPlans() {
         <Header />
         <Sidebar />
         <MobileNav />
-        <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+        <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -248,7 +254,7 @@ export default function AdminSubscriptionPlans() {
         <Header />
         <Sidebar />
         <MobileNav />
-        <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+        <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
           <Alert variant="destructive">
             <AlertDescription>
               Failed to load subscription plans. Please try again.
@@ -264,7 +270,7 @@ export default function AdminSubscriptionPlans() {
       <Header />
       <Sidebar />
       <MobileNav />
-      <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+      <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
@@ -274,7 +280,7 @@ export default function AdminSubscriptionPlans() {
             </div>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="mt-4 sm:mt-0">
+                <Button className="mt-6 sm:mt-2">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Plan
                 </Button>
@@ -447,7 +453,7 @@ export default function AdminSubscriptionPlans() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {plans?.map((plan: SubscriptionPlan) => (
               <Card key={plan.id} className="relative">
-                {plan.attributes.isPopular && (
+                {plan.isPopular && (
                   <div className="absolute -top-3 left-4">
                     <Badge className="bg-yellow-500 text-white">
                       <Star className="h-3 w-3 mr-1" />
@@ -460,9 +466,9 @@ export default function AdminSubscriptionPlans() {
                     <div>
                       <CardTitle className="flex items-center">
                         <Package className="h-5 w-5 mr-2" />
-                        {plan.attributes.name}
+                        {plan.name}
                       </CardTitle>
-                      <CardDescription>{plan.attributes.description}</CardDescription>
+                      <CardDescription>{plan.description}</CardDescription>
                     </div>
                     <Button
                       variant="ghost"
@@ -477,10 +483,10 @@ export default function AdminSubscriptionPlans() {
                   <div className="space-y-4">
                     <div className="text-center">
                       <div className="text-3xl font-bold text-gray-900">
-                        ₹{plan.attributes.price}
+                        ₹{plan.price}
                       </div>
                       <div className="text-sm text-gray-600">
-                        per {plan.attributes.duration} {plan.attributes.durationType}
+                        per {plan.duration} {plan.durationType}
                       </div>
                     </div>
                     
@@ -488,25 +494,25 @@ export default function AdminSubscriptionPlans() {
                       <div className="flex justify-between text-sm">
                         <span>Max Products:</span>
                         <span className="font-medium">
-                          {plan.attributes.maxProducts === -1 ? 'Unlimited' : plan.attributes.maxProducts}
+                          {plan.maxProducts === -1 ? 'Unlimited' : plan.maxProducts}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>Max Orders:</span>
                         <span className="font-medium">
-                          {plan.attributes.maxOrders === -1 ? 'Unlimited' : plan.attributes.maxOrders}
+                          {plan.maxOrders === -1 ? 'Unlimited' : plan.maxOrders}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>Commission:</span>
-                        <span className="font-medium">{plan.attributes.commissionRate}%</span>
+                        <span className="font-medium">{plan.commissionRate}%</span>
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <div className="text-sm font-medium">Features:</div>
                       <ul className="text-sm text-gray-600 space-y-1">
-                        {plan.attributes.features?.map((feature, index) => (
+                        {plan.features?.map((feature, index) => (
                           <li key={index} className="flex items-center">
                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></div>
                             {feature}
@@ -516,11 +522,11 @@ export default function AdminSubscriptionPlans() {
                     </div>
 
                     <div className="flex items-center justify-between pt-2">
-                      <Badge variant={plan.attributes.isActive ? "default" : "secondary"}>
-                        {plan.attributes.isActive ? 'Active' : 'Inactive'}
+                      <Badge variant={plan.isActive ? "default" : "secondary"}>
+                        {plan.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                       <div className="text-xs text-gray-500">
-                        Order: {plan.attributes.sortOrder}
+                        Order: {plan.sortOrder}
                       </div>
                     </div>
                   </div>

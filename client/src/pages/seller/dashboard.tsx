@@ -69,7 +69,7 @@ export default function SellerDashboard() {
         <Sidebar />
         <MobileNav />
         
-        <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+        <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
           </div>
@@ -85,7 +85,7 @@ export default function SellerDashboard() {
         <Sidebar />
         <MobileNav />
         
-        <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+        <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
           <div className="max-w-2xl mx-auto text-center py-12">
             <div className="bg-white rounded-lg shadow-sm p-8">
               <i className="fas fa-exclamation-triangle text-6xl text-yellow-500 mb-6"></i>
@@ -114,7 +114,7 @@ export default function SellerDashboard() {
       <Sidebar />
       <MobileNav />
       
-      <main className="flex-1 lg:ml-64 pt-16 p-4 lg:p-8 pb-20 lg:pb-8">
+      <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
