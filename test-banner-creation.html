@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Banner Creation with New Action Types</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Banner Creation with New Action Types</h1>
+        
+        <div class="test-section info">
+            <h3>📋 Test Overview</h3>
+            <p>This test verifies that the admin dashboard can create banners with the new action types:</p>
+            <ul>
+                <li><strong>External Link</strong> - Opens external URLs in browser</li>
+                <li><strong>Seller</strong> - Navigates to specific seller's store with searchable popup</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Backend Connection Test</h3>
+            <button onclick="testBackendConnection()">Test Backend Connection</button>
+            <div id="backend-status" class="log"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Get Available Vendors</h3>
+            <button onclick="getVendors()">Fetch Vendors</button>
+            <div id="vendors-list" class="log"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎨 Test Banner Creation</h3>
+            
+            <div class="form-group">
+                <label for="bannerTitle">Banner Title:</label>
+                <input type="text" id="bannerTitle" value="Test Banner" />
+            </div>
+            
+            <div class="form-group">
+                <label for="bannerActionType">Action Type:</label>
+                <select id="bannerActionType" onchange="toggleActionFields()">
+                    <option value="external_link">External Link</option>
+                    <option value="seller">Seller</option>
+                </select>
+            </div>
+            
+            <div class="form-group" id="externalLinkGroup" style="display: none;">
+                <label for="externalLink">External Link URL:</label>
+                <input type="url" id="externalLink" placeholder="https://example.com" value="https://www.google.com" />
+            </div>
+            
+            <div class="form-group" id="sellerGroup" style="display: none;">
+                <label for="sellerId">Select Seller:</label>
+                <select id="sellerId">
+                    <option value="">Loading vendors...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="actionText">Action Text:</label>
+                <input type="text" id="actionText" value="Shop Now" />
+            </div>
+            
+            <button onclick="createBanner()">Create Test Banner</button>
+            <div id="banner-result" class="log"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📱 Test Frontend Integration</h3>
+            <button onclick="openAdminDashboard()">Open Admin Dashboard</button>
+            <p>This will open the admin dashboard where you can test the banner creation form.</p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://192.168.1.100:1337';
+        let adminToken = '';
+        let vendors = [];
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}\n`;
+            element.textContent += logMessage;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        async function testBackendConnection() {
+            log('backend-status', 'Testing backend connection...');
+            
+            try {
+                const response = await fetch(`${API_URL}/api/banners`);
+                if (response.ok) {
+                    log('backend-status', '✅ Backend is accessible');
+                    log('backend-status', `Status: ${response.status}`);
+                } else {
+                    log('backend-status', `❌ Backend error: ${response.status}`);
+                }
+            } catch (error) {
+                log('backend-status', `❌ Connection failed: ${error.message}`);
+            }
+        }
+
+        async function getVendors() {
+            log('vendors-list', 'Fetching vendors...');
+            
+            try {
+                const response = await fetch(`${API_URL}/api/vendors?populate=*`);
+                if (response.ok) {
+                    const data = await response.json();
+                    vendors = data.data || [];
+                    log('vendors-list', `✅ Found ${vendors.length} vendors`);
+                    
+                    vendors.forEach(vendor => {
+                        const name = vendor.name || vendor.attributes?.name || `Vendor ${vendor.id}`;
+                        log('vendors-list', `- ID: ${vendor.id}, Name: ${name}`);
+                    });
+                    
+                    // Update seller dropdown
+                    updateSellerDropdown();
+                } else {
+                    log('vendors-list', `❌ Failed to fetch vendors: ${response.status}`);
+                }
+            } catch (error) {
+                log('vendors-list', `❌ Error: ${error.message}`);
+            }
+        }
+
+        function updateSellerDropdown() {
+            const sellerSelect = document.getElementById('sellerId');
+            sellerSelect.innerHTML = '<option value="">Select a seller</option>';
+            
+            vendors.forEach(vendor => {
+                const name = vendor.name || vendor.attributes?.name || `Vendor ${vendor.id}`;
+                const option = document.createElement('option');
+                option.value = vendor.id;
+                option.textContent = name;
+                sellerSelect.appendChild(option);
+            });
+        }
+
+        function toggleActionFields() {
+            const actionType = document.getElementById('bannerActionType').value;
+            const externalLinkGroup = document.getElementById('externalLinkGroup');
+            const sellerGroup = document.getElementById('sellerGroup');
+            
+            // Hide all groups first
+            externalLinkGroup.style.display = 'none';
+            sellerGroup.style.display = 'none';
+            
+            // Show relevant group
+            if (actionType === 'external_link') {
+                externalLinkGroup.style.display = 'block';
+            } else if (actionType === 'seller') {
+                sellerGroup.style.display = 'block';
+            }
+        }
+
+        async function createBanner() {
+            const title = document.getElementById('bannerTitle').value;
+            const actionType = document.getElementById('bannerActionType').value;
+            const actionText = document.getElementById('actionText').value;
+            const externalLink = document.getElementById('externalLink').value;
+            const sellerId = document.getElementById('sellerId').value;
+            
+            log('banner-result', 'Creating banner...');
+            log('banner-result', `Title: ${title}`);
+            log('banner-result', `Action Type: ${actionType}`);
+            log('banner-result', `Action Text: ${actionText}`);
+            
+            const bannerData = {
+                title: title,
+                subtitle: 'Test banner subtitle',
+                description: 'Test banner description',
+                backgroundColor: '#14b8a6',
+                textColor: '#ffffff',
+                actionText: actionText,
+                actionType: actionType,
+                actionData: {},
+                isActive: true,
+                sortOrder: 0,
+                targetAudience: 'all'
+            };
+            
+            // Add conditional fields
+            if (actionType === 'external_link') {
+                bannerData.externalLink = externalLink;
+                log('banner-result', `External Link: ${externalLink}`);
+            } else if (actionType === 'seller') {
+                bannerData.sellerId = parseInt(sellerId);
+                log('banner-result', `Seller ID: ${sellerId}`);
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/api/banners`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ data: bannerData })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    log('banner-result', '✅ Banner created successfully!');
+                    log('banner-result', `Banner ID: ${result.data.id}`);
+                    log('banner-result', `Response: ${JSON.stringify(result, null, 2)}`);
+                } else {
+                    const errorText = await response.text();
+                    log('banner-result', `❌ Failed to create banner: ${response.status}`);
+                    log('banner-result', `Error: ${errorText}`);
+                }
+            } catch (error) {
+                log('banner-result', `❌ Error: ${error.message}`);
+            }
+        }
+
+        function openAdminDashboard() {
+            window.open('http://localhost:5000/admin/banners', '_blank');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            log('backend-status', 'Test page loaded. Click "Test Backend Connection" to start.');
+            toggleActionFields(); // Set initial state
+        });
+    </script>
+</body>
+</html> 

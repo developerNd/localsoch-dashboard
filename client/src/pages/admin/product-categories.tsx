@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,9 @@ export default function AdminProductCategories() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -68,13 +71,26 @@ export default function AdminProductCategories() {
       const token = getAuthToken();
       if (!token) throw new Error('No token');
       
+      let dataToSend = { ...categoryData };
+      
+      // If there's a selected image, upload it first
+      if (selectedImage) {
+        try {
+          const uploadedImage = await uploadImage.mutateAsync(selectedImage);
+          dataToSend.image = uploadedImage.id;
+        } catch (error) {
+          console.error('Image upload failed:', error);
+          throw new Error('Failed to upload image');
+        }
+      }
+      
       const response = await fetch(getApiUrl(API_ENDPOINTS.CATEGORIES), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data: categoryData }),
+        body: JSON.stringify({ data: dataToSend }),
       });
       
       if (!response.ok) throw new Error('Failed to create product category');
@@ -98,11 +114,47 @@ export default function AdminProductCategories() {
     },
   });
 
+  // Upload image mutation
+  const uploadImage = useMutation({
+    mutationFn: async (file: File) => {
+      const token = getAuthToken();
+      if (!token) throw new Error('No authentication token');
+      
+      const formData = new FormData();
+      formData.append('files', file);
+      
+      const response = await fetch(getApiUrl(API_ENDPOINTS.UPLOAD), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) throw new Error('Failed to upload image');
+      const result = await response.json();
+      return result[0]; // Return the first uploaded file
+    },
+  });
+
   // Update product category mutation
   const updateCategory = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
       const token = getAuthToken();
       if (!token) throw new Error('No token');
+      
+      let dataToSend = { ...data };
+      
+      // If there's a selected image, upload it first
+      if (selectedImage) {
+        try {
+          const uploadedImage = await uploadImage.mutateAsync(selectedImage);
+          dataToSend.image = uploadedImage.id;
+        } catch (error) {
+          console.error('Image upload failed:', error);
+          throw new Error('Failed to upload image');
+        }
+      }
       
       const response = await fetch(getApiUrl(`${API_ENDPOINTS.CATEGORIES}/${id}`), {
         method: 'PUT',
@@ -110,7 +162,7 @@ export default function AdminProductCategories() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data }),
+        body: JSON.stringify({ data: dataToSend }),
       });
       
       if (!response.ok) throw new Error('Failed to update product category');
@@ -171,6 +223,31 @@ export default function AdminProductCategories() {
       isActive: true,
       sortOrder: 0
     });
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImageRemove = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -200,6 +277,16 @@ export default function AdminProductCategories() {
       isActive: category.isActive ?? true,
       sortOrder: category.sortOrder ?? 0
     });
+    
+    // Set image preview if category has an image
+    if (category.image?.url) {
+      setImagePreview(category.image.url);
+      setSelectedImage(null); // Clear selected image since we're editing existing
+    } else {
+      setImagePreview(null);
+      setSelectedImage(null);
+    }
+    
     setIsCreateDialogOpen(true);
   };
 
@@ -309,6 +396,55 @@ export default function AdminProductCategories() {
                     rows={3}
                   />
                 </div>
+                
+                {/* Image Upload Section */}
+                <div>
+                  <Label htmlFor="image">Category Image</Label>
+                  <div className="space-y-4">
+                    {/* Image Preview */}
+                    {imagePreview && (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Category preview"
+                          className="w-full h-32 object-cover rounded-lg border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={handleImageRemove}
+                        >
+                          <i className="fas fa-times"></i>
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* File Input */}
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <i className="fas fa-upload mr-2"></i>
+                        Choose Image
+                      </Button>
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      Recommended size: 400x400px. Max file size: 5MB
+                    </p>
+                  </div>
+                </div>
+                
                 <div>
                   <Label htmlFor="sortOrder">Sort Order</Label>
                   <Input
@@ -337,9 +473,9 @@ export default function AdminProductCategories() {
                   </Button>
                   <Button 
                     type="submit" 
-                    disabled={createCategory.isPending || updateCategory.isPending}
+                    disabled={createCategory.isPending || updateCategory.isPending || uploadImage.isPending}
                   >
-                    {createCategory.isPending || updateCategory.isPending ? 'Saving...' : 'Save Category'}
+                    {createCategory.isPending || updateCategory.isPending || uploadImage.isPending ? 'Saving...' : 'Save Category'}
                   </Button>
                 </div>
               </form>

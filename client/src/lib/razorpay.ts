@@ -59,7 +59,7 @@ export const loadRazorpayScript = (): Promise<void> => {
 };
 
 // Create payment order on backend
-export const createPaymentOrder = async (paymentData: PaymentData): Promise<{ orderId: string }> => {
+export const createPaymentOrder = async (paymentData: PaymentData): Promise<{ orderId: string; amount: number }> => {
   try {
     const response = await fetch(`${API_CONFIG.API_URL}/api/payment/create-order`, {
       method: 'POST',
@@ -85,7 +85,7 @@ export const createPaymentOrder = async (paymentData: PaymentData): Promise<{ or
     }
 
     const data = await response.json();
-    return { orderId: data.order.id };
+    return { orderId: data.order.id, amount: data.order.amount };
   } catch (error) {
     console.error('Error creating payment order:', error);
     if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -107,12 +107,12 @@ export const initializePayment = async (
     await loadRazorpayScript();
 
     // Create payment order
-    const { orderId } = await createPaymentOrder(paymentData);
+    const { orderId, amount } = await createPaymentOrder(paymentData);
 
     // Configure Razorpay options
     const options: RazorpayOptions = {
       key: 'rzp_test_lFR1xyqT46S2QF', // Your test key - replace with production key
-      amount: paymentData.amount * 100, // Razorpay expects amount in paise
+      amount: amount, // Don't multiply here - backend already converts to paise
       currency: paymentData.currency,
       name: paymentData.name,
       description: paymentData.description,
@@ -190,22 +190,9 @@ export const completeSellerRegistration = async (paymentResponse: any): Promise<
 
     const sellerData = JSON.parse(pendingData);
     
-    // Verify payment first
-    const isVerified = await verifyPayment(
-      paymentResponse.razorpay_payment_id,
-      paymentResponse.razorpay_order_id,
-      paymentResponse.razorpay_signature
-    );
-
-    if (!isVerified) {
-      throw new Error('Payment verification failed');
-    }
-
-    // For now, skip vendor creation and just redirect to dashboard
-    // The vendor can be created later through the admin panel or when the backend is updated
-    console.log('Payment successful, but vendor creation requires backend update');
+    console.log('🔄 Completing seller registration...');
     console.log('User data:', sellerData.user);
-    console.log('Vendor data would be:', {
+    console.log('Vendor data:', {
       name: sellerData.formData.shopName,
       description: sellerData.formData.shopDescription,
       address: sellerData.formData.address,
@@ -217,43 +204,56 @@ export const completeSellerRegistration = async (paymentResponse: any): Promise<
       email: sellerData.formData.email,
     });
 
-    // Store the vendor data in localStorage for manual creation later
-    localStorage.setItem('pendingVendorData', JSON.stringify({
-      userId: sellerData.user.id,
-      vendorData: {
-        name: sellerData.formData.shopName,
-        description: sellerData.formData.shopDescription,
-        address: sellerData.formData.address,
-        city: sellerData.formData.city,
-        state: sellerData.formData.state,
-        pincode: sellerData.formData.pincode,
-        businessType: sellerData.formData.businessType,
-        phone: sellerData.formData.phone,
-        email: sellerData.formData.email,
-      }
-    }));
-
-    // Create a mock vendor data for now
-    const vendorData = {
-      id: 'temp_' + Date.now(),
-      name: sellerData.formData.shopName,
-      user: sellerData.user.id
-    };
-
-    // Payment info is already verified, no need to store separately
-    console.log('Payment completed successfully:', {
-      paymentId: paymentResponse.razorpay_payment_id,
-      orderId: paymentResponse.razorpay_order_id,
-      amount: 1625,
-      vendorId: vendorData.id,
+    // Call the new backend endpoint to complete seller registration
+    const response = await fetch(`${API_CONFIG.API_URL}/api/payment/complete-seller-registration`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        paymentId: paymentResponse.razorpay_payment_id,
+        orderId: paymentResponse.razorpay_order_id,
+        signature: paymentResponse.razorpay_signature,
+        userId: sellerData.user.id,
+        vendorData: {
+          name: sellerData.formData.shopName,
+          description: sellerData.formData.shopDescription,
+          address: sellerData.formData.address,
+          city: sellerData.formData.city,
+          state: sellerData.formData.state,
+          pincode: sellerData.formData.pincode,
+          businessType: sellerData.formData.businessType,
+          phone: sellerData.formData.phone,
+          email: sellerData.formData.email,
+          contact: sellerData.formData.phone,
+          whatsapp: sellerData.formData.phone,
+          businessCategoryId: sellerData.formData.businessCategoryId,
+        }
+      }),
     });
 
-    // Clear pending data
-    localStorage.removeItem('pendingSellerData');
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to complete seller registration');
+    }
 
-    return true;
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log('✅ Seller registration completed successfully!');
+      console.log('   User ID:', result.data.user.id);
+      console.log('   Vendor ID:', result.data.vendor.id);
+      console.log('   Payment ID:', result.data.payment.paymentId);
+      
+      // Clear pending data
+      localStorage.removeItem('pendingSellerData');
+      
+      return true;
+    } else {
+      throw new Error(result.message || 'Failed to complete seller registration');
+    }
   } catch (error) {
-    console.error('Error completing seller registration:', error);
+    console.error('❌ Error completing seller registration:', error);
     return false;
   }
 }; 

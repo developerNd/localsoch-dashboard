@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Category Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        select { padding: 8px; margin: 10px 0; width: 200px; }
+        button { padding: 10px 15px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .result { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Business Category Selection Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Fetch Business Categories</h3>
+        <button onclick="fetchCategories()">Fetch Categories</button>
+        <div id="categories-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Test Category Selection</h3>
+        <select id="category-select" onchange="onCategoryChange()">
+            <option value="">Select a category...</option>
+        </select>
+        <div id="selection-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. Test Vendor Creation with Category</h3>
+        <button onclick="testVendorCreation()">Test Vendor Creation</button>
+        <div id="vendor-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://192.168.1.101:1337';
+        let categories = [];
+
+        async function fetchCategories() {
+            try {
+                const response = await fetch(`${API_URL}/api/business-categories`);
+                const data = await response.json();
+                categories = data.data;
+                
+                const resultDiv = document.getElementById('categories-result');
+                resultDiv.innerHTML = `
+                    <h4>Found ${categories.length} categories:</h4>
+                    <ul>
+                        ${categories.map(cat => `<li>ID: ${cat.id}, Name: ${cat.name}</li>`).join('')}
+                    </ul>
+                `;
+                
+                // Populate select dropdown
+                const select = document.getElementById('category-select');
+                select.innerHTML = '<option value="">Select a category...</option>';
+                categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat.id;
+                    option.textContent = `${cat.name} (ID: ${cat.id})`;
+                    select.appendChild(option);
+                });
+                
+            } catch (error) {
+                document.getElementById('categories-result').innerHTML = `Error: ${error.message}`;
+            }
+        }
+
+        function onCategoryChange() {
+            const select = document.getElementById('category-select');
+            const selectedId = select.value;
+            const selectedCategory = categories.find(cat => cat.id.toString() === selectedId);
+            
+            const resultDiv = document.getElementById('selection-result');
+            if (selectedCategory) {
+                resultDiv.innerHTML = `
+                    <h4>Selected Category:</h4>
+                    <p><strong>ID:</strong> ${selectedCategory.id}</p>
+                    <p><strong>Name:</strong> ${selectedCategory.name}</p>
+                    <p><strong>Type:</strong> ${typeof selectedCategory.id}</p>
+                `;
+            } else {
+                resultDiv.innerHTML = '<p>No category selected</p>';
+            }
+        }
+
+        async function testVendorCreation() {
+            const select = document.getElementById('category-select');
+            const selectedId = select.value;
+            
+            if (!selectedId) {
+                document.getElementById('vendor-result').innerHTML = '<p>Please select a category first</p>';
+                return;
+            }
+            
+            try {
+                // Test the vendor creation payload format
+                const vendorData = {
+                    name: "Test Shop",
+                    description: "Test shop description",
+                    address: "Test address",
+                    city: "Test city",
+                    state: "Test state",
+                    pincode: "123456",
+                    contact: "1234567890",
+                    whatsapp: "1234567890",
+                    email: "test@example.com",
+                    isActive: true,
+                    isApproved: false,
+                    status: 'pending',
+                    businessCategory: parseInt(selectedId)
+                };
+                
+                // Format for Strapi
+                const strapiData = {
+                    data: {
+                        name: vendorData.name,
+                        description: vendorData.description,
+                        address: vendorData.address,
+                        city: vendorData.city,
+                        state: vendorData.state,
+                        pincode: vendorData.pincode,
+                        contact: vendorData.contact,
+                        whatsapp: vendorData.whatsapp,
+                        email: vendorData.email,
+                        isActive: vendorData.isActive,
+                        isApproved: vendorData.isApproved,
+                        status: vendorData.status,
+                        businessCategory: vendorData.businessCategory
+                    }
+                };
+                
+                const resultDiv = document.getElementById('vendor-result');
+                resultDiv.innerHTML = `
+                    <h4>Vendor Creation Payload:</h4>
+                    <pre>${JSON.stringify(strapiData, null, 2)}</pre>
+                    <p><strong>Business Category ID:</strong> ${selectedId} (type: ${typeof selectedId})</p>
+                    <p><strong>Parsed ID:</strong> ${parseInt(selectedId)} (type: ${typeof parseInt(selectedId)})</p>
+                `;
+                
+            } catch (error) {
+                document.getElementById('vendor-result').innerHTML = `Error: ${error.message}`;
+            }
+        }
+
+        // Auto-fetch categories on page load
+        fetchCategories();
+    </script>
+</body>
+</html> 

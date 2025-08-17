@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Info Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: #22c55e;
+            background: #f0fdf4;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            color: #ef4444;
+            background: #fef2f2;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            color: #3b82f6;
+            background: #eff6ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .warning {
+            color: #f59e0b;
+            background: #fffbeb;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .code {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Personal Information Update Fix Test</h1>
+    
+    <div class="test-section">
+        <h2>❌ Issue Identified: Personal Info Not Saving</h2>
+        <div class="error">
+            <strong>Problem:</strong> Personal information updates were not being saved properly and not showing after submit.
+        </div>
+        <div class="info">
+            <strong>Root Cause:</strong> Multiple issues were identified:
+            <ul>
+                <li>Form was using non-existent fields (firstName, lastName) instead of actual user fields (username)</li>
+                <li>API request format was incorrect - data wasn't wrapped in 'data' property for Strapi</li>
+                <li>Form fields were being cleared after successful updates</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Fixes Applied</h2>
+        <div class="success">
+            <h3>1. Updated Form Schema</h3>
+            <p>Changed from firstName/lastName to username field to match actual user data structure.</p>
+            <div class="code">
+// Before:
+firstName: z.string().min(1, 'First name is required'),
+lastName: z.string().min(1, 'Last name is required'),
+
+// After:
+username: z.string().min(1, 'Username is required'),
+            </div>
+        </div>
+        
+        <div class="success">
+            <h3>2. Fixed API Request Format</h3>
+            <p>Updated useUpdateUser hook to properly wrap data for Strapi API.</p>
+            <div class="code">
+// Before:
+const response = await apiRequest('PUT', `/api/users/${userData.id}`, userData);
+
+// After:
+const { id, ...updateData } = userData;
+const response = await apiRequest('PUT', `/api/users/${id}`, { data: updateData });
+            </div>
+        </div>
+        
+        <div class="success">
+            <h3>3. Updated Form UI</h3>
+            <p>Changed form fields from firstName/lastName to username.</p>
+            <div class="code">
+// Before:
+&lt;Label htmlFor="firstName"&gt;First Name *&lt;/Label&gt;
+&lt;Input {...userForm.register('firstName')} /&gt;
+
+// After:
+&lt;Label htmlFor="username"&gt;Username *&lt;/Label&gt;
+&lt;Input {...userForm.register('username')} /&gt;
+            </div>
+        </div>
+        
+        <div class="success">
+            <h3>4. Fixed Form Reset</h3>
+            <p>Added immediate form reset with new data to prevent clearing.</p>
+            <div class="code">
+// After successful update:
+userForm.reset(data);
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Test the Fix</h2>
+        <div class="info">
+            <p>To test that the personal information update is now working:</p>
+            <ol>
+                <li>Go to the seller profile page in the dashboard</li>
+                <li>Navigate to the "Personal Information" tab</li>
+                <li>Update the username, email, or phone number</li>
+                <li>Click "Update Personal Info"</li>
+                <li>Verify that:
+                    <ul>
+                        <li>✅ Success toast appears</li>
+                        <li>✅ Form fields retain their values</li>
+                        <li>✅ Data is saved to the backend</li>
+                        <li>✅ Changes persist after page refresh</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Expected User Data Structure</h2>
+        <div class="info">
+            <p>Based on the logs, the actual user object structure is:</p>
+            <div class="code">
+{
+  "id": 2,
+  "username": "adds",
+  "email": "testt@gmail.com",
+  "provider": "local",
+  "confirmed": true,
+  "blocked": false,
+  "role": { "id": 4, "name": "seller", ... },
+  "phone": null,
+  "totalRewards": 0,
+  "referralCount": 0,
+  "createdAt": "2025-08-14T07:09:36.533Z",
+  "updatedAt": "2025-08-15T17:55:09.371Z"
+}
+            </div>
+            <p><strong>Note:</strong> No firstName/lastName fields exist in the actual user data.</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔗 Files Modified</h2>
+        <div class="info">
+            <ul>
+                <li><strong>Frontend Form:</strong> <code>LocalVendorHub/client/src/pages/seller/profile.tsx</code></li>
+                <li><strong>API Hook:</strong> <code>LocalVendorHub/client/src/hooks/use-api.ts</code></li>
+                <li><strong>Backend Controller:</strong> <code>cityshopping-backend/src/extensions/users-permissions/strapi-server.js</code></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>⚠️ Important Notes</h2>
+        <div class="warning">
+            <ul>
+                <li>The user object doesn't have firstName/lastName fields - only username</li>
+                <li>Strapi API expects data to be wrapped in a 'data' property</li>
+                <li>Form reset with new data prevents fields from being cleared</li>
+                <li>All other components using firstName/lastName may need updates</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Expected Behavior After Fix</h2>
+        <div class="success">
+            <ul>
+                <li>✅ Personal information form shows correct fields (username, email, phone)</li>
+                <li>✅ Form validation works for username field</li>
+                <li>✅ Updates are properly sent to backend with correct format</li>
+                <li>✅ Success toast appears after successful update</li>
+                <li>✅ Form fields retain their values after submission</li>
+                <li>✅ Data persists after page refresh</li>
+                <li>✅ No more "not saving properly" issues</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        console.log('🔧 Personal Info Fix Test Page Loaded');
+        console.log('✅ Issues identified and fixed:');
+        console.log('1. Form schema updated to use username instead of firstName/lastName');
+        console.log('2. API request format fixed to wrap data for Strapi');
+        console.log('3. Form UI updated to match actual user data structure');
+        console.log('4. Form reset logic improved to prevent clearing');
+    </script>
+</body>
+</html> 

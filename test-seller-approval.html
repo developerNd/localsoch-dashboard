@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seller Approval Test - LocalSoch</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-approved { background: #d4edda; color: #155724; }
+        .status-rejected { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Seller Approval System Test</h1>
+        
+        <div class="test-section">
+            <h3>1. Backend Connection Test</h3>
+            <button onclick="testBackendConnection()">Test Backend Connection</button>
+            <div id="backendResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Admin Login Test</h3>
+            <button onclick="testAdminLogin()">Test Admin Login</button>
+            <div id="adminLoginResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Get Vendors (Admin)</h3>
+            <button onclick="getVendors()">Get All Vendors</button>
+            <div id="vendorsResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Get Vendor Stats</h3>
+            <button onclick="getVendorStats()">Get Vendor Statistics</button>
+            <div id="statsResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Test Vendor Status Update</h3>
+            <div>
+                <label>Vendor ID: <input type="number" id="vendorId" placeholder="Enter vendor ID"></label><br><br>
+                <label>Status: 
+                    <select id="statusSelect">
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </label><br><br>
+                <label>Reason: <input type="text" id="reasonInput" placeholder="Optional reason"></label><br><br>
+                <button onclick="updateVendorStatus()">Update Vendor Status</button>
+            </div>
+            <div id="updateResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>6. Test Seller Login (After Approval)</h3>
+            <button onclick="testSellerLogin()">Test Seller Login</button>
+            <div id="sellerLoginResult"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>7. Frontend Dashboard Test</h3>
+            <a href="http://localhost:5000" target="_blank">
+                <button>Open Dashboard</button>
+            </a>
+            <div class="info" style="padding: 15px; margin-top: 10px;">
+                <h4>📝 Instructions:</h4>
+                <ol>
+                    <li>Login as admin (admin / admin123)</li>
+                    <li>Go to Admin → Sellers</li>
+                    <li>Find a pending seller and click "Update Status"</li>
+                    <li>Change status to "Approved" and save</li>
+                    <li>Logout and login as the seller</li>
+                    <li>Seller should now access the dashboard (not pending approval page)</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let adminToken = '';
+
+        async function testBackendConnection() {
+            const resultDiv = document.getElementById('backendResult');
+            resultDiv.innerHTML = '<div class="info">Testing backend connection...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/vendors');
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Backend Connected!</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Backend Error</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Connection Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testAdminLogin() {
+            const resultDiv = document.getElementById('adminLoginResult');
+            resultDiv.innerHTML = '<div class="info">Testing admin login...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/auth/local', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: 'admin', password: 'admin123' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.jwt) {
+                    adminToken = data.jwt;
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Admin Login Successful!</h4>
+                            <p><strong>User:</strong> ${data.user.username} (${data.user.role?.name})</p>
+                            <p><strong>Token:</strong> ${data.jwt.substring(0, 50)}...</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Admin Login Failed</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Login Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function getVendors() {
+            const resultDiv = document.getElementById('vendorsResult');
+            resultDiv.innerHTML = '<div class="info">Fetching vendors...</div>';
+            
+            if (!adminToken) {
+                resultDiv.innerHTML = '<div class="error">Please login as admin first</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/vendors?admin=all&populate=*', {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const vendors = data.data || data;
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Vendors Retrieved!</h4>
+                            <p><strong>Count:</strong> ${vendors.length}</p>
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                ${vendors.map(vendor => `
+                                    <div style="border: 1px solid #ddd; margin: 5px 0; padding: 10px; border-radius: 4px;">
+                                        <strong>ID:</strong> ${vendor.id} | 
+                                        <strong>Name:</strong> ${vendor.name} | 
+                                        <strong>Status:</strong> 
+                                        <span class="status-badge status-${vendor.status || 'pending'}">
+                                            ${vendor.status || 'pending'}
+                                        </span> |
+                                        <strong>User:</strong> ${vendor.user?.username || 'No User'}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Failed to Get Vendors</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function getVendorStats() {
+            const resultDiv = document.getElementById('statsResult');
+            resultDiv.innerHTML = '<div class="info">Fetching vendor stats...</div>';
+            
+            if (!adminToken) {
+                resultDiv.innerHTML = '<div class="error">Please login as admin first</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/vendors?admin=stats', {
+                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const stats = data.data || data;
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Vendor Stats Retrieved!</h4>
+                            <p><strong>Total Vendors:</strong> ${stats.totalVendors}</p>
+                            <p><strong>Active Vendors:</strong> ${stats.activeVendors}</p>
+                            <p><strong>Pending Approval:</strong> ${stats.pendingVendors}</p>
+                            <p><strong>Approved:</strong> ${stats.approvedVendors}</p>
+                            <p><strong>Rejected:</strong> ${stats.rejectedVendors}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Failed to Get Stats</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function updateVendorStatus() {
+            const resultDiv = document.getElementById('updateResult');
+            const vendorId = document.getElementById('vendorId').value;
+            const status = document.getElementById('statusSelect').value;
+            const reason = document.getElementById('reasonInput').value;
+            
+            if (!vendorId) {
+                resultDiv.innerHTML = '<div class="error">Please enter a vendor ID</div>';
+                return;
+            }
+            
+            if (!adminToken) {
+                resultDiv.innerHTML = '<div class="error">Please login as admin first</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="info">Updating vendor status...</div>';
+            
+            try {
+                const response = await fetch(`http://localhost:1337/api/vendors/${vendorId}/status`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${adminToken}` 
+                    },
+                    body: JSON.stringify({ status, reason })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Vendor Status Updated!</h4>
+                            <p><strong>Vendor ID:</strong> ${vendorId}</p>
+                            <p><strong>New Status:</strong> 
+                                <span class="status-badge status-${status}">${status}</span>
+                            </p>
+                            <p><strong>Message:</strong> ${data.message}</p>
+                            <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Failed to Update Status</h4>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testSellerLogin() {
+            const resultDiv = document.getElementById('sellerLoginResult');
+            resultDiv.innerHTML = '<div class="info">Testing seller login...</div>';
+            
+            try {
+                const response = await fetch('http://localhost:1337/api/auth/local', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: 'seller', password: 'seller123' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.jwt) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h4>✅ Seller Login Successful!</h4>
+                            <p><strong>User:</strong> ${data.user.username} (${data.user.role?.name})</p>
+                            <p><strong>Token:</strong> ${data.jwt.substring(0, 50)}...</p>
+                            <p><strong>Note:</strong> Check if seller can access dashboard or gets redirected to pending approval</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ Seller Login Failed</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>❌ Login Error</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-run backend connection test on page load
+        window.addEventListener('load', () => {
+            console.log('🔍 Seller Approval Test Loaded');
+            testBackendConnection();
+        });
+    </script>
+</body>
+</html> 

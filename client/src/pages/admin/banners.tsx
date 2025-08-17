@@ -26,8 +26,10 @@ interface Banner {
   backgroundColor: string;
   textColor: string;
   actionText: string;
-  actionType: 'product_list' | 'category' | 'product_details' | 'cart' | 'external_link';
+  actionType: 'external_link' | 'seller';
   actionData: any;
+  externalLink?: string;
+  sellerId?: number;
   isActive: boolean;
   sortOrder: number;
   startDate?: string;
@@ -46,6 +48,8 @@ export default function AdminBanners() {
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isSellerPopupOpen, setIsSellerPopupOpen] = useState(false);
+  const [sellerSearchQuery, setSellerSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -54,8 +58,10 @@ export default function AdminBanners() {
     backgroundColor: '#14b8a6',
     textColor: '#ffffff',
     actionText: 'Shop Now',
-    actionType: 'product_list' as Banner['actionType'],
+    actionType: 'external_link' as Banner['actionType'],
     actionData: {},
+    externalLink: '',
+    sellerId: undefined as number | undefined,
     isActive: true,
     sortOrder: 0,
     targetAudience: 'all' as Banner['targetAudience'],
@@ -86,6 +92,28 @@ export default function AdminBanners() {
       
       const data = await response.json();
       console.log('🔍 Banners API response:', data);
+      return data.data || [];
+    },
+  });
+
+  // Fetch vendors for seller dropdown
+  const { data: vendors, isLoading: vendorsLoading } = useQuery({
+    queryKey: ['/api/vendors'],
+    queryFn: async () => {
+      const token = getAuthToken();
+      if (!token) throw new Error('No authentication token');
+      
+      const response = await fetch(getApiUrl(`${API_ENDPOINTS.VENDORS}?populate=*`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch vendors');
+      }
+      
+      const data = await response.json();
       return data.data || [];
     },
   });
@@ -264,14 +292,32 @@ export default function AdminBanners() {
       backgroundColor: '#14b8a6',
       textColor: '#ffffff',
       actionText: 'Shop Now',
-      actionType: 'product_list',
+      actionType: 'external_link',
       actionData: {},
+      externalLink: '',
+      sellerId: undefined,
       isActive: true,
       sortOrder: 0,
       targetAudience: 'all',
     });
     setSelectedImage(null);
     setImagePreview(null);
+  };
+
+  const getSellerName = (sellerId: number) => {
+    const vendor = vendors?.find((v: any) => v.id === sellerId);
+    return vendor?.name || vendor?.attributes?.name || `Vendor ${sellerId}`;
+  };
+
+  const getFilteredVendors = () => {
+    if (!vendors) return [];
+    
+    return vendors.filter((vendor: any) => {
+      const name = vendor.name || vendor.attributes?.name || `Vendor ${vendor.id}`;
+      const searchLower = sellerSearchQuery.toLowerCase();
+      return name.toLowerCase().includes(searchLower) || 
+             vendor.id.toString().includes(searchLower);
+    });
   };
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -296,6 +342,26 @@ export default function AdminBanners() {
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    
+    // Validate required fields based on action type
+    if (formData.actionType === 'external_link' && !formData.externalLink) {
+      toast({
+        title: 'Error',
+        description: 'External link URL is required for external link action type',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (formData.actionType === 'seller' && !formData.sellerId) {
+      toast({
+        title: 'Error',
+        description: 'Please select a seller for seller action type',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     if (editingBanner) {
       updateBanner.mutate({ id: editingBanner.id, data: formData });
     } else {
@@ -314,6 +380,8 @@ export default function AdminBanners() {
       actionText: banner.actionText,
       actionType: banner.actionType,
       actionData: banner.actionData,
+      externalLink: banner.externalLink || '',
+      sellerId: banner.sellerId,
       isActive: banner.isActive,
       sortOrder: banner.sortOrder,
       targetAudience: banner.targetAudience,
@@ -365,7 +433,7 @@ export default function AdminBanners() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
                 Banner Management 🎨
               </h2>
-              <p className="text-gray-600">Manage promotional banners for the home screen</p>
+              <p className="text-gray-600">Manage promotional banners with external links and seller navigation</p>
             </div>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
@@ -498,15 +566,60 @@ export default function AdminBanners() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="product_list">Product List</SelectItem>
-                          <SelectItem value="category">Category</SelectItem>
-                          <SelectItem value="product_details">Product Details</SelectItem>
-                          <SelectItem value="cart">Cart</SelectItem>
                           <SelectItem value="external_link">External Link</SelectItem>
+                          <SelectItem value="seller">Seller</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
+
+                  {/* Conditional fields based on action type */}
+                  {formData.actionType === 'external_link' && (
+                    <div>
+                      <Label htmlFor="externalLink">External Link URL *</Label>
+                      <Input
+                        id="externalLink"
+                        type="url"
+                        placeholder="https://example.com"
+                        value={formData.externalLink}
+                        onChange={(e) => setFormData({ ...formData, externalLink: e.target.value })}
+                        required
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Enter the full URL including https://. This will open the link in the user's browser when the banner is clicked.
+                      </p>
+                    </div>
+                  )}
+
+                  {formData.actionType === 'seller' && (
+                    <div>
+                      <Label htmlFor="sellerId">Select Seller *</Label>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsSellerPopupOpen(true)}
+                          className="flex-1 justify-start"
+                        >
+                          <i className="fas fa-search mr-2"></i>
+                          {formData.sellerId ? getSellerName(formData.sellerId) : "Search and choose a seller"}
+                        </Button>
+                        {formData.sellerId && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFormData({ ...formData, sellerId: undefined })}
+                          >
+                            <i className="fas fa-times"></i>
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Click to search and select a seller. Users will be taken to the seller's profile page when banner is clicked.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -574,6 +687,101 @@ export default function AdminBanners() {
           </div>
         </div>
 
+        {/* Seller Selection Popup */}
+        <Dialog open={isSellerPopupOpen} onOpenChange={setIsSellerPopupOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Select Seller</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Search Input */}
+              <div>
+                <Label htmlFor="sellerSearch">Search Sellers</Label>
+                <div className="relative mt-1">
+                  <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                  <Input
+                    id="sellerSearch"
+                    placeholder="Search by name or ID..."
+                    value={sellerSearchQuery}
+                    onChange={(e) => setSellerSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* Vendors List */}
+              <div className="max-h-60 overflow-y-auto border rounded-lg">
+                {vendorsLoading ? (
+                  <div className="p-4 text-center text-gray-500">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                    Loading vendors...
+                  </div>
+                ) : getFilteredVendors().length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    {sellerSearchQuery ? 'No vendors found matching your search.' : 'No vendors available.'}
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {getFilteredVendors().map((vendor: any) => {
+                      const name = vendor.name || vendor.attributes?.name || `Vendor ${vendor.id}`;
+                      const isSelected = formData.sellerId === vendor.id;
+                      
+                      return (
+                        <button
+                          key={vendor.id}
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, sellerId: vendor.id });
+                            setIsSellerPopupOpen(false);
+                            setSellerSearchQuery('');
+                          }}
+                          className={`w-full p-3 text-left hover:bg-gray-50 transition-colors ${
+                            isSelected ? 'bg-primary/10 border-l-4 border-primary' : ''
+                          }`}
+                        >
+                          <div className="font-medium">{name}</div>
+                          <div className="text-sm text-gray-500">ID: {vendor.id}</div>
+                          {isSelected && (
+                            <div className="text-sm text-primary font-medium mt-1">
+                              ✓ Selected
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsSellerPopupOpen(false);
+                    setSellerSearchQuery('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                {formData.sellerId && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setFormData({ ...formData, sellerId: undefined });
+                      setIsSellerPopupOpen(false);
+                      setSellerSearchQuery('');
+                    }}
+                  >
+                    Clear Selection
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Card>
           <CardHeader>
             <CardTitle>Banners ({banners?.length || 0})</CardTitle>
@@ -634,6 +842,16 @@ export default function AdminBanners() {
                         <Badge variant="outline">
                           {banner.actionText} ({banner.actionType})
                         </Badge>
+                        {banner.actionType === 'external_link' && banner.externalLink && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Link: {banner.externalLink}
+                          </div>
+                        )}
+                        {banner.actionType === 'seller' && banner.sellerId && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Seller: {getSellerName(banner.sellerId)}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={banner.isActive ? "default" : "secondary"}>

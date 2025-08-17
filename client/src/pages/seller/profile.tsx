@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
@@ -22,6 +23,15 @@ import { useAuth } from '@/hooks/use-auth';
 import { useUpdateVendor, useUpdateUser, useCreateVendor } from '@/hooks/use-api';
 import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
+
+// Business category type
+interface BusinessCategory {
+  id: number;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
 
 // Form validation schemas
 const userFormSchema = z.object({
@@ -42,6 +52,7 @@ const shopFormSchema = z.object({
   pincode: z.string().min(6, 'Pincode must be at least 6 characters'),
   gstNumber: z.string().optional(),
   businessType: z.string().optional(),
+  businessCategoryId: z.number().optional(),
 });
 
 const bankingFormSchema = z.object({
@@ -82,6 +93,16 @@ export default function SellerProfile() {
     enabled: !!vendorId,
   });
 
+  // Fetch business categories
+  const { data: businessCategories, isLoading: categoriesLoading } = useQuery({
+    queryKey: ['business-categories'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', API_ENDPOINTS.BUSINESS_CATEGORIES);
+      const data = await response.json();
+      return data.data || [];
+    },
+  });
+
   // Form instances
   const userForm = useForm<UserFormData>({
     resolver: zodResolver(userFormSchema),
@@ -106,6 +127,7 @@ export default function SellerProfile() {
       pincode: '',
       gstNumber: '',
       businessType: '',
+      businessCategoryId: undefined,
     },
   });
 
@@ -133,12 +155,13 @@ export default function SellerProfile() {
     }
   }, [user, userForm]);
 
-  // Don't reset form during mutation to prevent clearing
-  const isUpdatingUser = updateUserMutation.isPending;
-
+  // Update shop form when vendor data loads
   useEffect(() => {
     if (vendorData) {
-      shopForm.reset({
+      console.log('🔍 Populating shop form with vendor data:', vendorData);
+      console.log('🔍 Business category from vendor data:', vendorData.businessCategory);
+      
+      const formData = {
         name: vendorData.name || '',
         description: vendorData.description || '',
         contact: vendorData.contact || '',
@@ -150,7 +173,13 @@ export default function SellerProfile() {
         pincode: vendorData.pincode || '',
         gstNumber: vendorData.gstNumber || '',
         businessType: vendorData.businessType || '',
-      });
+        businessCategoryId: vendorData.businessCategory?.id || undefined,
+      };
+      
+      console.log('🔍 Form data being set:', formData);
+      console.log('🔍 Business category ID being set:', formData.businessCategoryId);
+      
+      shopForm.reset(formData);
 
       bankingForm.reset({
         bankAccountNumber: vendorData.bankAccountNumber || '',
@@ -158,6 +187,9 @@ export default function SellerProfile() {
       });
     }
   }, [vendorData, shopForm, bankingForm]);
+
+  // Don't reset form during mutation to prevent clearing
+  const isUpdatingUser = updateUserMutation.isPending;
 
   // Form submission handlers
   const handleUserUpdate = async (data: UserFormData) => {
@@ -230,6 +262,7 @@ export default function SellerProfile() {
           pincode: data.pincode || '',
           gstNumber: data.gstNumber || '',
           businessType: data.businessType || '',
+          businessCategoryId: data.businessCategoryId || undefined,
           bankAccountNumber: '',
           ifscCode: '',
           user: user.id,
@@ -248,6 +281,7 @@ export default function SellerProfile() {
 
       // Now update the vendor with the form data
       console.log('🔍 Updating vendor with data:', data);
+      console.log('🔍 Business Category ID in data:', data.businessCategoryId);
       console.log('🔍 Selected image:', selectedImage);
       
       if (selectedImage) {
@@ -286,8 +320,8 @@ export default function SellerProfile() {
       setSelectedImage(null);
       setImagePreview(null);
 
-      // Update the form with the new data immediately to prevent clearing
-      shopForm.reset(data);
+      // Invalidate the vendor query to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['vendor', currentVendorId] });
 
       toast({
         title: "Success",
@@ -334,6 +368,7 @@ export default function SellerProfile() {
           pincode: '',
           gstNumber: '',
           businessType: '',
+          businessCategoryId: undefined,
           bankAccountNumber: data.bankAccountNumber || '',
           ifscCode: data.ifscCode || '',
           user: user.id,
@@ -722,6 +757,59 @@ export default function SellerProfile() {
                         {shopForm.formState.errors.gstNumber && (
                           <p className="text-sm text-red-500 mt-1">
                             {shopForm.formState.errors.gstNumber.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <Label htmlFor="businessType">Business Type</Label>
+                        <Input
+                          id="businessType"
+                          {...shopForm.register('businessType')}
+                          placeholder="e.g., Retail, Wholesale, Service"
+                        />
+                        {shopForm.formState.errors.businessType && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.businessType.message}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="businessCategory">Business Category</Label>
+                        {/* Hidden input to register the field with react-hook-form */}
+                        <input
+                          type="hidden"
+                          {...shopForm.register('businessCategoryId')}
+                        />
+                        <Select 
+                          value={shopForm.watch('businessCategoryId')?.toString() || ""} 
+                          onValueChange={(value) => {
+                            console.log('🔍 Business category selected:', value);
+                            shopForm.setValue('businessCategoryId', value ? parseInt(value) : undefined);
+                            // Trigger form validation
+                            shopForm.trigger('businessCategoryId');
+                          }}
+                          disabled={categoriesLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select business category"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {businessCategories?.map((category: BusinessCategory) => (
+                              <SelectItem key={category.id} value={category.id.toString()}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {businessCategories?.length === 0 && !categoriesLoading && (
+                          <p className="text-sm text-gray-500 mt-1">No business categories available</p>
+                        )}
+                        {shopForm.formState.errors.businessCategoryId && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {shopForm.formState.errors.businessCategoryId.message}
                           </p>
                         )}
                       </div>

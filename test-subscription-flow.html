@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Subscription Flow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #17a2b8;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Subscription Flow</h1>
+        <p>This page helps test the new subscription-based seller registration flow.</p>
+
+        <div class="test-section">
+            <h3>1. Test Subscription Plans API</h3>
+            <p>Check if subscription plans are available:</p>
+            <button onclick="testSubscriptionPlans()">Test Subscription Plans</button>
+            <div id="plans-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Test Signup Flow</h3>
+            <p>Simulate the complete signup → subscription selection → payment flow:</p>
+            <button onclick="testSignupFlow()">Test Complete Flow</button>
+            <div id="signup-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Test Payment Integration</h3>
+            <p>Test the payment processing with subscription plans:</p>
+            <button onclick="testPaymentIntegration()">Test Payment</button>
+            <div id="payment-result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Manual Testing Steps</h3>
+            <ol>
+                <li>Go to <a href="http://localhost:3000/signup" target="_blank">Signup Page</a></li>
+                <li>Fill out the registration form</li>
+                <li>You should be redirected to <code>/subscription-selection</code></li>
+                <li>Select a subscription plan</li>
+                <li>Complete payment</li>
+                <li>Verify vendor profile and subscription are created</li>
+            </ol>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Admin Panel</h3>
+            <p>Check subscription management in admin panel:</p>
+            <a href="http://localhost:3000/admin/subscription-plans" target="_blank">
+                <button>Go to Subscription Plans Admin</button>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://192.168.1.101:1337';
+
+        async function testSubscriptionPlans() {
+            const resultDiv = document.getElementById('plans-result');
+            resultDiv.innerHTML = '<p class="info">Testing subscription plans API...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/api/subscription-plans/active`);
+                const data = await response.json();
+
+                if (response.ok && data.data) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Subscription plans API working!</p>
+                        <p>Found ${data.data.length} plans:</p>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ API Error: ${data.error?.message || 'Unknown error'}</p>
+                        <p>Status: ${response.status}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Network Error: ${error.message}</p>
+                `;
+            }
+        }
+
+        async function testSignupFlow() {
+            const resultDiv = document.getElementById('signup-result');
+            resultDiv.innerHTML = '<p class="info">Testing signup flow...</p>';
+
+            try {
+                // Test user registration
+                const signupResponse = await fetch(`${API_URL}/api/auth/local/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: `test_seller_${Date.now()}`,
+                        email: `test${Date.now()}@example.com`,
+                        password: 'Test123!',
+                    }),
+                });
+
+                const signupData = await signupResponse.json();
+
+                if (signupResponse.ok && signupData.user) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ User registration successful!</p>
+                        <p>User ID: ${signupData.user.id}</p>
+                        <p>JWT: ${signupData.jwt ? 'Present' : 'Missing'}</p>
+                        <p>Next step: Redirect to subscription selection</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Signup failed: ${signupData.error?.message || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(signupData, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Network Error: ${error.message}</p>
+                `;
+            }
+        }
+
+        async function testPaymentIntegration() {
+            const resultDiv = document.getElementById('payment-result');
+            resultDiv.innerHTML = '<p class="info">Testing payment integration...</p>';
+
+            try {
+                // Test payment order creation
+                const orderResponse = await fetch(`${API_URL}/api/payment/create-order`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: 999,
+                        currency: 'INR',
+                        receipt: `test_sub_${Date.now()}`,
+                    }),
+                });
+
+                const orderData = await orderResponse.json();
+
+                if (orderResponse.ok && orderData.success) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Payment order creation successful!</p>
+                        <p>Order ID: ${orderData.order.id}</p>
+                        <p>Amount: ${orderData.order.amount}</p>
+                        <p>Next step: Process payment with Razorpay</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Payment order failed: ${orderData.error?.message || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(orderData, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Network Error: ${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html> 
