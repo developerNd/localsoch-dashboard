@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
-import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
+import { getApiUrl, API_ENDPOINTS, getImageUrl } from '@/lib/config';
 import { getAuthToken } from '@/lib/auth';
 import { Plus, Edit, Trash2, Search, Image as ImageIcon } from 'lucide-react';
 import Header from '@/components/layout/header';
@@ -61,7 +61,32 @@ export default function AdminProductCategories() {
       
       if (!response.ok) throw new Error('Failed to fetch product categories');
       const data = await response.json();
-      return data.data || [];
+      
+      // Normalize the data to handle Strapi structure
+      const normalizedCategories = (data.data || []).map((category: any) => {
+        const normalizedCategory = {
+          id: category.id,
+          name: category.attributes?.name || category.name,
+          description: category.attributes?.description || category.description,
+          isActive: category.attributes?.isActive ?? category.isActive ?? true,
+          sortOrder: category.attributes?.sortOrder ?? category.sortOrder ?? 0,
+          image: category.attributes?.image?.data?.attributes || category.image,
+          productCount: category.attributes?.productCount ?? category.productCount ?? 0,
+          createdAt: category.attributes?.createdAt || category.createdAt,
+          updatedAt: category.attributes?.updatedAt || category.updatedAt,
+        };
+        
+        // Debug image data
+        if (normalizedCategory.image) {
+          console.log(`🔍 Category "${normalizedCategory.name}" image data:`, normalizedCategory.image);
+          console.log(`🔍 Image URL: ${getImageUrl(normalizedCategory.image.url)}`);
+        }
+        
+        return normalizedCategory;
+      });
+      
+      console.log('🔍 Fetched categories:', normalizedCategories);
+      return normalizedCategories;
     },
   });
 
@@ -280,7 +305,7 @@ export default function AdminProductCategories() {
     
     // Set image preview if category has an image
     if (category.image?.url) {
-      setImagePreview(category.image.url);
+      setImagePreview(getImageUrl(category.image.url));
       setSelectedImage(null); // Clear selected image since we're editing existing
     } else {
       setImagePreview(null);
@@ -523,12 +548,21 @@ export default function AdminProductCategories() {
                   {filteredCategories.map((category: ProductCategory) => (
                     <TableRow key={category.id}>
                       <TableCell>
-                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                          {category.image ? (
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                          {category.image?.url ? (
                             <img
-                              src={category.image.url}
-                              alt={category.image.name}
+                              src={getImageUrl(category.image.url)}
+                              alt={category.image.name || category.name}
                               className="w-12 h-12 rounded-lg object-cover"
+                              onError={(e) => {
+                                console.log('🔍 Image failed to load:', category.image.url);
+                                e.target.style.display = 'none';
+                                // Show fallback icon when image fails
+                                const parent = e.target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = '<svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+                                }
+                              }}
                             />
                           ) : (
                             <ImageIcon className="h-6 w-6 text-gray-400" />
