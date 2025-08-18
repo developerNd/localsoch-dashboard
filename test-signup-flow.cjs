@@ -63,7 +63,7 @@ async function testSignupFlow() {
             console.log('\n🔧 Step 3: Testing user role update...');
             try {
               const roleUpdateResponse = await axios.put(`${API_URL}/api/users/${userId}`, {
-                role: 4, // Seller role ID
+                                    role: 3, // Seller role ID
               }, {
                 headers: {
                   'Authorization': `Bearer ${jwt}`,

@@ -35,7 +35,7 @@ async function createPendingVendors() {
         'Authorization': `Bearer ${ADMIN_TOKEN}`,
       },
       body: JSON.stringify({
-        role: 2 // Seller role
+        role: 3 // Seller role
       }),
     });
 
