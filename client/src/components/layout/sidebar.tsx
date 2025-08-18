@@ -173,10 +173,16 @@ export default function Sidebar({ className }: SidebarProps) {
         <div className="mt-8 pt-4 border-t border-gray-200">
           <ul className="space-y-2">
             <li>
-              <div className="flex items-center space-x-3 p-3 text-gray-500 text-sm">
+              <a 
+                href="https://localsoch.com/help" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center space-x-3 p-3 text-gray-500 text-sm hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors cursor-pointer"
+              >
                 <i className="fas fa-question-circle"></i>
                 <span>Help & Support</span>
-              </div>
+                <i className="fas fa-external-link-alt ml-auto text-xs"></i>
+              </a>
             </li>
           </ul>
         </div>

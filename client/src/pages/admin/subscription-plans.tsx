@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
@@ -45,6 +46,8 @@ export default function AdminSubscriptionPlans() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [planToDelete, setPlanToDelete] = useState<SubscriptionPlan | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -65,14 +68,35 @@ export default function AdminSubscriptionPlans() {
     queryKey: ['subscription-plans'],
     queryFn: async () => {
       const token = getAuthToken();
-      const response = await fetch(getApiUrl(API_ENDPOINTS.SUBSCRIPTION.PLANS), {
+      const response = await fetch(getApiUrl('/api/subscription-plans?populate=*'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       if (!response.ok) throw new Error('Failed to fetch plans');
       const data = await response.json();
-      return data.data || [];
+      
+      // Normalize the data to handle Strapi structure
+      const normalizedPlans = (data.data || []).map((plan: any) => ({
+        id: plan.id,
+        name: plan.attributes?.name || plan.name,
+        description: plan.attributes?.description || plan.description,
+        price: plan.attributes?.price || plan.price,
+        currency: plan.attributes?.currency || plan.currency || 'INR',
+        duration: plan.attributes?.duration || plan.duration,
+        durationType: plan.attributes?.durationType || plan.durationType || 'days',
+        isActive: plan.attributes?.isActive ?? plan.isActive ?? true,
+        isPopular: plan.attributes?.isPopular ?? plan.isPopular ?? false,
+        sortOrder: plan.attributes?.sortOrder ?? plan.sortOrder ?? 0,
+        features: plan.attributes?.features || plan.features || [],
+        maxProducts: plan.attributes?.maxProducts || plan.maxProducts,
+        maxOrders: plan.attributes?.maxOrders || plan.maxOrders,
+        commissionRate: plan.attributes?.commissionRate || plan.commissionRate,
+        createdAt: plan.attributes?.createdAt || plan.createdAt,
+        updatedAt: plan.attributes?.updatedAt || plan.updatedAt,
+      }));
+      
+      return normalizedPlans;
     }
   });
 
@@ -143,6 +167,37 @@ export default function AdminSubscriptionPlans() {
     },
   });
 
+  // Delete plan mutation
+  const deletePlanMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const token = getAuthToken();
+      const response = await fetch(getApiUrl(`/api/subscription-plans/${id}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to delete plan');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
+      toast({
+        title: "Success",
+        description: "Subscription plan deleted successfully",
+      });
+      setIsDeleteDialogOpen(false);
+      setPlanToDelete(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -161,16 +216,46 @@ export default function AdminSubscriptionPlans() {
   };
 
   const handleCreate = () => {
+    // Validate required fields
+    if (!formData.name.trim()) {
+      toast({
+        title: "Error",
+        description: "Plan name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.price || isNaN(parseFloat(formData.price))) {
+      toast({
+        title: "Error",
+        description: "Valid price is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.duration || isNaN(parseInt(formData.duration))) {
+      toast({
+        title: "Error",
+        description: "Valid duration is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const planData = {
       ...formData,
       price: parseFloat(formData.price),
       duration: parseInt(formData.duration),
-      sortOrder: parseInt(formData.sortOrder.toString()),
-      maxProducts: formData.maxProducts ? parseInt(formData.maxProducts) : null,
-      maxOrders: formData.maxOrders ? parseInt(formData.maxOrders) : null,
-      commissionRate: formData.commissionRate ? parseFloat(formData.commissionRate) : null,
+      sortOrder: parseInt(formData.sortOrder.toString()) || 0,
+      maxProducts: formData.maxProducts && !isNaN(parseInt(formData.maxProducts)) ? parseInt(formData.maxProducts) : null,
+      maxOrders: formData.maxOrders && !isNaN(parseInt(formData.maxOrders)) ? parseInt(formData.maxOrders) : null,
+      commissionRate: formData.commissionRate && !isNaN(parseFloat(formData.commissionRate)) ? parseFloat(formData.commissionRate) : null,
       features: formData.features.filter(f => f.trim() !== '')
     };
+    
+    console.log('📤 Sending plan data:', planData);
     createPlanMutation.mutate(planData);
   };
 
@@ -196,16 +281,46 @@ export default function AdminSubscriptionPlans() {
   const handleUpdate = () => {
     if (!editingPlan) return;
     
+    // Validate required fields
+    if (!formData.name.trim()) {
+      toast({
+        title: "Error",
+        description: "Plan name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.price || isNaN(parseFloat(formData.price))) {
+      toast({
+        title: "Error",
+        description: "Valid price is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.duration || isNaN(parseInt(formData.duration))) {
+      toast({
+        title: "Error",
+        description: "Valid duration is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const planData = {
       ...formData,
       price: parseFloat(formData.price),
       duration: parseInt(formData.duration),
-      sortOrder: parseInt(formData.sortOrder.toString()),
-      maxProducts: formData.maxProducts ? parseInt(formData.maxProducts) : null,
-      maxOrders: formData.maxOrders ? parseInt(formData.maxOrders) : null,
-      commissionRate: formData.commissionRate ? parseFloat(formData.commissionRate) : null,
+      sortOrder: parseInt(formData.sortOrder.toString()) || 0,
+      maxProducts: formData.maxProducts && !isNaN(parseInt(formData.maxProducts)) ? parseInt(formData.maxProducts) : null,
+      maxOrders: formData.maxOrders && !isNaN(parseInt(formData.maxOrders)) ? parseInt(formData.maxOrders) : null,
+      commissionRate: formData.commissionRate && !isNaN(parseFloat(formData.commissionRate)) ? parseFloat(formData.commissionRate) : null,
       features: formData.features.filter(f => f.trim() !== '')
     };
+    
+    console.log('📤 Updating plan data:', planData);
     updatePlanMutation.mutate({ id: editingPlan.id, planData });
   };
 
@@ -273,18 +388,20 @@ export default function AdminSubscriptionPlans() {
       <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div className="mb-8">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Subscription Plans</h1>
               <p className="text-gray-600 mt-1">Manage subscription plans for sellers</p>
             </div>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="mt-6 sm:mt-2">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Plan
-                </Button>
-              </DialogTrigger>
+            
+            <div className="flex justify-end mt-6">
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="lg" className="shadow-lg">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New Plan
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Subscription Plan</DialogTitle>
@@ -303,20 +420,25 @@ export default function AdminSubscriptionPlans() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="price">Price (₹)</Label>
+                    <Label htmlFor="price">Price (₹) *</Label>
                     <Input
                       id="price"
                       type="number"
+                      min="0"
+                      step="0.01"
+                      required
                       value={formData.price}
                       onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                      placeholder="999"
+                      placeholder="999.00"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="duration">Duration</Label>
+                    <Label htmlFor="duration">Duration *</Label>
                     <Input
                       id="duration"
                       type="number"
+                      min="1"
+                      required
                       value={formData.duration}
                       onChange={(e) => setFormData(prev => ({ ...prev, duration: e.target.value }))}
                       placeholder="30"
@@ -447,6 +569,7 @@ export default function AdminSubscriptionPlans() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
 
           {/* Plans Grid */}
@@ -470,13 +593,25 @@ export default function AdminSubscriptionPlans() {
                       </CardTitle>
                       <CardDescription>{plan.description}</CardDescription>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(plan)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    <div className="flex space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(plan)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setPlanToDelete(plan);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -546,29 +681,35 @@ export default function AdminSubscriptionPlans() {
               </DialogHeader>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="edit-name">Plan Name</Label>
+                  <Label htmlFor="edit-name">Plan Name *</Label>
                   <Input
                     id="edit-name"
+                    required
                     value={formData.name}
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g., Basic Plan"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-price">Price (₹)</Label>
+                  <Label htmlFor="edit-price">Price (₹) *</Label>
                   <Input
                     id="edit-price"
                     type="number"
+                    min="0"
+                    step="0.01"
+                    required
                     value={formData.price}
                     onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                    placeholder="999"
+                    placeholder="999.00"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-duration">Duration</Label>
+                  <Label htmlFor="edit-duration">Duration *</Label>
                   <Input
                     id="edit-duration"
                     type="number"
+                    min="1"
+                    required
                     value={formData.duration}
                     onChange={(e) => setFormData(prev => ({ ...prev, duration: e.target.value }))}
                     placeholder="30"
@@ -699,6 +840,57 @@ export default function AdminSubscriptionPlans() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          {/* Delete Confirmation Dialog */}
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Subscription Plan</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete <strong>{planToDelete?.name}</strong>? 
+                  This action cannot be undone and will affect any active subscriptions.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {planToDelete && (
+                <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg my-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Package className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-lg">{planToDelete.name}</div>
+                    <div className="text-sm text-gray-600">{planToDelete.description}</div>
+                    <div className="text-xs text-gray-400">
+                      ₹{planToDelete.price} per {planToDelete.duration} {planToDelete.durationType}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (planToDelete) {
+                      deletePlanMutation.mutate(planToDelete.id);
+                    }
+                  }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deletePlanMutation.isPending}
+                >
+                  {deletePlanMutation.isPending ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Plan
+                    </>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </main>
     </div>

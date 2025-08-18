@@ -3,25 +3,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { DataTable } from '@/components/ui/data-table';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useAdminVendors, useUpdateVendorStatus, useDeleteVendor, useVendorStats } from '@/hooks/use-api';
 import { useToast } from '@/hooks/use-toast';
+import { getImageUrl } from '@/lib/config';
 
 export default function AdminSellers() {
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [statusUpdateDialog, setStatusUpdateDialog] = useState(false);
-  const [statusUpdateData, setStatusUpdateData] = useState({ status: '', reason: '' });
+  const [statusUpdateData, setStatusUpdateData] = useState({ status: '' });
+  const [deleteDialog, setDeleteDialog] = useState(false);
+  const [vendorToDelete, setVendorToDelete] = useState<any>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -35,7 +34,7 @@ export default function AdminSellers() {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/all'] });
       queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/stats'] });
       setStatusUpdateDialog(false);
-      setStatusUpdateData({ status: '', reason: '' });
+      setStatusUpdateData({ status: '' });
       toast({
         title: "Status Updated",
         description: "Vendor status has been updated successfully.",
@@ -50,25 +49,7 @@ export default function AdminSellers() {
     },
   });
 
-  const deleteVendorMutation = useMutation({
-    mutationFn: useDeleteVendor().mutateAsync,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/all'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/stats'] });
-      toast({
-        title: "Vendor Deleted",
-        description: "Vendor has been deleted successfully.",
-        variant: "destructive",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete vendor",
-        variant: "destructive",
-      });
-    },
-  });
+  const deleteVendorMutation = useDeleteVendor();
 
   // Calculate product counts per vendor
   const getProductCount = (vendorId: number) => {
@@ -77,34 +58,11 @@ export default function AdminSellers() {
     return vendor?.products?.length || 0;
   };
 
-  // Filter vendors based on search and status
-  const filteredVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => {
-    const matchesSearch = vendor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.contact?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.user?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.user?.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (statusFilter === 'all') return matchesSearch;
-    if (statusFilter === 'active') return matchesSearch && getProductCount(vendor.id) > 0;
-    if (statusFilter === 'inactive') return matchesSearch && getProductCount(vendor.id) === 0;
-    if (statusFilter === 'pending') return matchesSearch && vendor.status === 'pending';
-    if (statusFilter === 'approved') return matchesSearch && vendor.status === 'approved';
-    if (statusFilter === 'rejected') return matchesSearch && vendor.status === 'rejected';
-    if (statusFilter === 'suspended') return matchesSearch && vendor.status === 'suspended';
-    
-    return matchesSearch;
-  }) : [];
 
-  const activeVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => getProductCount(vendor.id) > 0) : [];
-  const inactiveVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => getProductCount(vendor.id) === 0) : [];
-  const pendingVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'pending') : [];
-  const approvedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'approved') : [];
-  const rejectedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'rejected') : [];
-  const suspendedVendors = Array.isArray(vendors) ? vendors.filter((vendor: any) => vendor.status === 'suspended') : [];
 
   const handleStatusUpdate = (vendor: any) => {
     setSelectedVendor(vendor);
+    setStatusUpdateData({ status: vendor.status || 'pending' });
     setStatusUpdateDialog(true);
   };
 
@@ -113,14 +71,32 @@ export default function AdminSellers() {
     
     await updateVendorStatusMutation.mutateAsync({
       id: selectedVendor.id,
-      status: statusUpdateData.status,
-      reason: statusUpdateData.reason
+      status: statusUpdateData.status
     });
   };
 
-  const handleDeleteVendor = async (vendorId: number) => {
-    if (confirm('Are you sure you want to delete this vendor? This action cannot be undone.')) {
-      await deleteVendorMutation.mutateAsync(vendorId);
+  const handleDeleteVendor = (vendor: any) => {
+    setVendorToDelete(vendor);
+    setDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!vendorToDelete) return;
+    
+    try {
+      await deleteVendorMutation.mutateAsync(vendorToDelete.id);
+      toast({
+        title: "Vendor Deleted",
+        description: "Vendor has been deleted successfully.",
+      });
+      setDeleteDialog(false);
+      setVendorToDelete(null);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete vendor",
+        variant: "destructive",
+      });
     }
   };
 
@@ -245,111 +221,115 @@ export default function AdminSellers() {
           </Card>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <Input
-              placeholder="Search vendors by name, address, contact, or user..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Vendors</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="pending">Pending Approval</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+
 
         {/* Vendors Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Vendors ({filteredVendors.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Vendor</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Products</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredVendors.map((vendor: any) => (
-                    <TableRow key={vendor.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={vendor.profileImage?.url} />
-                            <AvatarFallback>{vendor.name?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{vendor.name}</div>
-                            <div className="text-sm text-gray-500">{vendor.address}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{vendor.user?.username || 'No User'}</div>
-                          <div className="text-sm text-gray-500">{vendor.user?.email}</div>
-                          <div className="text-xs text-gray-400">{getUserRole(vendor.user)}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="text-sm">{vendor.contact}</div>
-                          <div className="text-sm text-gray-500">{vendor.email}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-center">
-                          <div className="font-medium">{getProductCount(vendor.id)}</div>
-                          <div className="text-sm text-gray-500">products</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(vendor)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleStatusUpdate(vendor)}
-                          >
-                            Update Status
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteVendor(vendor.id)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        <DataTable
+          data={vendors || []}
+          columns={[
+            {
+              key: 'vendor',
+              header: 'Vendor',
+              width: '300px',
+              render: (_, vendor) => (
+                <div className="flex items-center space-x-3">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage 
+                      src={vendor.profileImage ? getImageUrl(vendor.profileImage.url || vendor.profileImage.data?.attributes?.url) : undefined} 
+                      alt={vendor.name}
+                    />
+                    <AvatarFallback className="bg-primary text-white">
+                      {vendor.name?.charAt(0)?.toUpperCase() || 'V'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-medium">{vendor.name}</div>
+                    <div className="text-sm text-gray-500">{vendor.address}</div>
+                  </div>
+                </div>
+              )
+            },
+            {
+              key: 'user.username',
+              header: 'User',
+              width: '200px',
+              sortable: true,
+              render: (_, vendor) => (
+                <div>
+                  <div className="font-medium">{vendor.user?.username || 'No User'}</div>
+                  <div className="text-sm text-gray-500">{vendor.user?.email}</div>
+                  <div className="text-xs text-gray-400">{getUserRole(vendor.user)}</div>
+                </div>
+              )
+            },
+            {
+              key: 'contact',
+              header: 'Contact',
+              width: '200px',
+              sortable: true,
+              render: (_, vendor) => (
+                <div>
+                  <div className="text-sm">{vendor.contact}</div>
+                  <div className="text-sm text-gray-500">{vendor.email}</div>
+                </div>
+              )
+            },
+            {
+              key: 'products',
+              header: 'Products',
+              width: '120px',
+              sortable: true,
+              render: (_, vendor) => (
+                <div className="text-center">
+                  <div className="font-medium">{getProductCount(vendor.id)}</div>
+                  <div className="text-sm text-gray-500">products</div>
+                </div>
+              )
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              width: '150px',
+              sortable: true,
+              render: (_, vendor) => getStatusBadge(vendor)
+            },
+            {
+              key: 'actions',
+              header: 'Actions',
+              width: '200px',
+              render: (_, vendor) => (
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStatusUpdate(vendor);
+                    }}
+                  >
+                    Update Status
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteVendor(vendor);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              )
+            }
+          ]}
+          title={`Vendors (${vendors?.length || 0})`}
+          searchable={true}
+          searchPlaceholder="Search vendors by name, address, contact, or user..."
+          searchKeys={['name', 'address', 'contact', 'email', 'user.username', 'user.email']}
+          pageSize={10}
+          emptyMessage="No vendors found"
+        />
 
         {/* Status Update Dialog */}
         <Dialog open={statusUpdateDialog} onOpenChange={setStatusUpdateDialog}>
@@ -361,6 +341,26 @@ export default function AdminSellers() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              {/* Vendor Details */}
+              {selectedVendor && (
+                <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage 
+                      src={selectedVendor.profileImage ? getImageUrl(selectedVendor.profileImage.url || selectedVendor.profileImage.data?.attributes?.url) : undefined} 
+                      alt={selectedVendor.name}
+                    />
+                    <AvatarFallback className="bg-primary text-white text-lg">
+                      {selectedVendor.name?.charAt(0)?.toUpperCase() || 'V'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold text-lg">{selectedVendor.name}</div>
+                    <div className="text-sm text-gray-600">{selectedVendor.address}</div>
+                    <div className="text-sm text-gray-500">{selectedVendor.contact}</div>
+                    <div className="text-xs text-gray-400">Current Status: {selectedVendor.status || 'pending'}</div>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium">Status</label>
                 <Select 
@@ -378,14 +378,7 @@ export default function AdminSellers() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <label className="text-sm font-medium">Reason (Optional)</label>
-                <Textarea
-                  placeholder="Enter reason for status change..."
-                  value={statusUpdateData.reason}
-                  onChange={(e) => setStatusUpdateData(prev => ({ ...prev, reason: e.target.value }))}
-                />
-              </div>
+
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setStatusUpdateDialog(false)}>
                   Cancel
@@ -400,6 +393,57 @@ export default function AdminSellers() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Vendor</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete <strong>{vendorToDelete?.name}</strong>? 
+                This action cannot be undone.
+                {vendorToDelete?.products?.length > 0 && (
+                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-yellow-800 text-sm">
+                      ⚠️ This vendor has {vendorToDelete.products.length} product(s). 
+                      You may want to delete the products first.
+                    </p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {/* Vendor Details in Delete Dialog */}
+            {vendorToDelete && (
+              <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg my-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage 
+                    src={vendorToDelete.profileImage ? getImageUrl(vendorToDelete.profileImage.url || vendorToDelete.profileImage.data?.attributes?.url) : undefined} 
+                    alt={vendorToDelete.name}
+                  />
+                  <AvatarFallback className="bg-primary text-white text-lg">
+                    {vendorToDelete.name?.charAt(0)?.toUpperCase() || 'V'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-semibold text-lg">{vendorToDelete.name}</div>
+                  <div className="text-sm text-gray-600">{vendorToDelete.address}</div>
+                  <div className="text-sm text-gray-500">{vendorToDelete.contact}</div>
+                  <div className="text-xs text-gray-400">Status: {vendorToDelete.status || 'pending'}</div>
+                </div>
+              </div>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deleteVendorMutation.isPending}
+              >
+                {deleteVendorMutation.isPending ? 'Deleting...' : 'Delete Vendor'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

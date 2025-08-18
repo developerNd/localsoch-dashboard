@@ -216,21 +216,6 @@ export default function SellerButtonTracking() {
             
             {analyticsData.length > 0 ? (
               <div className="overflow-x-auto">
-                {/* Show note if using sample data */}
-                {(clickLogs?.data?.results?.length === 0 || !clickLogs?.data?.results) && buttonAnalytics?.totalClicks > 0 && (
-                  <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <div className="flex items-start">
-                      <i className="fas fa-info-circle text-yellow-600 mt-1 mr-2"></i>
-                      <div>
-                        <p className="text-sm text-yellow-800">
-                          <strong>📊 Sample Data:</strong> Detailed click logs are not yet available in the database. 
-                          The table below shows sample data based on your total click count. 
-                          Real user details will appear here once detailed logging is implemented.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">

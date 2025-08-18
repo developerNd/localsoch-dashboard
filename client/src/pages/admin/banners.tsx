@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { DataTable } from '@/components/ui/data-table';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
@@ -50,6 +51,8 @@ export default function AdminBanners() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSellerPopupOpen, setIsSellerPopupOpen] = useState(false);
   const [sellerSearchQuery, setSellerSearchQuery] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [bannerToDelete, setBannerToDelete] = useState<Banner | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -420,26 +423,27 @@ export default function AdminBanners() {
     );
   }
 
-  return (
+    return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       <Sidebar />
       <MobileNav />
       
-              <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
+      <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
         <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Banner Management 🎨
-              </h2>
-              <p className="text-gray-600">Manage promotional banners with external links and seller navigation</p>
-            </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Banner Management 🎨
+            </h2>
+            <p className="text-gray-600 mb-6">Manage promotional banners with external links and seller navigation</p>
+          </div>
+          
+          <div className="flex justify-end mb-6">
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => setEditingBanner(null)}>
+                <Button onClick={() => setEditingBanner(null)} size="lg" className="shadow-lg">
                   <i className="fas fa-plus mr-2"></i>
-                  Add Banner
+                  Add New Banner
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
@@ -497,7 +501,8 @@ export default function AdminBanners() {
                             className="absolute top-2 right-2"
                             onClick={handleImageRemove}
                           >
-                            <i className="fas fa-times"></i>
+                            <i className="fas fa-times mr-1"></i>
+                            Remove
                           </Button>
                         </div>
                       )}
@@ -799,46 +804,48 @@ export default function AdminBanners() {
                 <p className="text-sm text-gray-500">Create your first banner to get started</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Preview</TableHead>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Sort Order</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {banners?.map((banner: Banner) => (
-                    <TableRow key={banner.id}>
-                      <TableCell>
-                        {banner.image?.url ? (
-                          <img
-                            src={getImageUrl(banner.image.url)}
-                            alt={banner.title}
-                            className="w-16 h-12 rounded-lg object-cover border"
-                          />
-                        ) : (
-                          <div
-                            className="w-16 h-12 rounded-lg flex items-center justify-center text-xs font-medium"
-                            style={{
-                              backgroundColor: banner.backgroundColor,
-                              color: banner.textColor,
-                            }}
-                          >
-                            {banner.title.slice(0, 10)}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{banner.title}</p>
-                          <p className="text-sm text-gray-500">{banner.subtitle}</p>
+              <DataTable
+                data={banners || []}
+                columns={[
+                  {
+                    key: 'preview',
+                    header: 'Preview',
+                    width: '120px',
+                    render: (_, banner: Banner) => (
+                      banner.image?.url ? (
+                        <img
+                          src={getImageUrl(banner.image.url)}
+                          alt={banner.title}
+                          className="w-16 h-12 rounded-lg object-cover border"
+                        />
+                      ) : (
+                        <div
+                          className="w-16 h-12 rounded-lg flex items-center justify-center text-xs font-medium"
+                          style={{
+                            backgroundColor: banner.backgroundColor,
+                            color: banner.textColor,
+                          }}
+                        >
+                          {banner.title.slice(0, 10)}
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      )
+                    )
+                  },
+                  {
+                    key: 'title',
+                    header: 'Title',
+                    render: (_, banner: Banner) => (
+                      <div>
+                        <p className="font-medium">{banner.title}</p>
+                        <p className="text-sm text-gray-500">{banner.subtitle}</p>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'action',
+                    header: 'Action',
+                    render: (_, banner: Banner) => (
+                      <div>
                         <Badge variant="outline">
                           {banner.actionText} ({banner.actionType})
                         </Badge>
@@ -852,47 +859,133 @@ export default function AdminBanners() {
                             Seller: {getSellerName(banner.sellerId)}
                           </div>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={banner.isActive ? "default" : "secondary"}>
-                          {banner.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{banner.sortOrder}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              handleEdit(banner);
-                              setIsCreateDialogOpen(true);
-                            }}
-                            disabled={updateBanner.isPending}
-                          >
-                            <i className="fas fa-edit"></i>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this banner?')) {
-                                deleteBanner.mutate(banner.id);
-                              }
-                            }}
-                            disabled={deleteBanner.isPending}
-                          >
-                            <i className="fas fa-trash"></i>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    render: (_, banner: Banner) => (
+                      <Badge variant={banner.isActive ? "default" : "secondary"}>
+                        {banner.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    )
+                  },
+                  {
+                    key: 'sortOrder',
+                    header: 'Sort Order',
+                    sortable: true
+                  },
+                  {
+                    key: 'actions',
+                    header: 'Actions',
+                    width: '200px',
+                    render: (_, banner: Banner) => (
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            handleEdit(banner);
+                            setIsCreateDialogOpen(true);
+                          }}
+                          disabled={updateBanner.isPending}
+                        >
+                          <i className="fas fa-edit mr-1"></i>
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => {
+                            setBannerToDelete(banner);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                          disabled={deleteBanner.isPending}
+                        >
+                          <i className="fas fa-trash mr-1"></i>
+                          Delete
+                        </Button>
+                      </div>
+                    )
+                  }
+                ]}
+                searchable={true}
+                searchPlaceholder="Search banners..."
+                searchKeys={['title', 'subtitle', 'description', 'actionText']}
+                pageSize={10}
+                emptyMessage="No banners found. Create your first banner to get started."
+              />
             )}
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Modal */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Banner</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete <strong>{bannerToDelete?.title}</strong>? 
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {bannerToDelete && (
+              <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg my-4">
+                <div className="w-16 h-12 rounded-lg overflow-hidden">
+                  {bannerToDelete.image?.url ? (
+                    <img
+                      src={getImageUrl(bannerToDelete.image.url)}
+                      alt={bannerToDelete.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full flex items-center justify-center text-xs font-medium"
+                      style={{
+                        backgroundColor: bannerToDelete.backgroundColor,
+                        color: bannerToDelete.textColor,
+                      }}
+                    >
+                      {bannerToDelete.title.slice(0, 8)}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="font-semibold text-lg">{bannerToDelete.title}</div>
+                  <div className="text-sm text-gray-600">{bannerToDelete.subtitle}</div>
+                  <div className="text-xs text-gray-400">Status: {bannerToDelete.isActive ? 'Active' : 'Inactive'}</div>
+                </div>
+              </div>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (bannerToDelete) {
+                    deleteBanner.mutate(bannerToDelete.id);
+                  }
+                  setIsDeleteDialogOpen(false);
+                  setBannerToDelete(null);
+                }}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deleteBanner.isPending}
+              >
+                {deleteBanner.isPending ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-trash mr-2"></i>
+                    Delete Banner
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

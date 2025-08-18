@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -33,7 +33,6 @@ interface ProductCategory {
 }
 
 export default function AdminProductCategories() {
-  const [searchTerm, setSearchTerm] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ProductCategory | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -321,11 +320,7 @@ export default function AdminProductCategories() {
     }
   };
 
-  // Filter categories based on search term
-  const filteredCategories = categories?.filter((category: ProductCategory) =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.description.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+
 
   if (error) {
     return (
@@ -367,23 +362,14 @@ export default function AdminProductCategories() {
           </div>
         </div>
 
-        {/* Search and Create */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search product categories..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+        {/* Create Button */}
+        <div className="flex justify-end mb-6">
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => {
                 setEditingCategory(null);
                 resetForm();
-              }}>
+              }} size="lg" className="shadow-lg">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Product Category
               </Button>
@@ -522,7 +508,7 @@ export default function AdminProductCategories() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
                 <p className="text-gray-600">Loading product categories...</p>
               </div>
-            ) : filteredCategories.length === 0 ? (
+            ) : categories?.length === 0 ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <i className="fas fa-tags text-gray-400 text-2xl"></i>
@@ -531,95 +517,120 @@ export default function AdminProductCategories() {
                 <p className="text-sm text-gray-500">Create your first product category to get started</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Image</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Products</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Sort Order</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCategories.map((category: ProductCategory) => (
-                    <TableRow key={category.id}>
-                      <TableCell>
-                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
-                          {category.image?.url ? (
-                            <img
-                              src={getImageUrl(category.image.url)}
-                              alt={category.image.name || category.name}
-                              className="w-12 h-12 rounded-lg object-cover"
-                              onError={(e) => {
-                                console.log('🔍 Image failed to load:', category.image.url);
-                                e.target.style.display = 'none';
-                                // Show fallback icon when image fails
-                                const parent = e.target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '<svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
-                                }
-                              }}
-                            />
-                          ) : (
-                            <ImageIcon className="h-6 w-6 text-gray-400" />
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{category.name}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm text-gray-600 max-w-xs truncate">
-                          {category.description || 'No description'}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {category.productCount ?? 0} products
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={(category.isActive ?? true) ? "default" : "secondary"}>
-                          {(category.isActive ?? true) ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{category.sortOrder ?? 0}</TableCell>
-                      <TableCell>
-                        <p className="text-sm text-gray-600">
-                          {new Date(category.createdAt).toLocaleDateString()}
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(category)}
-                          >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(category.id)}
-                            disabled={deleteCategory.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DataTable
+                data={categories || []}
+                columns={[
+                  {
+                    key: 'image',
+                    header: 'Image',
+                    width: '80px',
+                    render: (_, category: ProductCategory) => (
+                      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                        {category.image?.url ? (
+                          <img
+                            src={getImageUrl(category.image.url)}
+                            alt={category.image.name || category.name}
+                            className="w-12 h-12 rounded-lg object-cover"
+                            onError={(e) => {
+                              console.log('🔍 Image failed to load:', category.image?.url);
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              // Show fallback icon when image fails
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.innerHTML = '<svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+                              }
+                            }}
+                          />
+                        ) : (
+                          <ImageIcon className="h-6 w-6 text-gray-400" />
+                        )}
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'name',
+                    header: 'Name',
+                    render: (_, category: ProductCategory) => (
+                      <div>
+                        <p className="font-medium">{category.name}</p>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'description',
+                    header: 'Description',
+                    render: (_, category: ProductCategory) => (
+                      <p className="text-sm text-gray-600 max-w-xs truncate">
+                        {category.description || 'No description'}
+                      </p>
+                    )
+                  },
+                  {
+                    key: 'productCount',
+                    header: 'Products',
+                    render: (_, category: ProductCategory) => (
+                      <Badge variant="outline">
+                        {category.productCount ?? 0} products
+                      </Badge>
+                    )
+                  },
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    render: (_, category: ProductCategory) => (
+                      <Badge variant={(category.isActive ?? true) ? "default" : "secondary"}>
+                        {(category.isActive ?? true) ? 'Active' : 'Inactive'}
+                      </Badge>
+                    )
+                  },
+                  {
+                    key: 'sortOrder',
+                    header: 'Sort Order',
+                    sortable: true
+                  },
+                  {
+                    key: 'createdAt',
+                    header: 'Created',
+                    render: (_, category: ProductCategory) => (
+                      <p className="text-sm text-gray-600">
+                        {new Date(category.createdAt).toLocaleDateString()}
+                      </p>
+                    )
+                  },
+                  {
+                    key: 'actions',
+                    header: 'Actions',
+                    width: '200px',
+                    render: (_, category: ProductCategory) => (
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(category)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(category.id)}
+                          disabled={deleteCategory.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    )
+                  }
+                ]}
+                searchable={true}
+                searchPlaceholder="Search product categories..."
+                searchKeys={['name', 'description']}
+                pageSize={10}
+                emptyMessage="No product categories found. Create your first product category to get started."
+              />
             )}
           </CardContent>
         </Card>

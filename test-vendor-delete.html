@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Vendor Delete</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Vendor Delete Functionality</h1>
+    
+    <div class="test-section info">
+        <h3>📋 Test Overview</h3>
+        <p>This page tests the vendor delete functionality in the admin dashboard.</p>
+        <p><strong>API URL:</strong> <span id="apiUrl">Loading...</span></p>
+    </div>
+
+    <div class="test-section">
+        <h3>🔐 Step 1: Admin Login</h3>
+        <button onclick="testAdminLogin()">Test Admin Login</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Step 2: Get Vendors</h3>
+        <button onclick="getVendors()">Get All Vendors</button>
+        <div id="vendorsResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🗑️ Step 3: Test Delete</h3>
+        <input type="number" id="vendorIdToDelete" placeholder="Enter vendor ID to delete" style="padding: 5px; margin: 5px;">
+        <button onclick="testDeleteVendor()">Test Delete Vendor</button>
+        <div id="deleteResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔄 Step 4: Verify Deletion</h3>
+        <button onclick="verifyDeletion()">Verify Vendor Deleted</button>
+        <div id="verifyResult"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:1337';
+        let adminToken = null;
+
+        document.getElementById('apiUrl').textContent = API_URL;
+
+        async function testAdminLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            resultDiv.innerHTML = '<p>Testing admin login...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/api/auth/local`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identifier: 'admin@localsoch.com',
+                        password: 'admin123'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.jwt) {
+                    adminToken = data.jwt;
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <p>✅ Admin login successful!</p>
+                            <p><strong>User:</strong> ${data.user.username}</p>
+                            <p><strong>Role:</strong> ${data.user.role.name}</p>
+                            <p><strong>Token:</strong> ${data.jwt.substring(0, 20)}...</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <p>❌ Login failed</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <p>❌ Error during login</p>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function getVendors() {
+            const resultDiv = document.getElementById('vendorsResult');
+            resultDiv.innerHTML = '<p>Fetching vendors...</p>';
+
+            if (!adminToken) {
+                resultDiv.innerHTML = '<div class="error"><p>❌ Please login first</p></div>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/vendors/admin/all`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.data) {
+                    const vendors = data.data;
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <p>✅ Found ${vendors.length} vendors</p>
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                <table border="1" style="width: 100%; border-collapse: collapse;">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Status</th>
+                                        <th>Products</th>
+                                        <th>User</th>
+                                    </tr>
+                                    ${vendors.map(vendor => `
+                                        <tr>
+                                            <td>${vendor.id}</td>
+                                            <td>${vendor.name || 'N/A'}</td>
+                                            <td>${vendor.status || 'N/A'}</td>
+                                            <td>${vendor.products?.length || 0}</td>
+                                            <td>${vendor.user?.username || 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <p>❌ Failed to get vendors</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <p>❌ Error fetching vendors</p>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function testDeleteVendor() {
+            const resultDiv = document.getElementById('deleteResult');
+            const vendorId = document.getElementById('vendorIdToDelete').value;
+
+            if (!vendorId) {
+                resultDiv.innerHTML = '<div class="error"><p>❌ Please enter a vendor ID</p></div>';
+                return;
+            }
+
+            if (!adminToken) {
+                resultDiv.innerHTML = '<div class="error"><p>❌ Please login first</p></div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p>Testing vendor deletion...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/api/vendors/${vendorId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <p>✅ Vendor deleted successfully!</p>
+                            <p><strong>Deleted Vendor:</strong> ${data.data.name}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <p>❌ Failed to delete vendor</p>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <p>❌ Error during deletion</p>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function verifyDeletion() {
+            const resultDiv = document.getElementById('verifyResult');
+            const vendorId = document.getElementById('vendorIdToDelete').value;
+
+            if (!vendorId) {
+                resultDiv.innerHTML = '<div class="error"><p>❌ Please enter a vendor ID</p></div>';
+                return;
+            }
+
+            if (!adminToken) {
+                resultDiv.innerHTML = '<div class="error"><p>❌ Please login first</p></div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p>Verifying deletion...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/api/vendors/${vendorId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${adminToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.status === 404) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <p>✅ Vendor successfully deleted - not found (404)</p>
+                        </div>
+                    `;
+                } else {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <p>❌ Vendor still exists</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <p>❌ Error verifying deletion</p>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html> 

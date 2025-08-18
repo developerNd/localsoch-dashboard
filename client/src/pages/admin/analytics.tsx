@@ -8,55 +8,219 @@ import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import SalesChart from '@/components/charts/sales-chart';
+import { useAdminOrders, useAdminVendors, useAdminProducts } from '@/hooks/use-api';
+import { apiRequest } from '@/lib/queryClient';
+
+// Simple Chart Components
+const RevenueChart = ({ data }: { data: any[] }) => {
+  const maxValue = Math.max(...data.map(d => d.value));
+  
+  return (
+    <div className="h-full flex items-end justify-between space-x-2">
+      {data.map((item, index) => (
+        <div key={index} className="flex-1 flex flex-col items-center">
+          <div className="text-xs text-gray-500 mb-1">{item.label}</div>
+          <div 
+            className="w-full bg-primary rounded-t transition-all duration-300 hover:bg-primary/80"
+            style={{ 
+              height: `${(item.value / maxValue) * 200}px`,
+              minHeight: '20px'
+            }}
+          ></div>
+          <div className="text-xs font-medium text-gray-700 mt-1">
+            ₹{item.value.toLocaleString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const OrderChart = ({ data }: { data: any[] }) => {
+  const maxValue = Math.max(...data.map(d => d.value));
+  
+  return (
+    <div className="h-full flex items-end justify-between space-x-2">
+      {data.map((item, index) => (
+        <div key={index} className="flex-1 flex flex-col items-center">
+          <div className="text-xs text-gray-500 mb-1">{item.label}</div>
+          <div 
+            className="w-full bg-blue-500 rounded-t transition-all duration-300 hover:bg-blue-600"
+            style={{ 
+              height: `${(item.value / maxValue) * 200}px`,
+              minHeight: '20px'
+            }}
+          ></div>
+          <div className="text-xs font-medium text-gray-700 mt-1">
+            {item.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const StatusChart = ({ data }: { data: any[] }) => {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  
+  return (
+    <div className="h-full flex flex-col justify-center space-y-3">
+      {data.map((item, index) => {
+        const percentage = total > 0 ? (item.value / total) * 100 : 0;
+        return (
+          <div key={index} className="flex items-center space-x-3">
+            <div 
+              className="w-4 h-4 rounded-full"
+              style={{ backgroundColor: item.color }}
+            ></div>
+            <div className="flex-1">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium">{item.label}</span>
+                <span className="text-gray-500">{item.value}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                <div
+                  className="h-2 rounded-full transition-all duration-300"
+                  style={{ 
+                    width: `${percentage}%`,
+                    backgroundColor: item.color
+                  }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 export default function AdminAnalytics() {
   const [period, setPeriod] = useState('30days');
 
+  // Data generation functions
+  const generateRevenueData = () => {
+    if (!orders || orders.length === 0) {
+      return Array.from({ length: 7 }, (_, i) => ({
+        label: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short' }),
+        value: 0
+      }));
+    }
+
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      return date.toISOString().split('T')[0];
+    });
+
+    return last7Days.map(date => {
+      const dayOrders = orders.filter((order: any) => {
+        const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+        return orderDate === date;
+      });
+
+      const revenue = dayOrders.reduce((sum: number, order: any) => 
+        sum + parseFloat(order.totalAmount || 0), 0);
+
+      return {
+        label: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+        value: Math.round(revenue)
+      };
+    });
+  };
+
+  const generateOrderData = () => {
+    if (!orders || orders.length === 0) {
+      return Array.from({ length: 7 }, (_, i) => ({
+        label: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short' }),
+        value: 0
+      }));
+    }
+
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      return date.toISOString().split('T')[0];
+    });
+
+    return last7Days.map(date => {
+      const dayOrders = orders.filter((order: any) => {
+        const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+        return orderDate === date;
+      });
+
+      return {
+        label: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+        value: dayOrders.length
+      };
+    });
+  };
+
+  const generateStatusData = () => {
+    if (!orders || orders.length === 0) {
+      return [
+        { label: 'Pending', value: 0, color: '#f59e0b' },
+        { label: 'Confirmed', value: 0, color: '#3b82f6' },
+        { label: 'Shipped', value: 0, color: '#8b5cf6' },
+        { label: 'Delivered', value: 0, color: '#10b981' },
+        { label: 'Cancelled', value: 0, color: '#ef4444' }
+      ];
+    }
+
+    const statusCounts = {
+      pending: 0,
+      confirmed: 0,
+      shipped: 0,
+      delivered: 0,
+      ready: 0,
+      pickedUp: 0,
+      cancelled: 0
+    };
+
+    orders.forEach((order: any) => {
+      const status = order.status || 'pending';
+      if (statusCounts.hasOwnProperty(status)) {
+        statusCounts[status]++;
+      }
+    });
+
+    return [
+      { label: 'Pending', value: statusCounts.pending, color: '#f59e0b' },
+      { label: 'Confirmed', value: statusCounts.confirmed, color: '#3b82f6' },
+      { label: 'Shipped', value: statusCounts.shipped, color: '#8b5cf6' },
+      { label: 'Delivered', value: statusCounts.delivered, color: '#10b981' },
+      { label: 'Ready', value: statusCounts.ready, color: '#f97316' },
+      { label: 'Picked Up', value: statusCounts.pickedUp, color: '#059669' },
+      { label: 'Cancelled', value: statusCounts.cancelled, color: '#ef4444' }
+    ].filter(item => item.value > 0);
+  };
+
+  // Fetch real data from backend
+  const { data: orders, isLoading: ordersLoading } = useAdminOrders();
+  const { data: vendors, isLoading: vendorsLoading } = useAdminVendors();
+  const { data: products, isLoading: productsLoading } = useAdminProducts();
+
+  // Fetch analytics data from backend
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
-    queryKey: ['/api/analytics'],
+    queryKey: ['/api/analytics/dashboard-stats'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/analytics/dashboard-stats');
+      return await response.json();
+    },
   });
 
-  const { data: orders } = useQuery({
-    queryKey: ['/api/orders'],
-  });
+  // Calculate real metrics from backend data
+  const totalRevenue = analytics?.totalRevenue || 0;
+  const totalOrders = analytics?.totalOrders || 0;
+  const totalSellers = analytics?.totalSellers || 0;
+  const totalProducts = analytics?.totalProducts || 0;
 
-  const { data: sellers } = useQuery({
-    queryKey: ['/api/admin/sellers'],
-  });
-
-  const { data: products } = useQuery({
-    queryKey: ['/api/products'],
-  });
-
-  // Generate revenue chart data
-  const revenueChartData = [
-    { date: 'Week 1', sales: 45000 },
-    { date: 'Week 2', sales: 52000 },
-    { date: 'Week 3', sales: 38000 },
-    { date: 'Week 4', sales: 67000 },
-    { date: 'Week 5', sales: 59000 },
-  ];
-
-  // Generate order trend data
-  const orderTrendData = [
-    { date: 'Mon', sales: 15 },
-    { date: 'Tue', sales: 23 },
-    { date: 'Wed', sales: 18 },
-    { date: 'Thu', sales: 32 },
-    { date: 'Fri', sales: 28 },
-    { date: 'Sat', sales: 41 },
-    { date: 'Sun', sales: 35 },
-  ];
-
-  const totalRevenue = orders?.reduce((sum: number, order: any) => 
-    sum + parseFloat(order.totalAmount), 0) || 0;
-
-  const activeSellers = sellers?.filter((s: any) => s.role === 'seller' && s.isActive) || [];
-  const pendingSellers = sellers?.filter((s: any) => s.role === 'seller_pending') || [];
-  const activeProducts = products?.filter((p: any) => p.isActive && p.isApproved) || [];
+  // Filter vendors by status
+  const activeSellers = vendors?.filter((v: any) => v.status === 'approved') || [];
+  const pendingSellers = vendors?.filter((v: any) => v.status === 'pending') || [];
+  const activeProducts = products?.filter((p: any) => p.isApproved) || [];
 
   // Calculate conversion metrics
-  const totalOrders = orders?.length || 0;
   const completedOrders = orders?.filter((o: any) => o.status === 'delivered').length || 0;
   const completionRate = totalOrders > 0 ? (completedOrders / totalOrders) * 100 : 0;
 
@@ -66,7 +230,7 @@ export default function AdminAnalytics() {
   // Commission calculation (assuming 5% platform fee)
   const platformCommission = totalRevenue * 0.05;
 
-  if (analyticsLoading) {
+  if (analyticsLoading || ordersLoading || vendorsLoading || productsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -109,9 +273,8 @@ export default function AdminAnalytics() {
                   <p className="text-2xl font-bold text-gray-900">
                     ₹{totalRevenue.toLocaleString()}
                   </p>
-                  <p className="text-xs text-success mt-1">
-                    <i className="fas fa-arrow-up mr-1"></i>
-                    +15.3% from last period
+                  <p className="text-xs text-gray-500 mt-1">
+                    Total platform revenue
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -127,9 +290,8 @@ export default function AdminAnalytics() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Orders</p>
                   <p className="text-2xl font-bold text-gray-900">{totalOrders}</p>
-                  <p className="text-xs text-success mt-1">
-                    <i className="fas fa-arrow-up mr-1"></i>
-                    +12.5% from last period
+                  <p className="text-xs text-gray-500 mt-1">
+                    Total orders placed
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
@@ -145,9 +307,8 @@ export default function AdminAnalytics() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Active Sellers</p>
                   <p className="text-2xl font-bold text-gray-900">{activeSellers.length}</p>
-                  <p className="text-xs text-warning mt-1">
-                    <i className="fas fa-clock mr-1"></i>
-                    {pendingSellers.length} pending
+                  <p className="text-xs text-gray-500 mt-1">
+                    {pendingSellers.length} pending approval
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">
@@ -163,9 +324,8 @@ export default function AdminAnalytics() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Active Products</p>
                   <p className="text-2xl font-bold text-gray-900">{activeProducts.length}</p>
-                  <p className="text-xs text-primary mt-1">
-                    <i className="fas fa-box mr-1"></i>
-                    Approved & live
+                  <p className="text-xs text-gray-500 mt-1">
+                    Approved & live products
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
@@ -186,9 +346,8 @@ export default function AdminAnalytics() {
                   <p className="text-2xl font-bold text-gray-900">
                     ₹{avgOrderValue.toLocaleString()}
                   </p>
-                  <p className="text-xs text-success mt-1">
-                    <i className="fas fa-arrow-up mr-1"></i>
-                    +8.2% improvement
+                  <p className="text-xs text-gray-500 mt-1">
+                    Average per order
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -206,9 +365,8 @@ export default function AdminAnalytics() {
                   <p className="text-2xl font-bold text-gray-900">
                     {completionRate.toFixed(1)}%
                   </p>
-                  <p className="text-xs text-success mt-1">
-                    <i className="fas fa-arrow-up mr-1"></i>
-                    +3.1% from last period
+                  <p className="text-xs text-gray-500 mt-1">
+                    Orders completed successfully
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center">
@@ -239,27 +397,39 @@ export default function AdminAnalytics() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Revenue Trend */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Revenue Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Revenue Trend</CardTitle>
+              <CardTitle>Revenue Trend (Last 7 Days)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
-                <SalesChart data={revenueChartData} />
+                <RevenueChart data={generateRevenueData()} />
               </div>
             </CardContent>
           </Card>
 
-          {/* Order Trend */}
+          {/* Order Trend Chart */}
           <Card>
             <CardHeader>
-              <CardTitle>Daily Orders</CardTitle>
+              <CardTitle>Daily Orders (Last 7 Days)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
-                <SalesChart data={orderTrendData} />
+                <OrderChart data={generateOrderData()} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Order Status Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Status Distribution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <StatusChart data={generateStatusData()} />
               </div>
             </CardContent>
           </Card>
@@ -273,10 +443,8 @@ export default function AdminAnalytics() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {analytics?.topSellers?.length === 0 ? (
-                  <p className="text-center text-gray-500 py-4">No seller data available</p>
-                ) : (
-                  analytics?.topSellers?.slice(0, 5).map((seller: any, index: number) => (
+                {analytics?.topSellers?.length > 0 ? (
+                  analytics.topSellers.slice(0, 5).map((seller: any, index: number) => (
                     <div key={seller.id} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full text-primary font-medium text-sm">
@@ -284,10 +452,10 @@ export default function AdminAnalytics() {
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">
-                            {seller.firstName} {seller.lastName}
+                            {seller.name || `Vendor ${seller.id}`}
                           </p>
                           <p className="text-sm text-gray-500">
-                            {seller.orderCount} orders
+                            {seller.orders || 0} orders
                           </p>
                         </div>
                       </div>
@@ -296,11 +464,13 @@ export default function AdminAnalytics() {
                           ₹{(seller.revenue || 0).toLocaleString()}
                         </p>
                         <Badge variant="outline" className="text-xs">
-                          {((seller.revenue || 0) / totalRevenue * 100).toFixed(1)}%
+                          {totalRevenue > 0 ? ((seller.revenue || 0) / totalRevenue * 100).toFixed(1) : 0}%
                         </Badge>
                       </div>
                     </div>
-                  )) || []
+                  ))
+                ) : (
+                  <p className="text-center text-gray-500 py-4">No seller data available</p>
                 )}
               </div>
             </CardContent>
@@ -317,8 +487,10 @@ export default function AdminAnalytics() {
                   { status: 'delivered', label: 'Delivered', color: 'bg-success' },
                   { status: 'shipped', label: 'Shipped', color: 'bg-primary' },
                   { status: 'confirmed', label: 'Confirmed', color: 'bg-secondary' },
+                  { status: 'ready', label: 'Ready for Pickup', color: 'bg-orange-500' },
+                  { status: 'pickedUp', label: 'Picked Up', color: 'bg-green-500' },
                   { status: 'pending', label: 'Pending', color: 'bg-warning' },
-                  { status: 'cancelled', label: 'Cancelled', color: 'bg-error' },
+                  { status: 'cancelled', label: 'Cancelled', color: 'bg-destructive' },
                 ].map((item) => {
                   const count = orders?.filter((o: any) => o.status === item.status).length || 0;
                   const percentage = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
@@ -346,76 +518,61 @@ export default function AdminAnalytics() {
           </Card>
         </div>
 
-        {/* Recent Activity */}
+        {/* Recent Orders */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Platform Activity</CardTitle>
+            <CardTitle>Recent Orders</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Activity</TableHead>
-                    <TableHead>Details</TableHead>
-                    <TableHead>Impact</TableHead>
-                    <TableHead>Time</TableHead>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <i className="fas fa-user-plus text-success"></i>
-                        <span>New Seller Registration</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm">Seller application submitted for review</p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">Pending Review</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm text-gray-500">2 hours ago</p>
-                    </TableCell>
-                  </TableRow>
-                  
-                  <TableRow>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <i className="fas fa-shopping-cart text-primary"></i>
-                        <span>Large Order Placed</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm">Order worth ₹25,000 from premium customer</p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="default">High Value</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm text-gray-500">4 hours ago</p>
-                    </TableCell>
-                  </TableRow>
-                  
-                  <TableRow>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <i className="fas fa-box text-warning"></i>
-                        <span>Product Approved</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm">5 new products approved and went live</p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">Catalog Growth</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm text-gray-500">6 hours ago</p>
-                    </TableCell>
-                  </TableRow>
+                  {analytics?.recentOrders?.length > 0 ? (
+                    analytics.recentOrders.map((order: any) => (
+                      <TableRow key={order.id}>
+                        <TableCell>
+                          <div className="font-medium">#{order.orderNumber}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">{order.customer}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">₹{order.amount.toLocaleString()}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            order.status === 'delivered' ? 'default' :
+                            order.status === 'shipped' ? 'outline' :
+                            order.status === 'confirmed' ? 'secondary' :
+                            order.status === 'pending' ? 'secondary' :
+                            'destructive'
+                          }>
+                            {order.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-gray-500">
+                            {new Date(order.createdAt || Date.now()).toLocaleDateString()}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                        No recent orders available
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>

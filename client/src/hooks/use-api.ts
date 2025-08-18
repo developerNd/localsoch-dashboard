@@ -482,6 +482,8 @@ export function useDeleteVendor() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/vendors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vendors/admin/stats'] });
     },
   });
 }
