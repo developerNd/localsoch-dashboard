@@ -164,12 +164,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     if (userData?.user) {
+      // Check for incomplete registration
+      const pendingData = localStorage.getItem('pendingSellerData');
+      const hasIncompleteRegistration = !!pendingData;
+      
       // Preserve existing vendorId if the new user data doesn't have it
       if (user && user.vendorId && !userData.user.vendorId) {
-        const userWithVendorId = { ...userData.user, vendorId: user.vendorId };
+        const userWithVendorId = { 
+          ...userData.user, 
+          vendorId: user.vendorId,
+          hasIncompleteRegistration 
+        };
         setUser(userWithVendorId);
       } else {
-        setUser(userData.user);
+        setUser({ ...userData.user, hasIncompleteRegistration });
       }
     } else if (error) {
       // Only clear token if it's an authentication error, not a network error or permission error

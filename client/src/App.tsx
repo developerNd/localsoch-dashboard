@@ -28,6 +28,7 @@ import AdminBusinessCategories from "@/pages/admin/business-categories";
 import AdminProductCategories from "@/pages/admin/product-categories";
 import AdminSubscriptionPlans from "@/pages/admin/subscription-plans";
 import SubscriptionSelection from "@/pages/subscription-selection";
+import IncompleteRegistration from "@/pages/incomplete-registration";
 
 
 // Root redirect component
@@ -36,9 +37,34 @@ function RootRedirect() {
   
   useEffect(() => {
     if (user) {
-      if (user.vendorId) {
+      // Check user role first
+      const userRole = user.role;
+      const roleName = typeof userRole === 'object' ? userRole.name : userRole;
+      
+      // Admin users should never see incomplete registration page
+      if (roleName === 'admin') {
+        window.location.href = '/admin';
+        return;
+      }
+      
+      // Check if user has pending registration data (incomplete registration)
+      const pendingData = localStorage.getItem('pendingSellerData');
+      
+      if (pendingData) {
+        // User has registered but hasn't completed subscription purchase
+        window.location.href = '/incomplete-registration';
+        return;
+      }
+      
+      // Check user role and redirect accordingly
+      if (roleName === 'seller' && user.vendorId) {
+        // Seller with vendor profile - redirect to seller dashboard
         window.location.href = '/seller';
+      } else if (roleName === 'seller' && !user.vendorId) {
+        // Seller without vendor profile - might be incomplete registration
+        window.location.href = '/incomplete-registration';
       } else {
+        // Default fallback - redirect to admin (or could be login)
         window.location.href = '/admin';
       }
     }
@@ -155,6 +181,12 @@ function Router() {
         
         <Route path="/subscription-selection">
           <SubscriptionSelection />
+        </Route>
+        
+        <Route path="/incomplete-registration">
+          <ProtectedRoute>
+            <IncompleteRegistration />
+          </ProtectedRoute>
         </Route>
       
       {/* Redirect root to appropriate dashboard */}

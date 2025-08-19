@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
 import { initializePayment, completeSellerRegistration, createSubscription, PaymentData } from '@/lib/razorpay';
 import { useVendorByUser } from '@/hooks/use-api';
-import { CheckCircle, Star, Package, Loader2, AlertCircle } from 'lucide-react';
+import { CheckCircle, Star, Package, Loader2, AlertCircle, LogIn } from 'lucide-react';
 
 interface SubscriptionPlan {
   id: number;
@@ -38,6 +39,8 @@ export default function SubscriptionSelection() {
   const [pendingData, setPendingData] = useState<any>(null);
   const [error, setError] = useState('');
   const [isNewRegistration, setIsNewRegistration] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [purchaseCompleted, setPurchaseCompleted] = useState(false);
 
   // Get vendor record for existing users
   const { data: vendorRecord } = useVendorByUser(user?.id);
@@ -58,12 +61,6 @@ export default function SubscriptionSelection() {
   });
 
   useEffect(() => {
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      setError('Please log in to view subscription plans.');
-      return;
-    }
-
     // Get pending seller data from localStorage (for new registrations)
     const data = localStorage.getItem('pendingSellerData');
     if (data) {
@@ -78,7 +75,7 @@ export default function SubscriptionSelection() {
       // For existing users, no pending data is required
       setIsNewRegistration(false);
     }
-  }, [isAuthenticated]);
+  }, []);
 
   const handlePlanSelection = (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
@@ -148,49 +145,66 @@ export default function SubscriptionSelection() {
             const success = await completeSellerRegistration(response);
             
             if (success) {
-              toast({
-                title: "Payment Successful!",
-                description: `Your ${selectedPlan.name} subscription is now active.`,
-              });
-              
               // Clear pending data
               localStorage.removeItem('pendingSellerData');
               
-              // Redirect to seller dashboard
-              setTimeout(() => {
-                setLocation('/seller');
-              }, 2000);
+              // Show success message and login modal
+              toast({
+                title: "Registration & Payment Successful!",
+                description: "Your account has been created and subscription activated. Please log in to access your dashboard.",
+                variant: "default",
+              });
+              
+              setPurchaseCompleted(true);
+              setShowLoginModal(true);
             } else {
-              setError('Payment successful but registration failed. Please contact support.');
+              toast({
+                title: "Payment Successful, Registration Failed",
+                description: "Your payment was processed but there was an issue creating your account. Please contact support.",
+                variant: "destructive",
+              });
             }
           } else {
             // For existing users, create subscription
-            const success = await createSubscription(response, selectedPlan.id, vendorRecord?.id || 0);
-            
-            if (success) {
-              toast({
-                title: "Payment Successful!",
-                description: `Your ${selectedPlan.name} subscription is now active.`,
-              });
+            if (vendorRecord?.id) {
+              const success = await createSubscription(response, selectedPlan.id, vendorRecord.id);
               
-              // Redirect to seller dashboard
-              setTimeout(() => {
+              if (success) {
+                toast({
+                  title: "Subscription Activated!",
+                  description: "Your subscription has been successfully activated.",
+                  variant: "default",
+                });
+                
+                // Redirect to seller dashboard
                 setLocation('/seller');
-              }, 2000);
+              } else {
+                toast({
+                  title: "Payment Successful, Subscription Failed",
+                  description: "Your payment was processed but there was an issue activating your subscription. Please contact support.",
+                  variant: "destructive",
+                });
+              }
             } else {
-              setError('Payment successful but subscription creation failed. Please contact support.');
+              toast({
+                title: "Vendor Account Not Found",
+                description: "Please contact support to link your account.",
+                variant: "destructive",
+              });
             }
           }
+          
+          setLoading(false);
         },
-        // Failure handler
+        // Error handler
         (error) => {
           console.error('Payment failed:', error);
-          setError('Payment failed. Please try again.');
           toast({
             title: "Payment Failed",
-            description: "There was an error processing your payment. Please try again.",
+            description: error.message || "There was an error processing your payment. Please try again.",
             variant: "destructive",
           });
+          setLoading(false);
         },
         // Dismiss handler
         () => {
@@ -218,28 +232,6 @@ export default function SubscriptionSelection() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">Loading subscription plans...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="max-w-md w-full">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Please log in to view subscription plans.
-            </AlertDescription>
-          </Alert>
-          <Button 
-            onClick={() => setLocation('/login')} 
-            className="mt-4 w-full"
-          >
-            Go to Login
-          </Button>
         </div>
       </div>
     );
@@ -348,7 +340,7 @@ export default function SubscriptionSelection() {
         )}
 
         {/* User Info - For existing users */}
-        {!isNewRegistration && user && (
+        {!isNewRegistration && isAuthenticated && user && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -372,6 +364,53 @@ export default function SubscriptionSelection() {
                 </div>
                 <div>
                   <span className="font-medium">Role:</span> {typeof user.role === 'object' ? user.role.name : user.role}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Guest User Info - For users not logged in */}
+        {!isNewRegistration && !isAuthenticated && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-orange-600 mr-2" />
+                Guest User
+              </CardTitle>
+              <CardDescription>
+                You're viewing subscription plans as a guest. Please log in to purchase a plan or complete registration.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  To purchase a subscription plan, you need to either:
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center">
+                    <CheckCircle className="h-3 w-3 text-green-500 mr-2" />
+                    <span className="text-sm">Complete the registration process</span>
+                  </div>
+                  <div className="flex items-center">
+                    <CheckCircle className="h-3 w-3 text-green-500 mr-2" />
+                    <span className="text-sm">Log in to your existing account</span>
+                  </div>
+                </div>
+                <div className="flex space-x-2 mt-4">
+                  <Button 
+                    onClick={() => setLocation('/signup')} 
+                    variant="outline"
+                    size="sm"
+                  >
+                    Register
+                  </Button>
+                  <Button 
+                    onClick={() => setLocation('/login')} 
+                    size="sm"
+                  >
+                    Log In
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -465,25 +504,51 @@ export default function SubscriptionSelection() {
 
         {/* Payment Button */}
         <div className="text-center">
-          <Button
-            onClick={handlePayment}
-            disabled={!selectedPlan || loading}
-            size="lg"
-            className="px-8 py-3 text-lg"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Processing Payment...
-              </>
-            ) : selectedPlan ? (
-              `Pay ₹${selectedPlan.price} for ${selectedPlan.name}`
-            ) : (
-              'Select a Plan to Continue'
-            )}
-          </Button>
+          {!isNewRegistration && !isAuthenticated ? (
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  You need to be logged in to purchase a subscription plan. Please log in or complete registration first.
+                </AlertDescription>
+              </Alert>
+              <div className="flex justify-center space-x-4">
+                <Button 
+                  onClick={() => setLocation('/signup')} 
+                  variant="outline"
+                  size="lg"
+                >
+                  Register First
+                </Button>
+                <Button 
+                  onClick={() => setLocation('/login')} 
+                  size="lg"
+                >
+                  Log In
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              onClick={handlePayment}
+              disabled={!selectedPlan || loading}
+              size="lg"
+              className="px-8 py-3 text-lg"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Processing Payment...
+                </>
+              ) : selectedPlan ? (
+                `Pay ₹${selectedPlan.price} for ${selectedPlan.name}`
+              ) : (
+                'Select a Plan to Continue'
+              )}
+            </Button>
+          )}
           
-          {selectedPlan && (
+          {selectedPlan && isNewRegistration && (
             <p className="text-sm text-gray-500 mt-2">
               You'll be redirected to secure payment gateway
             </p>
@@ -510,6 +575,57 @@ export default function SubscriptionSelection() {
           )}
         </div>
       </div>
+      
+      {/* Login Modal - Shows after successful purchase for new registrations */}
+      <Dialog open={showLoginModal} onOpenChange={setShowLoginModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <LogIn className="h-5 w-5 mr-2 text-green-600" />
+              Welcome! Please Log In
+            </DialogTitle>
+            <DialogDescription>
+              Your account has been created successfully and your subscription is active. 
+              Please log in to access your seller dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                <div>
+                  <p className="text-sm font-medium text-green-800">
+                    Registration & Payment Successful!
+                  </p>
+                  <p className="text-xs text-green-600 mt-1">
+                    Your {selectedPlan?.name} subscription is now active.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Button 
+                onClick={() => setLocation('/login')} 
+                className="w-full"
+                size="lg"
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                Go to Login Page
+              </Button>
+              
+              <Button 
+                onClick={() => setShowLoginModal(false)} 
+                variant="outline"
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

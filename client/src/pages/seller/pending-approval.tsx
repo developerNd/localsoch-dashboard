@@ -3,19 +3,64 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Clock, CheckCircle, AlertCircle, LogOut } from 'lucide-react';
+import { Clock, CheckCircle, AlertCircle, LogOut, RefreshCw } from 'lucide-react';
 import { useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
 import { getAuthToken } from '@/lib/auth';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useVendorByUser } from '@/hooks/use-api';
+import { useToast } from '@/hooks/use-toast';
 
 export default function PendingApproval() {
+  const { toast } = useToast();
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const [pendingData, setPendingData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const redirectAttempted = useRef(false);
+
+  // Get vendor record for the current user
+  const { data: vendorRecord, isLoading: vendorLoading } = useVendorByUser(user?.id);
+
+  useEffect(() => {
+    // Check for pending registration data
+    const data = localStorage.getItem('pendingSellerData');
+    if (data) {
+      try {
+        const parsedData = JSON.parse(data);
+        setPendingData(parsedData);
+      } catch (err) {
+        console.error('Error parsing pending data:', err);
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  // Redirect admin users away from this page
+  useEffect(() => {
+    if (user) {
+      const userRole = user.role;
+      const roleName = typeof userRole === 'object' ? userRole.name : userRole;
+      
+      if (roleName === 'admin') {
+        setLocation('/admin');
+        return;
+      }
+    }
+  }, [user, setLocation]);
+
+  // Set current page in localStorage to prevent redirect loops
+  useEffect(() => {
+    localStorage.setItem('currentPage', 'pending-approval');
+    return () => {
+      localStorage.removeItem('currentPage');
+    };
+  }, []);
 
   // Fetch vendor data to check approval status
-  const { data: vendorResponse, isLoading } = useQuery({
+  const { data: vendorResponse, isLoading: fetchLoading, refetch } = useQuery({
     queryKey: ['/api/vendors/me'],
     enabled: !!user?.vendorId,
     queryFn: async () => {
@@ -33,24 +78,48 @@ export default function PendingApproval() {
       const vendorData = response.data || response;
       return vendorData;
     },
+    retry: (failureCount, error) => {
+      // Don't retry for 403 errors (permission issues)
+      if (error instanceof Error && error.message.includes('403')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: 2000,
+    staleTime: 60000, // 1 minute
+    refetchInterval: 30000, // 30 seconds
+    refetchIntervalInBackground: false,
   });
 
-  // Auto-redirect if approved
+  // Handle status changes - only redirect once per status change
   useEffect(() => {
-    if (!isLoading && vendorResponse) {
+    if (!fetchLoading && vendorResponse && !redirectAttempted.current) {
       const status = vendorResponse.status;
       const isApproved = vendorResponse.isApproved;
       
-      // Check if vendor is approved (either status or isApproved field)
+      // Only redirect if status is explicitly 'approved' or isApproved is true
+      // Don't redirect for pending, rejected, or suspended statuses
       if (status === 'approved' || isApproved === true) {
-        setLocation('/seller');
+        redirectAttempted.current = true;
+        // Clear the query cache to ensure fresh data on dashboard
+        queryClient.invalidateQueries({ queryKey: ['/api/vendors/approval-status', user?.vendorId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/vendors/me'] });
+        // Use setTimeout to ensure the redirect happens after state updates
+        setTimeout(() => {
+          setLocation('/seller');
+        }, 100);
       }
     }
-  }, [vendorResponse, isLoading, setLocation]);
+  }, [vendorResponse, fetchLoading, setLocation, queryClient, user?.vendorId]);
 
   const handleLogout = () => {
     logout();
     setLocation('/login');
+  };
+
+  const handleRefresh = () => {
+    redirectAttempted.current = false; // Reset redirect flag
+    refetch();
   };
 
   const getStatusInfo = () => {
@@ -78,6 +147,15 @@ export default function PendingApproval() {
           bgColor: 'bg-red-50',
           borderColor: 'border-red-200'
         };
+      case 'suspended':
+        return { 
+          status: 'suspended', 
+          message: `Your account has been suspended. ${reason ? `Reason: ${reason}` : ''}`,
+          icon: AlertCircle,
+          color: 'text-red-600',
+          bgColor: 'bg-red-50',
+          borderColor: 'border-red-200'
+        };
       case 'pending':
       default:
         return { 
@@ -94,7 +172,19 @@ export default function PendingApproval() {
   const statusInfo = getStatusInfo();
   const StatusIcon = statusInfo.icon || Clock;
 
-  if (isLoading) {
+  // If user is already approved, redirect to seller dashboard
+  if (!fetchLoading && vendorResponse && (vendorResponse.status === 'approved' || vendorResponse.isApproved === true)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -180,12 +270,32 @@ export default function PendingApproval() {
                 </Alert>
               )}
               
+              {statusInfo.status === 'suspended' && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Your account has been suspended. Please contact support for assistance.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
               {statusInfo.status === 'pending' && (
                 <div className="text-center text-sm text-gray-600">
                   <p>We typically review applications within 24-48 hours.</p>
                   <p className="mt-1">You'll receive an email notification once your application is reviewed.</p>
                 </div>
               )}
+              
+              {/* Refresh button for all statuses */}
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleRefresh}
+                disabled={fetchLoading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${fetchLoading ? 'animate-spin' : ''}`} />
+                {fetchLoading ? 'Checking Status...' : 'Check Status'}
+              </Button>
               
               <Button 
                 variant="outline" 

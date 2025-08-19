@@ -6,12 +6,14 @@ import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useAuth } from '@/hooks/use-auth';
 import { useSellerOrders, useSellerEarnings, useProducts, useVendors, useVendorSubscription, useVendorByUser } from '@/hooks/use-api';
+import { useVendorApproval } from '@/hooks/use-vendor-approval';
 import { Link } from 'wouter';
 import { useEffect, useRef } from 'react';
 
 export default function SellerDashboard() {
   const { user } = useAuth();
   const renderCount = useRef(0);
+  const redirectAttempted = useRef(false);
 
   // Prevent infinite re-renders
   useEffect(() => {
@@ -21,6 +23,62 @@ export default function SellerDashboard() {
       return;
     }
   });
+
+  // Check for incomplete registration - only for non-admin users
+  useEffect(() => {
+    const userRole = user?.role;
+    const roleName = typeof userRole === 'object' ? userRole.name : userRole;
+    
+    if (roleName !== 'admin') {
+      const pendingData = localStorage.getItem('pendingSellerData');
+      if (pendingData) {
+        window.location.href = '/incomplete-registration';
+        return;
+      }
+    }
+  }, [user]);
+
+  // Get vendor approval status
+  const { isApproved, isPending, isRejected, isSuspended, isLoading: approvalLoading } = useVendorApproval();
+
+  // Check vendor approval status and redirect if not approved
+  useEffect(() => {
+    if (!approvalLoading && !redirectAttempted.current && user?.vendorId) {
+      // Check if we're already on the pending approval page to prevent loops
+      const currentPage = localStorage.getItem('currentPage');
+      if (currentPage === 'pending-approval') {
+        return; // Don't redirect if we're already on the pending approval page
+      }
+      
+      // Only redirect if status is explicitly not approved
+      if (isRejected || isSuspended) {
+        redirectAttempted.current = true;
+        // Use setTimeout to prevent immediate redirect loops
+        setTimeout(() => {
+          window.location.href = '/seller/pending-approval';
+        }, 100);
+        return;
+      }
+      
+      // For pending status, only redirect if we're sure it's not approved
+      if (isPending && !isApproved) {
+        redirectAttempted.current = true;
+        // Use setTimeout to prevent immediate redirect loops
+        setTimeout(() => {
+          window.location.href = '/seller/pending-approval';
+        }, 100);
+        return;
+      }
+    }
+  }, [isApproved, isPending, isRejected, isSuspended, approvalLoading, user?.vendorId]);
+
+  // Set current page in localStorage to prevent redirect loops
+  useEffect(() => {
+    localStorage.setItem('currentPage', 'seller-dashboard');
+    return () => {
+      localStorage.removeItem('currentPage');
+    };
+  }, []);
 
   // Get vendor record for the current user
   const { data: vendorRecord, isLoading: vendorLoading, error: vendorError } = useVendorByUser(user?.id);
@@ -35,7 +93,7 @@ export default function SellerDashboard() {
   const { data: vendors, isLoading: vendorsLoading } = useVendors();
   const { data: subscription, isLoading: subscriptionLoading } = useVendorSubscription(vendorId);
 
-  const isLoading = vendorLoading || ordersLoading || earningsLoading || productsLoading || vendorsLoading || subscriptionLoading;
+  const isLoading = vendorLoading || ordersLoading || earningsLoading || productsLoading || vendorsLoading || subscriptionLoading || approvalLoading;
 
   // Filter products for this seller
   const sellerProducts = Array.isArray(products) ? products.filter((product: any) => 

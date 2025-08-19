@@ -24,8 +24,17 @@ export function useVendorApproval() {
       const vendorData = response.data || response;
       return vendorData;
     },
-    retry: 1,
-    staleTime: 30000, // 30 seconds
+    retry: (failureCount, error) => {
+      // Don't retry for 403 errors (permission issues)
+      if (error instanceof Error && error.message.includes('403')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: 2000,
+    staleTime: 60000, // 1 minute - reduce polling frequency
+    refetchInterval: 30000, // 30 seconds - reasonable polling interval
+    refetchIntervalInBackground: false, // Don't poll in background
   });
 
   // Check both status enum and isApproved boolean fields

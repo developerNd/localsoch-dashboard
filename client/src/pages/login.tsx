@@ -61,9 +61,22 @@ export default function Login() {
         
         // Manual redirect as backup
         if (result && result.user) {
-          if (result.user.vendorId) {
-            setLocation('/seller');
+          // Check user role first
+          const userRole = result.user.role;
+          const roleName = typeof userRole === 'object' ? userRole.name : userRole;
+          
+          // Check for incomplete registration - only for non-admin users
+          if (roleName !== 'admin') {
+            const pendingData = localStorage.getItem('pendingSellerData');
+            if (pendingData) {
+              setLocation('/incomplete-registration');
+            } else if (result.user.vendorId) {
+              setLocation('/seller');
+            } else {
+              setLocation('/admin');
+            }
           } else {
+            // Admin users always go to admin dashboard
             setLocation('/admin');
           }
         }

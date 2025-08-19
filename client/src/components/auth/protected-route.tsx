@@ -1,7 +1,7 @@
 import { useAuth } from '@/hooks/use-auth';
 import { useVendorApproval } from '@/hooks/use-vendor-approval';
 import { useLocation } from 'wouter';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,10 +10,9 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, isLoading, isAuthenticated } = useAuth();
-  const { isApproved, isPending, isLoading: approvalLoading } = useVendorApproval();
+  const { isApproved, isPending, isRejected, isSuspended, isLoading: approvalLoading } = useVendorApproval();
   const [, setLocation] = useLocation();
-
-
+  const redirectAttempted = useRef(false);
 
   useEffect(() => {
     // Add a small delay to give authentication time to load
@@ -23,10 +22,45 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         return;
       }
 
-      // Check seller approval status
-      if (user?.vendorId && !approvalLoading) {
-        if (isPending || !isApproved) {
-          setLocation('/seller/pending-approval');
+      // Check user role first
+      const userRole = user?.role;
+      const roleName = typeof userRole === 'object' ? userRole.name : userRole;
+
+      // Check for incomplete registration - only for non-admin users
+      if (roleName !== 'admin') {
+        const pendingData = localStorage.getItem('pendingSellerData');
+        if (pendingData && user) {
+          // User has registered but hasn't completed subscription purchase
+          setLocation('/incomplete-registration');
+          return;
+        }
+      }
+
+      // Check seller approval status - only redirect once per status change
+      if (user?.vendorId && !approvalLoading && !redirectAttempted.current) {
+        // Check if we're already on the pending approval page to prevent loops
+        const currentPage = localStorage.getItem('currentPage');
+        if (currentPage === 'pending-approval') {
+          return; // Don't redirect if we're already on the pending approval page
+        }
+        
+        // Only redirect for explicitly non-approved statuses
+        if (isRejected || isSuspended) {
+          redirectAttempted.current = true;
+          // Use setTimeout to prevent immediate redirect loops
+          setTimeout(() => {
+            setLocation('/seller/pending-approval');
+          }, 100);
+          return;
+        }
+        
+        // For pending status, only redirect if we're sure it's not approved
+        if (isPending && !isApproved) {
+          redirectAttempted.current = true;
+          // Use setTimeout to prevent immediate redirect loops
+          setTimeout(() => {
+            setLocation('/seller/pending-approval');
+          }, 100);
           return;
         }
       }
@@ -47,7 +81,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     }, 100); // 100ms delay
 
     return () => clearTimeout(timer);
-  }, [user, isLoading, isAuthenticated, allowedRoles, setLocation, isApproved, isPending, approvalLoading]);
+  }, [user, isLoading, isAuthenticated, allowedRoles, setLocation, isApproved, isPending, isRejected, isSuspended, approvalLoading]);
 
   if (isLoading || (user?.vendorId && approvalLoading)) {
     return (
