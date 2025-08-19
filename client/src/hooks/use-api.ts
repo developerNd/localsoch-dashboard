@@ -1038,3 +1038,123 @@ export function useSellerEarnings(vendorId: number | undefined) {
     enabled: !!vendorId && vendorId > 0,
   });
 } 
+
+export function useVendorByUser(userId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/vendors/user', userId],
+    queryFn: async () => {
+      if (!userId) {
+        return null;
+      }
+      
+      const response = await fetch(`${getApiUrl('')}/api/vendors?filters[user][id][$eq]=${userId}&populate=*`);
+      const data = await response.json();
+      
+      if (data.data && data.data.length > 0) {
+        return data.data[0];
+      }
+      
+      return null;
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useVendorSubscription(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/subscriptions/vendor', vendorId],
+    queryFn: async () => {
+      if (!vendorId) {
+        return null;
+      }
+      
+      const response = await fetch(`${getApiUrl('')}/api/subscriptions/vendor/${vendorId}/current`);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        return data.data;
+      }
+      
+      return null;
+    },
+    enabled: !!vendorId,
+  });
+}
+
+export function useVendorSubscriptions() {
+  return useQuery({
+    queryKey: ['/api/subscriptions/all'],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`${getApiUrl('')}/api/subscriptions?populate=*&sort[0]=createdAt:desc`);
+        
+        if (!response.ok) {
+          console.error('Failed to fetch subscriptions:', response.status, response.statusText);
+          return [];
+        }
+        
+        const data = await response.json();
+        
+        if (data.data) {
+          return data.data;
+        }
+        
+        return [];
+      } catch (error) {
+        console.error('Error fetching subscriptions:', error);
+        return [];
+      }
+    },
+  });
+}
+
+export function useProductsWithVendors() {
+  return useQuery({
+    queryKey: ['/api/products/with-vendors'],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`${getApiUrl('')}/api/products?populate=*`);
+        
+        if (!response.ok) {
+          console.error('Failed to fetch products with vendors:', response.status, response.statusText);
+          return [];
+        }
+        
+        const data = await response.json();
+        
+        if (data.data) {
+          return data.data;
+        }
+        
+        return [];
+      } catch (error) {
+        console.error('Error fetching products with vendors:', error);
+        return [];
+      }
+    },
+  });
+}
+
+export function useVendorSubscriptionHistory(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/subscriptions/vendor/history', vendorId],
+    queryFn: async () => {
+      if (!vendorId) return [];
+      const response = await apiRequest('GET', `/api/subscriptions/vendor?filters[vendor][id][$eq]=${vendorId}&populate=*&sort[0]=createdAt:desc`);
+      const data = await response.json();
+      return data.data || [];
+    },
+    enabled: !!vendorId,
+  });
+}
+
+export function useSubscriptionPlans() {
+  return useQuery({
+    queryKey: ['/api/subscription-plans'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/subscription-plans?filters[isActive][$eq]=true&sort[0]=sortOrder:asc&populate=*');
+      const data = await response.json();
+      return data.data || [];
+    },
+  });
+} 

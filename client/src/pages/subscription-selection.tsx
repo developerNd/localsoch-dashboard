@@ -6,8 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
-import { initializePayment, completeSellerRegistration, PaymentData } from '@/lib/razorpay';
+import { initializePayment, completeSellerRegistration, createSubscription, PaymentData } from '@/lib/razorpay';
+import { useVendorByUser } from '@/hooks/use-api';
 import { CheckCircle, Star, Package, Loader2, AlertCircle } from 'lucide-react';
 
 interface SubscriptionPlan {
@@ -29,11 +31,16 @@ interface SubscriptionPlan {
 
 export default function SubscriptionSelection() {
   const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [pendingData, setPendingData] = useState<any>(null);
   const [error, setError] = useState('');
+  const [isNewRegistration, setIsNewRegistration] = useState(false);
+
+  // Get vendor record for existing users
+  const { data: vendorRecord } = useVendorByUser(user?.id);
 
   // Fetch subscription plans dynamically from backend
   const { data: plans, isLoading: plansLoading, error: plansError } = useQuery({
@@ -51,30 +58,57 @@ export default function SubscriptionSelection() {
   });
 
   useEffect(() => {
-    // Get pending seller data from localStorage
-    const data = localStorage.getItem('pendingSellerData');
-    if (!data) {
-      setError('No pending registration found. Please start the registration process again.');
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      setError('Please log in to view subscription plans.');
       return;
     }
 
-    try {
-      const parsedData = JSON.parse(data);
-      setPendingData(parsedData);
-    } catch (err) {
-      setError('Invalid registration data. Please start the registration process again.');
+    // Get pending seller data from localStorage (for new registrations)
+    const data = localStorage.getItem('pendingSellerData');
+    if (data) {
+      try {
+        const parsedData = JSON.parse(data);
+        setPendingData(parsedData);
+        setIsNewRegistration(true);
+      } catch (err) {
+        setError('Invalid registration data. Please start the registration process again.');
+      }
+    } else {
+      // For existing users, no pending data is required
+      setIsNewRegistration(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const handlePlanSelection = (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
   };
 
   const handlePayment = async () => {
-    if (!pendingData || !selectedPlan) {
+    if (!selectedPlan) {
       toast({
         title: "Error",
         description: "Please select a subscription plan.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For new registrations, we need pending data
+    if (isNewRegistration && !pendingData) {
+      toast({
+        title: "Error",
+        description: "Registration data not found. Please start the registration process again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For existing users, we need vendor record
+    if (!isNewRegistration && !vendorRecord) {
+      toast({
+        title: "Error",
+        description: "Vendor account not found. Please contact support.",
         variant: "destructive",
       });
       return;
@@ -89,10 +123,18 @@ export default function SubscriptionSelection() {
         currency: selectedPlan.currency,
         name: 'LocalSoch',
         description: `${selectedPlan.name} - Seller Subscription`,
-        customerName: `${pendingData.formData.firstName} ${pendingData.formData.lastName}`,
-        customerEmail: pendingData.formData.email,
-        customerPhone: pendingData.formData.phone,
-        address: pendingData.formData.address,
+        customerName: isNewRegistration 
+          ? `${pendingData.formData.firstName} ${pendingData.formData.lastName}`
+          : `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || 'Seller',
+        customerEmail: isNewRegistration 
+          ? pendingData.formData.email 
+          : user?.email || '',
+        customerPhone: isNewRegistration 
+          ? pendingData.formData.phone 
+          : user?.phone || '',
+        address: isNewRegistration 
+          ? pendingData.formData.address 
+          : '',
       };
 
       await initializePayment(
@@ -101,21 +143,43 @@ export default function SubscriptionSelection() {
         async (response) => {
           console.log('Payment successful:', response);
           
-          // Complete seller registration with subscription
-          const success = await completeSellerRegistration(response, selectedPlan.id);
-          
-          if (success) {
-            toast({
-              title: "Payment Successful!",
-              description: `Your ${selectedPlan.name} subscription is now active.`,
-            });
+          if (isNewRegistration) {
+            // Complete seller registration with subscription
+            const success = await completeSellerRegistration(response);
             
-            // Redirect to seller dashboard
-            setTimeout(() => {
-              setLocation('/seller');
-            }, 2000);
+            if (success) {
+              toast({
+                title: "Payment Successful!",
+                description: `Your ${selectedPlan.name} subscription is now active.`,
+              });
+              
+              // Clear pending data
+              localStorage.removeItem('pendingSellerData');
+              
+              // Redirect to seller dashboard
+              setTimeout(() => {
+                setLocation('/seller');
+              }, 2000);
+            } else {
+              setError('Payment successful but registration failed. Please contact support.');
+            }
           } else {
-            setError('Payment successful but registration failed. Please contact support.');
+            // For existing users, create subscription
+            const success = await createSubscription(response, selectedPlan.id, vendorRecord?.id || 0);
+            
+            if (success) {
+              toast({
+                title: "Payment Successful!",
+                description: `Your ${selectedPlan.name} subscription is now active.`,
+              });
+              
+              // Redirect to seller dashboard
+              setTimeout(() => {
+                setLocation('/seller');
+              }, 2000);
+            } else {
+              setError('Payment successful but subscription creation failed. Please contact support.');
+            }
           }
         },
         // Failure handler
@@ -159,6 +223,28 @@ export default function SubscriptionSelection() {
     );
   }
 
+  // Show error if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please log in to view subscription plans.
+            </AlertDescription>
+          </Alert>
+          <Button 
+            onClick={() => setLocation('/login')} 
+            className="mt-4 w-full"
+          >
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Show error if no plans available
   if (plansError || !plans || plans.length === 0) {
     return (
@@ -181,11 +267,11 @@ export default function SubscriptionSelection() {
               Retry
             </Button>
             <Button 
-              onClick={() => setLocation('/signup')} 
+              onClick={() => setLocation('/seller')} 
               variant="outline"
               className="w-full"
             >
-              Back to Registration
+              Back to Dashboard
             </Button>
           </div>
         </div>
@@ -193,8 +279,8 @@ export default function SubscriptionSelection() {
     );
   }
 
-  // Show error for registration data
-  if (error) {
+  // Show error for registration data (only for new registrations)
+  if (isNewRegistration && error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <div className="max-w-md w-full">
@@ -220,15 +306,18 @@ export default function SubscriptionSelection() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Choose Your Subscription Plan
+            {isNewRegistration ? 'Choose Your Subscription Plan' : 'Subscription Plans'}
           </h1>
           <p className="text-lg text-gray-600">
-            Select the perfect plan for your business needs
+            {isNewRegistration 
+              ? 'Select the perfect plan for your business needs'
+              : 'Choose a plan that fits your business requirements'
+            }
           </p>
         </div>
 
-        {/* Registration Summary */}
-        {pendingData && (
+        {/* Registration Summary - Only for new registrations */}
+        {isNewRegistration && pendingData && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -252,6 +341,37 @@ export default function SubscriptionSelection() {
                 </div>
                 <div>
                   <span className="font-medium">Phone:</span> {pendingData.formData.phone}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* User Info - For existing users */}
+        {!isNewRegistration && user && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <CheckCircle className="h-5 w-5 text-blue-600 mr-2" />
+                Current Account
+              </CardTitle>
+              <CardDescription>
+                You're logged in as {user.username}. Choose a subscription plan to upgrade your account.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">Username:</span> {user.username}
+                </div>
+                <div>
+                  <span className="font-medium">Email:</span> {user.email}
+                </div>
+                <div>
+                  <span className="font-medium">Name:</span> {user.firstName} {user.lastName}
+                </div>
+                <div>
+                  <span className="font-medium">Role:</span> {typeof user.role === 'object' ? user.role.name : user.role}
                 </div>
               </div>
             </CardContent>
@@ -374,8 +494,22 @@ export default function SubscriptionSelection() {
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>All plans include secure payment processing and 24/7 support</p>
           <p>You can upgrade or downgrade your plan at any time</p>
+          
+          {/* Back to Dashboard button for existing users */}
+          {!isNewRegistration && (
+            <div className="mt-6">
+              <Button 
+                onClick={() => setLocation('/seller')} 
+                variant="outline"
+                className="mt-2"
+              >
+                <i className="fas fa-arrow-left mr-2"></i>
+                Back to Dashboard
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
-} 
+}

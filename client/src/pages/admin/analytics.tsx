@@ -70,13 +70,13 @@ const StatusChart = ({ data }: { data: any[] }) => {
         return (
           <div key={index} className="flex items-center space-x-3">
             <div 
-              className="w-4 h-4 rounded-full"
+              className="w-4 h-4 rounded-full border border-gray-300"
               style={{ backgroundColor: item.color }}
             ></div>
             <div className="flex-1">
               <div className="flex justify-between text-sm">
-                <span className="font-medium">{item.label}</span>
-                <span className="text-gray-500">{item.value}</span>
+                <span className="font-medium text-gray-900">{item.label}</span>
+                <span className="text-gray-600 font-medium">{item.value}</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
                 <div
@@ -159,15 +159,15 @@ export default function AdminAnalytics() {
   const generateStatusData = () => {
     if (!orders || orders.length === 0) {
       return [
-        { label: 'Pending', value: 0, color: '#f59e0b' },
-        { label: 'Confirmed', value: 0, color: '#3b82f6' },
-        { label: 'Shipped', value: 0, color: '#8b5cf6' },
-        { label: 'Delivered', value: 0, color: '#10b981' },
-        { label: 'Cancelled', value: 0, color: '#ef4444' }
+        { label: 'Pending', value: 0, color: '#991b1b' },
+        { label: 'Confirmed', value: 0, color: '#1e40af' },
+        { label: 'Shipped', value: 0, color: '#5b21b6' },
+        { label: 'Delivered', value: 0, color: '#065f46' },
+        { label: 'Cancelled', value: 0, color: '#7f1d1d' }
       ];
     }
 
-    const statusCounts = {
+    const statusCounts: Record<string, number> = {
       pending: 0,
       confirmed: 0,
       shipped: 0,
@@ -179,19 +179,19 @@ export default function AdminAnalytics() {
 
     orders.forEach((order: any) => {
       const status = order.status || 'pending';
-      if (statusCounts.hasOwnProperty(status)) {
+      if (status in statusCounts) {
         statusCounts[status]++;
       }
     });
 
     return [
-      { label: 'Pending', value: statusCounts.pending, color: '#f59e0b' },
-      { label: 'Confirmed', value: statusCounts.confirmed, color: '#3b82f6' },
-      { label: 'Shipped', value: statusCounts.shipped, color: '#8b5cf6' },
-      { label: 'Delivered', value: statusCounts.delivered, color: '#10b981' },
-      { label: 'Ready', value: statusCounts.ready, color: '#f97316' },
-      { label: 'Picked Up', value: statusCounts.pickedUp, color: '#059669' },
-      { label: 'Cancelled', value: statusCounts.cancelled, color: '#ef4444' }
+      { label: 'Pending', value: statusCounts.pending, color: '#991b1b' },
+      { label: 'Confirmed', value: statusCounts.confirmed, color: '#1e40af' },
+      { label: 'Shipped', value: statusCounts.shipped, color: '#5b21b6' },
+      { label: 'Delivered', value: statusCounts.delivered, color: '#065f46' },
+      { label: 'Ready', value: statusCounts.ready, color: '#9a3412' },
+      { label: 'Picked Up', value: statusCounts.pickedUp, color: '#14532d' },
+      { label: 'Cancelled', value: statusCounts.cancelled, color: '#7f1d1d' }
     ].filter(item => item.value > 0);
   };
 
@@ -247,8 +247,8 @@ export default function AdminAnalytics() {
               <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Platform Analytics</h2>
-            <p className="text-gray-600">Comprehensive insights and performance metrics</p>
+            <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
+            <p className="text-gray-600">Platform analytics and performance insights</p>
           </div>
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-40">
@@ -472,47 +472,6 @@ export default function AdminAnalytics() {
                 ) : (
                   <p className="text-center text-gray-500 py-4">No seller data available</p>
                 )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Order Status Distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Order Status Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { status: 'delivered', label: 'Delivered', color: 'bg-success' },
-                  { status: 'shipped', label: 'Shipped', color: 'bg-primary' },
-                  { status: 'confirmed', label: 'Confirmed', color: 'bg-secondary' },
-                  { status: 'ready', label: 'Ready for Pickup', color: 'bg-orange-500' },
-                  { status: 'pickedUp', label: 'Picked Up', color: 'bg-green-500' },
-                  { status: 'pending', label: 'Pending', color: 'bg-warning' },
-                  { status: 'cancelled', label: 'Cancelled', color: 'bg-destructive' },
-                ].map((item) => {
-                  const count = orders?.filter((o: any) => o.status === item.status).length || 0;
-                  const percentage = totalOrders > 0 ? (count / totalOrders) * 100 : 0;
-                  
-                  return (
-                    <div key={item.status} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-4 h-4 rounded ${item.color}`}></div>
-                        <span className="font-medium">{item.label}</span>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <div className="w-32 bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${item.color}`}
-                            style={{ width: `${percentage}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium w-12 text-right">{count}</span>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </CardContent>
           </Card>

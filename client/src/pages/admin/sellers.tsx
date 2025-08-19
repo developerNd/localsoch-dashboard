@@ -11,7 +11,7 @@ import { DataTable } from '@/components/ui/data-table';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
-import { useAdminVendors, useUpdateVendorStatus, useDeleteVendor, useVendorStats } from '@/hooks/use-api';
+import { useAdminVendors, useUpdateVendorStatus, useDeleteVendor, useVendorStats, useVendorSubscriptions, useProductsWithVendors } from '@/hooks/use-api';
 import { useToast } from '@/hooks/use-toast';
 import { getImageUrl } from '@/lib/config';
 
@@ -27,6 +27,8 @@ export default function AdminSellers() {
   // Fetch vendors using admin-specific hook
   const { data: vendors, isLoading: vendorsLoading } = useAdminVendors();
   const { data: vendorStats, isLoading: statsLoading } = useVendorStats();
+  const { data: subscriptions, isLoading: subscriptionsLoading } = useVendorSubscriptions();
+  const { data: products, isLoading: productsLoading } = useProductsWithVendors();
 
   const updateVendorStatusMutation = useMutation({
     mutationFn: useUpdateVendorStatus().mutateAsync,
@@ -53,11 +55,44 @@ export default function AdminSellers() {
 
   // Calculate product counts per vendor
   const getProductCount = (vendorId: number) => {
-    if (!vendors || !Array.isArray(vendors)) return 0;
-    const vendor = vendors.find((v: any) => v.id === vendorId);
-    return vendor?.products?.length || 0;
+    if (!products || !Array.isArray(products)) return 0;
+    return products.filter((product: any) => {
+      // Handle different vendor ID formats
+      const productVendorId = product.vendor?.id || product.vendorId;
+      return productVendorId === vendorId;
+    }).length;
   };
 
+  // Get subscription for a vendor
+  const getVendorSubscription = (vendorId: number) => {
+    if (!subscriptions || !Array.isArray(subscriptions)) return null;
+    return subscriptions.find((sub: any) => sub.vendor?.id === vendorId && sub.status === 'active');
+  };
+
+  // Get subscription badge
+  const getSubscriptionBadge = (vendorId: number) => {
+    const subscription = getVendorSubscription(vendorId);
+    
+    if (!subscription) {
+      return <Badge variant="outline">No Subscription</Badge>;
+    }
+    
+    // Handle different data structures
+    const planName = subscription.plan?.name || subscription.plan?.data?.attributes?.name || 'Active Plan';
+    const planPrice = subscription.plan?.price || subscription.plan?.data?.attributes?.price || subscription.amount || 0;
+    const durationType = subscription.plan?.durationType || subscription.plan?.data?.attributes?.durationType || 'month';
+    
+    return (
+      <div className="flex flex-col space-y-1">
+        <Badge variant="default" className="text-xs">
+          {planName}
+        </Badge>
+        <div className="text-xs text-gray-500">
+          ₹{planPrice}/{durationType}
+        </div>
+      </div>
+    );
+  };
 
 
   const handleStatusUpdate = (vendor: any) => {
@@ -101,8 +136,6 @@ export default function AdminSellers() {
   };
 
   const getStatusBadge = (vendor: any) => {
-    const productCount = getProductCount(vendor.id);
-    
     if (vendor.status === 'pending') {
       return <Badge variant="secondary">Pending Approval</Badge>;
     }
@@ -113,10 +146,7 @@ export default function AdminSellers() {
       return <Badge variant="destructive">Suspended</Badge>;
     }
     if (vendor.status === 'approved') {
-      if (productCount > 0) {
-        return <Badge variant="default">Active ({productCount} products)</Badge>;
-      }
-      return <Badge variant="outline">Approved</Badge>;
+      return <Badge variant="default">Active</Badge>;
     }
     return <Badge variant="outline">Inactive</Badge>;
   };
@@ -126,13 +156,18 @@ export default function AdminSellers() {
     return user.role?.name || 'Unknown';
   };
 
-  if (vendorsLoading || statsLoading) {
+  if (vendorsLoading || statsLoading || subscriptionsLoading || productsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
   }
+
+  // Calculate subscription stats
+  const totalSubscriptions = subscriptions?.length || 0;
+  const activeSubscriptions = subscriptions?.filter((sub: any) => sub.status === 'active').length || 0;
+  const expiredSubscriptions = subscriptions?.filter((sub: any) => sub.status === 'expired').length || 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -149,73 +184,57 @@ export default function AdminSellers() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-users text-primary text-xl"></i>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Vendors</p>
-                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.totalVendors || 0}</p>
-                </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600">Total Vendors</p>
+                <p className="text-3xl font-bold text-gray-900">{vendorStats?.totalVendors || 0}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* <Card>
+            <CardContent className="p-6">
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600">Active Vendors</p>
+                <p className="text-3xl font-bold text-gray-900">{vendorStats?.activeVendors || 0}</p>
+              </div>
+            </CardContent>
+          </Card> */}
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600">Pending Approval</p>
+                <p className="text-3xl font-bold text-gray-900">{vendorStats?.pendingVendors || 0}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-check-circle text-success text-xl"></i>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Active Vendors</p>
-                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.activeVendors || 0}</p>
-                </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600">Approved</p>
+                <p className="text-3xl font-bold text-gray-900">{vendorStats?.approvedVendors || 0}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-clock text-warning text-xl"></i>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Pending Approval</p>
-                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.pendingVendors || 0}</p>
-                </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600">Active Subscriptions</p>
+                <p className="text-3xl font-bold text-gray-900">{activeSubscriptions}</p>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-info/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-thumbs-up text-info text-xl"></i>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Approved</p>
-                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.approvedVendors || 0}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-destructive/10 rounded-lg flex items-center justify-center mr-4">
-                  <i className="fas fa-thumbs-down text-destructive text-xl"></i>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Rejected</p>
-                  <p className="text-2xl font-bold text-gray-900">{vendorStats?.rejectedVendors || 0}</p>
-                </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-600">Rejected</p>
+                <p className="text-3xl font-bold text-gray-900">{vendorStats?.rejectedVendors || 0}</p>
               </div>
             </CardContent>
           </Card>
@@ -287,6 +306,13 @@ export default function AdminSellers() {
               )
             },
             {
+              key: 'subscription',
+              header: 'Subscription',
+              width: '150px',
+              sortable: true,
+              render: (_, vendor) => getSubscriptionBadge(vendor.id)
+            },
+            {
               key: 'status',
               header: 'Status',
               width: '150px',
@@ -353,11 +379,15 @@ export default function AdminSellers() {
                       {selectedVendor.name?.charAt(0)?.toUpperCase() || 'V'}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="flex-1">
                     <div className="font-semibold text-lg">{selectedVendor.name}</div>
                     <div className="text-sm text-gray-600">{selectedVendor.address}</div>
                     <div className="text-sm text-gray-500">{selectedVendor.contact}</div>
                     <div className="text-xs text-gray-400">Current Status: {selectedVendor.status || 'pending'}</div>
+                    {/* Subscription Info */}
+                    <div className="mt-2">
+                      {getSubscriptionBadge(selectedVendor.id)}
+                    </div>
                   </div>
                 </div>
               )}
@@ -424,11 +454,15 @@ export default function AdminSellers() {
                     {vendorToDelete.name?.charAt(0)?.toUpperCase() || 'V'}
                   </AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="flex-1">
                   <div className="font-semibold text-lg">{vendorToDelete.name}</div>
                   <div className="text-sm text-gray-600">{vendorToDelete.address}</div>
                   <div className="text-sm text-gray-500">{vendorToDelete.contact}</div>
                   <div className="text-xs text-gray-400">Status: {vendorToDelete.status || 'pending'}</div>
+                  {/* Subscription Info */}
+                  <div className="mt-2">
+                    {getSubscriptionBadge(vendorToDelete.id)}
+                  </div>
                 </div>
               </div>
             )}

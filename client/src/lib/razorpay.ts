@@ -256,4 +256,62 @@ export const completeSellerRegistration = async (paymentResponse: any): Promise<
     console.error('❌ Error completing seller registration:', error);
     return false;
   }
+};
+
+// Create subscription for existing users
+export const createSubscription = async (paymentResponse: any, planId: number, vendorId: number): Promise<boolean> => {
+  try {
+    // Validate vendor ID
+    if (!vendorId || vendorId === 0) {
+      throw new Error('Invalid vendor ID. Please ensure you are logged in as a seller.');
+    }
+
+    // Get authentication token
+    const token = localStorage.getItem('authToken');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add authentication header if token exists
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Call the subscription creation endpoint
+    const response = await fetch(`${API_CONFIG.API_URL}/api/subscriptions/create-with-payment`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        vendorId: vendorId,
+        planId: planId,
+        paymentData: {
+          paymentId: paymentResponse.razorpay_payment_id,
+          orderId: paymentResponse.razorpay_order_id,
+          signature: paymentResponse.razorpay_signature,
+          paymentMethod: 'razorpay'
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      
+      if (response.status === 403) {
+        throw new Error('Access denied. Please ensure you are logged in and have permission to create subscriptions.');
+      }
+      
+      throw new Error(errorData.message || 'Failed to create subscription');
+    }
+
+    const result = await response.json();
+    
+    if (result.success) {
+      return true;
+    } else {
+      throw new Error(result.message || 'Failed to create subscription');
+    }
+  } catch (error) {
+    console.error('Error creating subscription:', error);
+    return false;
+  }
 }; 

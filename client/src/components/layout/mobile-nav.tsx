@@ -20,11 +20,10 @@ export default function MobileNav() {
   ];
 
   const adminNavItems = [
-    { href: '/admin', icon: 'fas fa-tachometer-alt', label: 'Dashboard', exact: true },
+    { href: '/admin', icon: 'fas fa-chart-bar', label: 'Analytics', exact: true },
     { href: '/admin/sellers', icon: 'fas fa-users', label: 'Sellers' },
     { href: '/admin/products', icon: 'fas fa-box', label: 'Products' },
     { href: '/admin/orders', icon: 'fas fa-shopping-cart', label: 'Orders' },
-    { href: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
   ];
 
   // Use utility functions for consistent role checking

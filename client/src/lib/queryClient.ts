@@ -32,10 +32,6 @@ export async function apiRequest(method: string, url: string, body?: any, custom
     headers['Content-Type'] = 'application/json';
   }
   
-          console.log('🔍 API Request:', method, `${API_URL}${url}`);
-        console.log('🔍 API Headers:', headers);
-        console.log('🔍 API Body:', body);
-  
   const res = await fetch(`${API_URL}${url}`, {
     method,
     headers,
@@ -44,11 +40,8 @@ export async function apiRequest(method: string, url: string, body?: any, custom
     } : {}),
   });
   
-  console.log('🔍 API Response status:', res.status);
-  
   if (!res.ok) {
     const errorText = await res.text();
-    console.log('🔍 API Error response:', errorText);
     throw new Error(`${res.status}: ${errorText}`);
   }
   

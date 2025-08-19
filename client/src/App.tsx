@@ -19,11 +19,10 @@ import SellerButtonTracking from "@/pages/seller/button-tracking";
 import SellerReviews from "@/pages/seller/reviews";
 import SellerProfile from "@/pages/seller/profile";
 import PendingApproval from "@/pages/seller/pending-approval";
-import AdminDashboard from "@/pages/admin/dashboard";
+import AdminAnalytics from "@/pages/admin/analytics";
 import AdminSellers from "@/pages/admin/sellers";
 import AdminProducts from "@/pages/admin/products";
 import AdminOrders from "@/pages/admin/orders";
-import AdminAnalytics from "@/pages/admin/analytics";
 import AdminBanners from "@/pages/admin/banners";
 import AdminBusinessCategories from "@/pages/admin/business-categories";
 import AdminProductCategories from "@/pages/admin/product-categories";
@@ -112,7 +111,7 @@ function Router() {
       {/* Admin Routes */}
       <Route path="/admin">
         <ProtectedRoute allowedRoles={['admin']}>
-          <AdminDashboard />
+          <AdminAnalytics />
         </ProtectedRoute>
       </Route>
       <Route path="/admin/sellers">
@@ -128,11 +127,6 @@ function Router() {
       <Route path="/admin/orders">
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminOrders />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/admin/analytics">
-        <ProtectedRoute allowedRoles={['admin']}>
-          <AdminAnalytics />
         </ProtectedRoute>
       </Route>
       <Route path="/admin/banners">

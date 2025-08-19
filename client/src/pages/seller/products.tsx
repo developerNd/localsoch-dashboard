@@ -10,9 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DataTable } from '@/components/ui/data-table';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
@@ -296,6 +296,185 @@ export default function SellerProducts() {
   const deleteProductMutation = useDeleteProduct();
   const updateProductStatusMutation = useUpdateProductStatus();
   const toggleProductActiveMutation = useToggleProductActive();
+
+  // Define columns for DataTable
+  const columns = [
+    {
+      key: 'product',
+      header: 'Product',
+      width: '300px',
+      render: (value: any, product: any) => (
+        <div className="flex items-center space-x-3">
+          {getProductImagePath(product) ? (
+            <img 
+              src={getImageUrl(getProductImagePath(product))} 
+              alt={getProductData(product, 'name')}
+              className="w-10 h-10 rounded-lg object-cover"
+            />
+          ) : (
+            <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
+              <i className="fas fa-image text-gray-400"></i>
+            </div>
+          )}
+          <div>
+            <p className="font-medium text-gray-900">{getProductData(product, 'name')}</p>
+            <p className="text-sm text-gray-500">{(getProductData(product, 'description') || '').slice(0, 50)}...</p>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'mrp',
+      header: 'MRP',
+      width: '100px',
+      sortable: true,
+      render: (value: any, product: any) => (
+        <div>₹{parseFloat(getProductData(product, 'mrp') || getProductData(product, 'price') || 0).toLocaleString()}</div>
+      )
+    },
+    {
+      key: 'price',
+      header: 'Selling Price',
+      width: '120px',
+      sortable: true,
+      render: (value: any, product: any) => (
+        <div>₹{parseFloat(getProductData(product, 'price') || 0).toLocaleString()}</div>
+      )
+    },
+    {
+      key: 'discount',
+      header: 'Discount',
+      width: '100px',
+      sortable: true,
+      render: (value: any, product: any) => (
+        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+          parseFloat(getProductData(product, 'discount') || '0') > 0
+            ? 'bg-green-100 text-green-800'
+            : 'bg-gray-100 text-gray-800'
+        }`}>
+          {parseFloat(getProductData(product, 'discount') || '0').toFixed(1)}%
+        </span>
+      )
+    },
+    {
+      key: 'stock',
+      header: 'Stock',
+      width: '100px',
+      sortable: true,
+      render: (value: any, product: any) => (
+        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+          (getProductData(product, 'stock') || 0) === 0 
+            ? 'bg-red-100 text-red-800'
+            : (getProductData(product, 'stock') || 0) <= 5
+            ? 'bg-yellow-100 text-yellow-800'
+            : 'bg-green-100 text-green-800'
+        }`}>
+          {getProductData(product, 'stock') || 0} units
+        </span>
+      )
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      width: '120px',
+      sortable: true,
+      render: (value: any, product: any) => (
+        <Badge variant="secondary">
+          {getCategoryName(product)}
+        </Badge>
+      )
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      width: '150px',
+      sortable: true,
+      render: (value: any, product: any) => (
+        <div className="flex items-center space-x-2">
+          {getProductData(product, 'approvalStatus') === 'approved' ? (
+            <div className="flex items-center space-x-2">
+              <Switch
+                checked={getProductData(product, 'isActive') !== false && getProductData(product, 'isActive') !== undefined}
+                onCheckedChange={async (checked) => {
+                  try {
+                    await toggleProductActiveMutation.mutateAsync({
+                      id: product.id,
+                      isActive: checked
+                    });
+                    toast({
+                      title: "Success",
+                      description: `Product ${checked ? 'activated' : 'deactivated'} successfully`,
+                    });
+                  } catch (error) {
+                    toast({
+                      title: "Error",
+                      description: "Failed to update product status",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                disabled={toggleProductActiveMutation.isPending}
+              />
+              <span className="text-xs text-gray-600">
+                {getProductData(product, 'isActive') !== false ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          ) : (
+            <Badge variant={getStatusInfo(product).variant}>
+              {getStatusInfo(product).text}
+            </Badge>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      width: '200px',
+      render: (value: any, product: any) => (
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleEdit(product)}
+            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            disabled={updateProductMutation.isPending}
+          >
+            {updateProductMutation.isPending ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
+                Updating...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-edit mr-1"></i>
+                Edit
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => confirmDelete(product)}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            disabled={deleteProductMutation.isPending}
+          >
+            {deleteProductMutation.isPending ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-1"></div>
+                Deleting...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-trash mr-1"></i>
+                Delete
+              </>
+            )}
+          </Button>
+        </div>
+      )
+    }
+  ];
 
   const handleSubmit = async (data: ProductFormData) => {
     try {
@@ -873,153 +1052,16 @@ export default function SellerProducts() {
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                          <TableHeader>
-          <TableRow>
-            <TableHead>Product</TableHead>
-            <TableHead>MRP</TableHead>
-            <TableHead>Selling Price</TableHead>
-            <TableHead>Discount</TableHead>
-            <TableHead>Stock</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-                  <TableBody>
-                    {filteredProducts.map((product: any) => (
-                      <TableRow key={product.id}>
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            {getProductImagePath(product) ? (
-                              <img 
-                                src={getImageUrl(getProductImagePath(product))} 
-                                alt={getProductData(product, 'name')}
-                                className="w-10 h-10 rounded-lg object-cover"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                                <i className="fas fa-image text-gray-400"></i>
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-medium text-gray-900">{getProductData(product, 'name')}</p>
-                              <p className="text-sm text-gray-500">{(getProductData(product, 'description') || '').slice(0, 50)}...</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>₹{parseFloat(getProductData(product, 'mrp') || getProductData(product, 'price') || 0).toLocaleString()}</TableCell>
-                        <TableCell>₹{parseFloat(getProductData(product, 'price') || 0).toLocaleString()}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            parseFloat(getProductData(product, 'discount') || '0') > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {parseFloat(getProductData(product, 'discount') || '0').toFixed(1)}%
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            (getProductData(product, 'stock') || 0) === 0 
-                              ? 'bg-red-100 text-red-800'
-                              : (getProductData(product, 'stock') || 0) <= 5
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            {getProductData(product, 'stock') || 0} units
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {getCategoryName(product)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            {getProductData(product, 'approvalStatus') === 'approved' ? (
-                              <div className="flex items-center space-x-2">
-                                <Switch
-                                  checked={getProductData(product, 'isActive') !== false && getProductData(product, 'isActive') !== undefined}
-                                  onCheckedChange={async (checked) => {
-                                    try {
-                                      await toggleProductActiveMutation.mutateAsync({
-                                        id: product.id,
-                                        isActive: checked
-                                      });
-                                      toast({
-                                        title: "Success",
-                                        description: `Product ${checked ? 'activated' : 'deactivated'} successfully`,
-                                      });
-                                    } catch (error) {
-                                      toast({
-                                        title: "Error",
-                                        description: "Failed to update product status",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }}
-                                  disabled={toggleProductActiveMutation.isPending}
-                                />
-                                <span className="text-xs text-gray-600">
-                                  {getProductData(product, 'isActive') !== false ? 'Active' : 'Inactive'}
-                                </span>
-                              </div>
-                            ) : (
-                              <Badge variant={getStatusInfo(product).variant}>
-                                {getStatusInfo(product).text}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(product)}
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              disabled={updateProductMutation.isPending}
-                            >
-                              {updateProductMutation.isPending ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-1"></div>
-                                  Updating...
-                                </>
-                              ) : (
-                                <>
-                                  <i className="fas fa-edit mr-1"></i>
-                                  Edit
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => confirmDelete(product)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              disabled={deleteProductMutation.isPending}
-                            >
-                              {deleteProductMutation.isPending ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-1"></div>
-                                  Deleting...
-                                </>
-                              ) : (
-                                <>
-                                  <i className="fas fa-trash mr-1"></i>
-                                  Delete
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <DataTable
+                data={filteredProducts}
+                columns={columns}
+                title={`Products (${filteredProducts.length})`}
+                searchable={true}
+                searchPlaceholder="Search products by name, description, or category..."
+                searchKeys={['name', 'description', 'category']}
+                pageSize={10}
+                emptyMessage="No products found"
+              />
             )}
           </CardContent>
         </Card>

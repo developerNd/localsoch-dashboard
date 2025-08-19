@@ -5,26 +5,26 @@ import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useAuth } from '@/hooks/use-auth';
-import { useSellerOrders, useSellerEarnings, useProducts, useVendors } from '@/hooks/use-api';
+import { useSellerOrders, useSellerEarnings, useProducts, useVendors, useVendorSubscription, useVendorByUser } from '@/hooks/use-api';
 import { Link } from 'wouter';
 
 export default function SellerDashboard() {
   const { user } = useAuth();
 
-  // Get vendor ID from user
-  const getVendorId = (user: any) => {
-    return user?.vendorId;
-  };
-
-  const vendorId = getVendorId(user);
+  // Get vendor record for the current user
+  const { data: vendorRecord, isLoading: vendorLoading } = useVendorByUser(user?.id);
+  
+  // Get vendor ID from vendor record
+  const vendorId = vendorRecord?.id;
 
   // Fetch real data
   const { data: orders, isLoading: ordersLoading } = useSellerOrders(vendorId);
   const { data: earnings, isLoading: earningsLoading } = useSellerEarnings(vendorId);
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: vendors, isLoading: vendorsLoading } = useVendors();
+  const { data: subscription, isLoading: subscriptionLoading } = useVendorSubscription(vendorId);
 
-  const isLoading = ordersLoading || earningsLoading || productsLoading || vendorsLoading;
+  const isLoading = vendorLoading || ordersLoading || earningsLoading || productsLoading || vendorsLoading || subscriptionLoading;
 
   // Filter products for this seller
   const sellerProducts = Array.isArray(products) ? products.filter((product: any) => 
@@ -124,7 +124,7 @@ export default function SellerDashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -174,6 +174,74 @@ export default function SellerDashboard() {
               <p className="text-xs text-muted-foreground">
                 Total inventory value
               </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Subscription</CardTitle>
+              <i className="fas fa-crown text-2xl text-yellow-500"></i>
+            </CardHeader>
+            <CardContent>
+              {subscription ? (
+                <>
+                  <div className="text-lg font-bold text-yellow-600">
+                    {subscription.plan?.name || subscription.subscriptionPlan?.name || 'Active Plan'}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {subscription.status === 'active' ? 'Active' : subscription.status}
+                  </p>
+                  {subscription.plan?.price && (
+                    <p className="text-xs text-muted-foreground">
+                      Price: ₹{subscription.plan.price}/{subscription.plan.durationType || 'month'}
+                    </p>
+                  )}
+                  {subscription.amount && !subscription.plan?.price && (
+                    <p className="text-xs text-muted-foreground">
+                      Price: ₹{subscription.amount}/{subscription.plan?.durationType || 'month'}
+                    </p>
+                  )}
+                  {subscription.endDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Expires: {new Date(subscription.endDate).toLocaleDateString()}
+                    </p>
+                  )}
+                  {subscription.expiresAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Expires: {new Date(subscription.expiresAt).toLocaleDateString()}
+                    </p>
+                  )}
+                  {subscription.plan?.features && subscription.plan.features.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-medium text-gray-700">Features:</p>
+                      <ul className="text-xs text-gray-600 space-y-1">
+                        {subscription.plan.features.slice(0, 3).map((feature: string, index: number) => (
+                          <li key={index} className="flex items-center">
+                            <i className="fas fa-check text-green-500 mr-1 text-xs"></i>
+                            {feature}
+                          </li>
+                        ))}
+                        {subscription.plan.features.length > 3 && (
+                          <li className="text-xs text-gray-500">
+                            +{subscription.plan.features.length - 3} more features
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="text-lg font-bold text-gray-400">No Active Plan</div>
+                  <p className="text-xs text-muted-foreground">
+                    <Link href="/subscription-selection">
+                      <span className="text-blue-600 hover:underline cursor-pointer">
+                        Choose a plan
+                      </span>
+                    </Link>
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -227,6 +295,128 @@ export default function SellerDashboard() {
             </div>
           </div>
         )}
+
+        {/* Subscription Details Section */}
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Subscription Status</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {subscription ? (
+              <>
+                {/* Current Plan Details */}
+                <Card className="border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <i className="fas fa-crown text-yellow-500 mr-2"></i>
+                      Current Plan: {subscription.plan?.name || subscription.subscriptionPlan?.name || 'Active Plan'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Plan:</span>
+                        <span className="font-medium">
+                          {subscription.plan?.name || subscription.subscriptionPlan?.name || 'Active Plan'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Status:</span>
+                        <span className="font-medium">
+                          {subscription.status === 'active' ? 'Active' : subscription.status}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Price:</span>
+                        <span className="font-medium">
+                          ₹{subscription.plan?.price || subscription.amount || 0}/{subscription.plan?.durationType || 'month'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Started:</span>
+                        <span className="font-medium">
+                          {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString() : 'N/A'}
+                        </span>
+                      </div>
+                      {subscription.endDate && (
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Expires:</span>
+                          <span className="font-medium">
+                            {new Date(subscription.endDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                      {subscription.expiresAt && (
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Expires:</span>
+                          <span className="font-medium">
+                            {new Date(subscription.expiresAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Plan Features */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Plan Features</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {subscription.plan?.features && subscription.plan.features.length > 0 ? (
+                      <ul className="space-y-2">
+                        {subscription.plan.features.map((feature: string, index: number) => (
+                          <li key={index} className="flex items-center">
+                            <i className="fas fa-check text-green-500 mr-2"></i>
+                            <span className="text-sm">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : subscription.features && subscription.features.length > 0 ? (
+                      <ul className="space-y-2">
+                        {subscription.features.map((feature: string, index: number) => (
+                          <li key={index} className="flex items-center">
+                            <i className="fas fa-check text-green-500 mr-2"></i>
+                            <span className="text-sm">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-center py-4">
+                        <i className="fas fa-info-circle text-gray-400 text-2xl mb-2"></i>
+                        <p className="text-gray-500 text-sm">No specific features listed</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              /* No Active Subscription */
+              <Card className="border-gray-200 bg-gray-50 lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <i className="fas fa-exclamation-triangle text-orange-500 mr-2"></i>
+                    No Active Subscription
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-6">
+                    <i className="fas fa-crown text-gray-400 text-4xl mb-4"></i>
+                    <h4 className="text-lg font-medium text-gray-900 mb-2">Choose a Subscription Plan</h4>
+                    <p className="text-gray-600 mb-4">
+                      Select a plan to unlock premium features and increase your selling potential.
+                    </p>
+                    <Link href="/subscription-selection">
+                      <Button className="bg-yellow-500 hover:bg-yellow-600">
+                        <i className="fas fa-crown mr-2"></i>
+                        View Plans
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
 
 
 

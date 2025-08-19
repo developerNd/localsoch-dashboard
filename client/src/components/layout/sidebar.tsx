@@ -78,7 +78,7 @@ export default function Sidebar({ className }: SidebarProps) {
   ];
 
   const adminNavItems = [
-    { href: '/admin', icon: 'fas fa-tachometer-alt', label: 'Dashboard', exact: true },
+    { href: '/admin', icon: 'fas fa-chart-bar', label: 'Analytics Dashboard', exact: true },
     { 
       href: '/admin/sellers', 
       icon: 'fas fa-users', 
@@ -97,7 +97,6 @@ export default function Sidebar({ className }: SidebarProps) {
       label: 'Orders',
       badge: analytics?.totalOrders 
     },
-        { href: '/admin/analytics', icon: 'fas fa-chart-bar', label: 'Analytics' },
     { href: '/admin/banners', icon: 'fas fa-image', label: 'Banners' },
     { href: '/admin/business-categories', icon: 'fas fa-building', label: 'Business Categories' },
     { href: '/admin/product-categories', icon: 'fas fa-tags', label: 'Product Categories' },
