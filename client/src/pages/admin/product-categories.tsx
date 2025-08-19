@@ -22,12 +22,10 @@ interface ProductCategory {
   name: string;
   description: string;
   isActive: boolean;
-  sortOrder: number;
   image?: {
     url: string;
     name: string;
   };
-  productCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,7 +40,6 @@ export default function AdminProductCategories() {
     name: '',
     description: '',
     isActive: true,
-    sortOrder: 0
   });
 
   const queryClient = useQueryClient();
@@ -54,12 +51,15 @@ export default function AdminProductCategories() {
       const token = getAuthToken();
       if (!token) throw new Error('No token');
       
+      // Use simple populate to avoid 500 errors
       const response = await fetch(getApiUrl(`${API_ENDPOINTS.CATEGORIES}?populate=*`), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
       if (!response.ok) throw new Error('Failed to fetch product categories');
       const data = await response.json();
+      
+      console.log('🔍 Raw categories API response:', data);
       
       // Normalize the data to handle Strapi structure
       const normalizedCategories = (data.data || []).map((category: any) => {
@@ -68,9 +68,7 @@ export default function AdminProductCategories() {
           name: category.attributes?.name || category.name,
           description: category.attributes?.description || category.description,
           isActive: category.attributes?.isActive ?? category.isActive ?? true,
-          sortOrder: category.attributes?.sortOrder ?? category.sortOrder ?? 0,
           image: category.attributes?.image?.data?.attributes || category.image,
-          productCount: category.attributes?.productCount ?? category.productCount ?? 0,
           createdAt: category.attributes?.createdAt || category.createdAt,
           updatedAt: category.attributes?.updatedAt || category.updatedAt,
         };
@@ -198,6 +196,7 @@ export default function AdminProductCategories() {
         title: 'Success',
         description: 'Product category updated successfully',
       });
+      setIsCreateDialogOpen(false);
       setEditingCategory(null);
       resetForm();
     },
@@ -245,7 +244,6 @@ export default function AdminProductCategories() {
       name: '',
       description: '',
       isActive: true,
-      sortOrder: 0
     });
     setSelectedImage(null);
     setImagePreview(null);
@@ -299,7 +297,6 @@ export default function AdminProductCategories() {
       name: category.name,
       description: category.description,
       isActive: category.isActive ?? true,
-      sortOrder: category.sortOrder ?? 0
     });
     
     // Set image preview if category has an image
@@ -456,16 +453,6 @@ export default function AdminProductCategories() {
                   </div>
                 </div>
                 
-                <div>
-                  <Label htmlFor="sortOrder">Sort Order</Label>
-                  <Input
-                    id="sortOrder"
-                    type="number"
-                    value={formData.sortOrder}
-                    onChange={(e) => setFormData(prev => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
-                    placeholder="0"
-                  />
-                </div>
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="isActive"
@@ -567,15 +554,6 @@ export default function AdminProductCategories() {
                     )
                   },
                   {
-                    key: 'productCount',
-                    header: 'Products',
-                    render: (_, category: ProductCategory) => (
-                      <Badge variant="outline">
-                        {category.productCount ?? 0} products
-                      </Badge>
-                    )
-                  },
-                  {
                     key: 'status',
                     header: 'Status',
                     render: (_, category: ProductCategory) => (
@@ -583,11 +561,6 @@ export default function AdminProductCategories() {
                         {(category.isActive ?? true) ? 'Active' : 'Inactive'}
                       </Badge>
                     )
-                  },
-                  {
-                    key: 'sortOrder',
-                    header: 'Sort Order',
-                    sortable: true
                   },
                   {
                     key: 'createdAt',
@@ -602,8 +575,9 @@ export default function AdminProductCategories() {
                     key: 'actions',
                     header: 'Actions',
                     width: '200px',
+                    headerAlign: 'left',
                     render: (_, category: ProductCategory) => (
-                      <div className="flex justify-end space-x-2">
+                      <div className="flex justify-start space-x-2">
                         <Button
                           variant="outline"
                           size="sm"

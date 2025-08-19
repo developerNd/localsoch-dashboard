@@ -10,6 +10,7 @@ interface Column {
   header: string;
   width?: string;
   sortable?: boolean;
+  headerAlign?: 'left' | 'center' | 'right';
   render?: (value: any, row: any) => React.ReactNode;
 }
 
@@ -152,9 +153,12 @@ export function DataTable({
                   {columns.map((column) => (
                     <th
                       key={column.key}
-                      className={`px-4 py-3 text-left text-sm font-medium text-gray-900 whitespace-nowrap ${
+                      className={`px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap ${
                         column.width ? `w-${column.width}` : ''
-                      } ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                      } ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''} ${
+                        column.headerAlign === 'center' ? 'text-center' : 
+                        column.headerAlign === 'right' ? 'text-right' : 'text-left'
+                      }`}
                       onClick={() => column.sortable && handleSort(column.key)}
                     >
                       <div className="flex items-center gap-2">

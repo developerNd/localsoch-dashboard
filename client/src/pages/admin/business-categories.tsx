@@ -173,6 +173,7 @@ export default function AdminBusinessCategories() {
         title: 'Success',
         description: 'Business category updated successfully',
       });
+      setIsCreateDialogOpen(false);
       setEditingCategory(null);
       resetForm();
     },

@@ -324,36 +324,148 @@ export default function AdminProducts() {
 
         {/* Approval Dialog */}
         <Dialog open={approvalDialog} onOpenChange={setApprovalDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Update Product Status</DialogTitle>
               <DialogDescription>
-                Update the status for {selectedProduct?.name}
+                Review and update the status for {selectedProduct?.name}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               {/* Product Details */}
               {selectedProduct && (
-                <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                  <Avatar className="h-16 w-16">
-                    <AvatarImage 
-                      src={selectedProduct.image ? getImageUrl(selectedProduct.image.url || selectedProduct.image.data?.attributes?.url) : undefined} 
-                      alt={selectedProduct.name}
-                    />
-                    <AvatarFallback className="bg-primary text-white text-lg">
-                      {selectedProduct.name?.charAt(0)?.toUpperCase() || 'P'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-semibold text-lg">{selectedProduct.name}</div>
-                    <div className="text-sm text-gray-600">{selectedProduct.description?.substring(0, 80)}...</div>
-                    <div className="text-sm text-gray-500">{selectedProduct.vendor?.name}</div>
-                    <div className="text-xs text-gray-400">Current Status: {selectedProduct.isApproved ? 'Approved' : 'Pending'}</div>
+                <div className="space-y-4">
+                  {/* Product Header */}
+                  <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <Avatar className="h-16 w-16">
+                      <AvatarImage 
+                        src={selectedProduct.image ? getImageUrl(selectedProduct.image.url || selectedProduct.image.data?.attributes?.url) : undefined} 
+                        alt={selectedProduct.name}
+                      />
+                      <AvatarFallback className="bg-primary text-white text-lg">
+                        {selectedProduct.name?.charAt(0)?.toUpperCase() || 'P'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="font-semibold text-lg">{selectedProduct.name}</div>
+                      <div className="text-sm text-gray-600">{selectedProduct.description}</div>
+                      <div className="text-sm text-gray-500">Vendor: {selectedProduct.vendor?.name}</div>
+                      <div className="text-xs text-gray-400">Current Status: {selectedProduct.isApproved ? 'Approved' : 'Pending'}</div>
+                    </div>
+                  </div>
+
+                  {/* Product Information Grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Pricing Information */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-gray-900">Pricing Information</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">MRP:</span>
+                          <span className="font-medium">{getPriceDisplay(selectedProduct.mrp || selectedProduct.price || 0)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Selling Price:</span>
+                          <span className="font-medium">{getPriceDisplay(selectedProduct.price || 0)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Discount:</span>
+                          <span className="font-medium">
+                            {selectedProduct.discount ? `${selectedProduct.discount.toFixed(1)}%` : '0%'}
+                          </span>
+                        </div>
+                        {selectedProduct.costPrice && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Cost Price:</span>
+                            <span className="font-medium">{getPriceDisplay(selectedProduct.costPrice)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inventory Information */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-gray-900">Inventory Information</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Stock:</span>
+                          <span className="font-medium">{selectedProduct.stock || 0} units</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Category:</span>
+                          <span className="font-medium">{selectedProduct.category?.name || 'Uncategorized'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Active:</span>
+                          <span className="font-medium">{selectedProduct.isActive ? 'Yes' : 'No'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Approved:</span>
+                          <span className="font-medium">{selectedProduct.isApproved ? 'Yes' : 'No'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vendor Information */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-900">Vendor Information</h4>
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Vendor Name:</span>
+                          <div className="font-medium">{selectedProduct.vendor?.name || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Username:</span>
+                          <div className="font-medium">{selectedProduct.vendor?.user?.username || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Email:</span>
+                          <div className="font-medium">{selectedProduct.vendor?.user?.email || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Phone:</span>
+                          <div className="font-medium">
+                            {selectedProduct.vendor?.phone || selectedProduct.vendor?.user?.phone || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Product Metadata */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-900">Product Metadata</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Created:</span>
+                        <div className="font-medium">
+                          {selectedProduct.createdAt ? new Date(selectedProduct.createdAt).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Last Updated:</span>
+                        <div className="font-medium">
+                          {selectedProduct.updatedAt ? new Date(selectedProduct.updatedAt).toLocaleDateString() : 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Product ID:</span>
+                        <div className="font-medium">{selectedProduct.id}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Vendor ID:</span>
+                        <div className="font-medium">{selectedProduct.vendor?.id || 'N/A'}</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-              <div>
-                <label className="text-sm font-medium">Status</label>
+
+              {/* Status Selection */}
+              <div className="border-t pt-4">
+                <label className="text-sm font-medium">Update Status</label>
                 <Select 
                   value={approvalData.status} 
                   onValueChange={(value) => setApprovalData(prev => ({ ...prev, status: value }))}
@@ -368,6 +480,7 @@ export default function AdminProducts() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setApprovalDialog(false)}>
                   Cancel
@@ -385,7 +498,7 @@ export default function AdminProducts() {
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Product</AlertDialogTitle>
               <AlertDialogDescription>
@@ -395,21 +508,131 @@ export default function AdminProducts() {
             </AlertDialogHeader>
             {/* Product Details in Delete Dialog */}
             {productToDelete && (
-              <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg my-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage 
-                    src={productToDelete.image ? getImageUrl(productToDelete.image.url || productToDelete.image.data?.attributes?.url) : undefined} 
-                    alt={productToDelete.name}
-                  />
-                  <AvatarFallback className="bg-primary text-white text-lg">
-                    {productToDelete.name?.charAt(0)?.toUpperCase() || 'P'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-semibold text-lg">{productToDelete.name}</div>
-                  <div className="text-sm text-gray-600">{productToDelete.description?.substring(0, 80)}...</div>
-                  <div className="text-sm text-gray-500">{productToDelete.vendor?.name}</div>
-                  <div className="text-xs text-gray-400">Price: {getPriceDisplay(productToDelete.price)}</div>
+              <div className="space-y-4">
+                {/* Product Header */}
+                <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage 
+                      src={productToDelete.image ? getImageUrl(productToDelete.image.url || productToDelete.image.data?.attributes?.url) : undefined} 
+                      alt={productToDelete.name}
+                    />
+                    <AvatarFallback className="bg-primary text-white text-lg">
+                      {productToDelete.name?.charAt(0)?.toUpperCase() || 'P'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="font-semibold text-lg">{productToDelete.name}</div>
+                    <div className="text-sm text-gray-600">{productToDelete.description}</div>
+                    <div className="text-sm text-gray-500">Vendor: {productToDelete.vendor?.name}</div>
+                    <div className="text-xs text-gray-400">Status: {productToDelete.isApproved ? 'Approved' : 'Pending'}</div>
+                  </div>
+                </div>
+
+                {/* Product Information Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Pricing Information */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-900">Pricing Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">MRP:</span>
+                        <span className="font-medium">{getPriceDisplay(productToDelete.mrp || productToDelete.price || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Selling Price:</span>
+                        <span className="font-medium">{getPriceDisplay(productToDelete.price || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Discount:</span>
+                        <span className="font-medium">
+                          {productToDelete.discount ? `${productToDelete.discount.toFixed(1)}%` : '0%'}
+                        </span>
+                      </div>
+                      {productToDelete.costPrice && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Cost Price:</span>
+                          <span className="font-medium">{getPriceDisplay(productToDelete.costPrice)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Inventory Information */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-gray-900">Inventory Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Stock:</span>
+                        <span className="font-medium">{productToDelete.stock || 0} units</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Category:</span>
+                        <span className="font-medium">{productToDelete.category?.name || 'Uncategorized'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Active:</span>
+                        <span className="font-medium">{productToDelete.isActive ? 'Yes' : 'No'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Approved:</span>
+                        <span className="font-medium">{productToDelete.isApproved ? 'Yes' : 'No'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vendor Information */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Vendor Information</h4>
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Vendor Name:</span>
+                        <div className="font-medium">{productToDelete.vendor?.name || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Username:</span>
+                        <div className="font-medium">{productToDelete.vendor?.user?.username || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Email:</span>
+                        <div className="font-medium">{productToDelete.vendor?.user?.email || 'N/A'}</div>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Phone:</span>
+                        <div className="font-medium">
+                          {productToDelete.vendor?.phone || productToDelete.vendor?.user?.phone || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product Metadata */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Product Metadata</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Created:</span>
+                      <div className="font-medium">
+                        {productToDelete.createdAt ? new Date(productToDelete.createdAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Last Updated:</span>
+                      <div className="font-medium">
+                        {productToDelete.updatedAt ? new Date(productToDelete.updatedAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Product ID:</span>
+                      <div className="font-medium">{productToDelete.id}</div>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Vendor ID:</span>
+                      <div className="font-medium">{productToDelete.vendor?.id || 'N/A'}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

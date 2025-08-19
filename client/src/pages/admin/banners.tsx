@@ -95,6 +95,12 @@ export default function AdminBanners() {
       
       const data = await response.json();
       console.log('🔍 Banners API response:', data);
+      
+      // Log banner IDs for debugging
+      if (data.data && Array.isArray(data.data)) {
+        console.log('🔍 Banner IDs:', data.data.map((banner: any) => banner.id));
+      }
+      
       return data.data || [];
     },
   });
@@ -263,13 +269,27 @@ export default function AdminBanners() {
       const token = getAuthToken();
       if (!token) throw new Error('No authentication token');
       
+      console.log('🔍 Deleting banner with ID:', id);
+      console.log('🔍 Using API URL:', getApiUrl(`${API_ENDPOINTS.BANNERS}/${id}`));
+      
       const response = await fetch(getApiUrl(`${API_ENDPOINTS.BANNERS}/${id}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
-      if (!response.ok) throw new Error('Failed to delete banner');
+      
+      console.log('🔍 Delete response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🔍 Delete banner failed:', response.status, errorText);
+        throw new Error(`Failed to delete banner: ${response.status} ${errorText}`);
+      }
+      
+      console.log('🔍 Banner deleted successfully');
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/banners'] });
@@ -277,11 +297,14 @@ export default function AdminBanners() {
         title: 'Success',
         description: 'Banner deleted successfully',
       });
+      setIsDeleteDialogOpen(false);
+      setBannerToDelete(null);
     },
     onError: (error) => {
+      console.error('🔍 Delete banner error:', error);
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to delete banner',
         variant: 'destructive',
       });
     },
@@ -955,18 +978,26 @@ export default function AdminBanners() {
                   <div className="font-semibold text-lg">{bannerToDelete.title}</div>
                   <div className="text-sm text-gray-600">{bannerToDelete.subtitle}</div>
                   <div className="text-xs text-gray-400">Status: {bannerToDelete.isActive ? 'Active' : 'Inactive'}</div>
+                  <div className="text-xs text-gray-400">ID: {bannerToDelete.id}</div>
                 </div>
               </div>
             )}
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel 
+                onClick={() => {
+                  setIsDeleteDialogOpen(false);
+                  setBannerToDelete(null);
+                }}
+                disabled={deleteBanner.isPending}
+              >
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
                   if (bannerToDelete) {
+                    console.log('🔍 Starting delete process for banner:', bannerToDelete.id);
                     deleteBanner.mutate(bannerToDelete.id);
                   }
-                  setIsDeleteDialogOpen(false);
-                  setBannerToDelete(null);
                 }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 disabled={deleteBanner.isPending}

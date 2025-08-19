@@ -30,11 +30,8 @@ interface SubscriptionPlan {
   durationType: string;
   isActive: boolean;
   isPopular: boolean;
-  sortOrder: number;
   features: string[];
   maxProducts: number;
-  maxOrders: number;
-  commissionRate: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,11 +53,8 @@ export default function AdminSubscriptionPlans() {
     durationType: 'days',
     isActive: true,
     isPopular: false,
-    sortOrder: 0,
     features: [''],
-    maxProducts: '',
-    maxOrders: '',
-    commissionRate: ''
+    maxProducts: ''
   });
 
   // Fetch subscription plans
@@ -87,11 +81,8 @@ export default function AdminSubscriptionPlans() {
         durationType: plan.attributes?.durationType || plan.durationType || 'days',
         isActive: plan.attributes?.isActive ?? plan.isActive ?? true,
         isPopular: plan.attributes?.isPopular ?? plan.isPopular ?? false,
-        sortOrder: plan.attributes?.sortOrder ?? plan.sortOrder ?? 0,
         features: plan.attributes?.features || plan.features || [],
         maxProducts: plan.attributes?.maxProducts || plan.maxProducts,
-        maxOrders: plan.attributes?.maxOrders || plan.maxOrders,
-        commissionRate: plan.attributes?.commissionRate || plan.commissionRate,
         createdAt: plan.attributes?.createdAt || plan.createdAt,
         updatedAt: plan.attributes?.updatedAt || plan.updatedAt,
       }));
@@ -207,11 +198,8 @@ export default function AdminSubscriptionPlans() {
       durationType: 'days',
       isActive: true,
       isPopular: false,
-      sortOrder: 0,
       features: [''],
-      maxProducts: '',
-      maxOrders: '',
-      commissionRate: ''
+      maxProducts: ''
     });
   };
 
@@ -248,10 +236,7 @@ export default function AdminSubscriptionPlans() {
       ...formData,
       price: parseFloat(formData.price),
       duration: parseInt(formData.duration),
-      sortOrder: parseInt(formData.sortOrder.toString()) || 0,
       maxProducts: formData.maxProducts && !isNaN(parseInt(formData.maxProducts)) ? parseInt(formData.maxProducts) : null,
-      maxOrders: formData.maxOrders && !isNaN(parseInt(formData.maxOrders)) ? parseInt(formData.maxOrders) : null,
-      commissionRate: formData.commissionRate && !isNaN(parseFloat(formData.commissionRate)) ? parseFloat(formData.commissionRate) : null,
       features: formData.features.filter(f => f.trim() !== '')
     };
     
@@ -269,11 +254,8 @@ export default function AdminSubscriptionPlans() {
       durationType: plan.durationType,
       isActive: plan.isActive,
       isPopular: plan.isPopular,
-      sortOrder: plan.sortOrder,
       features: plan.features.length > 0 ? plan.features : [''],
-      maxProducts: plan.maxProducts?.toString() || '',
-      maxOrders: plan.maxOrders?.toString() || '',
-      commissionRate: plan.commissionRate?.toString() || ''
+      maxProducts: plan.maxProducts?.toString() || ''
     });
     setIsEditDialogOpen(true);
   };
@@ -313,10 +295,7 @@ export default function AdminSubscriptionPlans() {
       ...formData,
       price: parseFloat(formData.price),
       duration: parseInt(formData.duration),
-      sortOrder: parseInt(formData.sortOrder.toString()) || 0,
       maxProducts: formData.maxProducts && !isNaN(parseInt(formData.maxProducts)) ? parseInt(formData.maxProducts) : null,
-      maxOrders: formData.maxOrders && !isNaN(parseInt(formData.maxOrders)) ? parseInt(formData.maxOrders) : null,
-      commissionRate: formData.commissionRate && !isNaN(parseFloat(formData.commissionRate)) ? parseFloat(formData.commissionRate) : null,
       features: formData.features.filter(f => f.trim() !== '')
     };
     
@@ -468,37 +447,6 @@ export default function AdminSubscriptionPlans() {
                       placeholder="-1 for unlimited"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="maxOrders">Max Orders</Label>
-                    <Input
-                      id="maxOrders"
-                      type="number"
-                      value={formData.maxOrders}
-                      onChange={(e) => setFormData(prev => ({ ...prev, maxOrders: e.target.value }))}
-                      placeholder="-1 for unlimited"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="commissionRate">Commission Rate (%)</Label>
-                    <Input
-                      id="commissionRate"
-                      type="number"
-                      step="0.01"
-                      value={formData.commissionRate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, commissionRate: e.target.value }))}
-                      placeholder="5.00"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="sortOrder">Sort Order</Label>
-                    <Input
-                      id="sortOrder"
-                      type="number"
-                      value={formData.sortOrder}
-                      onChange={(e) => setFormData(prev => ({ ...prev, sortOrder: parseInt(e.target.value) }))}
-                      placeholder="0"
-                    />
-                  </div>
                 </div>
                 <div>
                   <Label htmlFor="description">Description</Label>
@@ -632,16 +580,6 @@ export default function AdminSubscriptionPlans() {
                           {plan.maxProducts === -1 ? 'Unlimited' : plan.maxProducts}
                         </span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Max Orders:</span>
-                        <span className="font-medium">
-                          {plan.maxOrders === -1 ? 'Unlimited' : plan.maxOrders}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Commission:</span>
-                        <span className="font-medium">{plan.commissionRate}%</span>
-                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -660,9 +598,9 @@ export default function AdminSubscriptionPlans() {
                       <Badge variant={plan.isActive ? "default" : "secondary"}>
                         {plan.isActive ? 'Active' : 'Inactive'}
                       </Badge>
-                      <div className="text-xs text-gray-500">
-                        Order: {plan.sortOrder}
-                      </div>
+                      <Badge variant={plan.isPopular ? "default" : "secondary"}>
+                        {plan.isPopular ? 'Popular' : 'Standard'}
+                      </Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -737,37 +675,6 @@ export default function AdminSubscriptionPlans() {
                     value={formData.maxProducts}
                     onChange={(e) => setFormData(prev => ({ ...prev, maxProducts: e.target.value }))}
                     placeholder="-1 for unlimited"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-maxOrders">Max Orders</Label>
-                  <Input
-                    id="edit-maxOrders"
-                    type="number"
-                    value={formData.maxOrders}
-                    onChange={(e) => setFormData(prev => ({ ...prev, maxOrders: e.target.value }))}
-                    placeholder="-1 for unlimited"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-commissionRate">Commission Rate (%)</Label>
-                  <Input
-                    id="edit-commissionRate"
-                    type="number"
-                    step="0.01"
-                    value={formData.commissionRate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, commissionRate: e.target.value }))}
-                    placeholder="5.00"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-sortOrder">Sort Order</Label>
-                  <Input
-                    id="edit-sortOrder"
-                    type="number"
-                    value={formData.sortOrder}
-                    onChange={(e) => setFormData(prev => ({ ...prev, sortOrder: parseInt(e.target.value) }))}
-                    placeholder="0"
                   />
                 </div>
               </div>
