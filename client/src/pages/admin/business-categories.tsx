@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
@@ -36,6 +37,9 @@ export default function AdminBusinessCategories() {
   const [editingCategory, setEditingCategory] = useState<BusinessCategory | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<BusinessCategory | null>(null);
+  const [shouldRemoveImage, setShouldRemoveImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -155,6 +159,11 @@ export default function AdminBusinessCategories() {
         }
       }
       
+      // If user wants to remove the image, set image to null
+      if (shouldRemoveImage) {
+        dataToSend.image = null;
+      }
+      
       const response = await fetch(getApiUrl(`/api/business-categories/${id}`), {
         method: 'PUT',
         headers: {
@@ -192,13 +201,34 @@ export default function AdminBusinessCategories() {
       const token = getAuthToken();
       if (!token) throw new Error('No token');
       
-      const response = await fetch(getApiUrl(`/api/business-categories/${id}`), {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      console.log('🔍 Deleting business category with ID:', id);
+      console.log('🔍 API URL:', getApiUrl(`/api/business-categories/${id}`));
       
-      if (!response.ok) throw new Error('Failed to delete business category');
-      return response.json();
+      try {
+        const response = await fetch(getApiUrl(`/api/business-categories/${id}`), {
+          method: 'DELETE',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+        });
+        
+        console.log('🔍 Delete response status:', response.status);
+        console.log('🔍 Delete response status text:', response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('🔍 Delete error response:', errorText);
+          throw new Error(`Failed to delete business category: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('🔍 Delete success result:', result);
+        return result;
+      } catch (error) {
+        console.error('🔍 Fetch error:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/business-categories'] });
@@ -208,6 +238,7 @@ export default function AdminBusinessCategories() {
       });
     },
     onError: (error: any) => {
+      console.error('🔍 Delete mutation error:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to delete business category',
@@ -248,12 +279,14 @@ export default function AdminBusinessCategories() {
     });
     setSelectedImage(null);
     setImagePreview(null);
+    setShouldRemoveImage(false);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedImage(file);
+      setShouldRemoveImage(false); // Clear remove flag when new image is selected
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
@@ -265,6 +298,7 @@ export default function AdminBusinessCategories() {
   const handleImageRemove = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    setShouldRemoveImage(true); // Mark that we want to remove the image
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -307,12 +341,35 @@ export default function AdminBusinessCategories() {
       setSelectedImage(null);
     }
     
+    setShouldRemoveImage(false); // Reset remove flag when editing
     setIsCreateDialogOpen(true);
   };
 
-  const handleDelete = (categoryId: number) => {
-    if (confirm('Are you sure you want to delete this business category? This action cannot be undone.')) {
-      deleteCategory.mutate(categoryId);
+  const handleDelete = (category: BusinessCategory) => {
+    setCategoryToDelete(category);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!categoryToDelete) return;
+    
+    console.log('🔍 Confirming delete for category:', categoryToDelete);
+    console.log('🔍 Category ID:', categoryToDelete.id, 'Type:', typeof categoryToDelete.id);
+    
+    try {
+      // Ensure ID is a valid number
+      const categoryId = parseInt(categoryToDelete.id.toString());
+      if (isNaN(categoryId)) {
+        throw new Error('Invalid category ID');
+      }
+      
+      console.log('🔍 Parsed category ID:', categoryId);
+      await deleteCategory.mutateAsync(categoryId);
+      setIsDeleteDialogOpen(false);
+      setCategoryToDelete(null);
+    } catch (error) {
+      console.error('🔍 Error in confirmDelete:', error);
+      // Error handling is already done in the mutation
     }
   };
 
@@ -414,8 +471,17 @@ export default function AdminBusinessCategories() {
                         <img
                           src={imagePreview}
                           alt="Category preview"
-                          className="w-full h-32 object-cover rounded-lg border"
+                          className={`w-full h-32 object-cover rounded-lg border ${
+                            shouldRemoveImage && editingCategory ? 'opacity-50' : ''
+                          }`}
                         />
+                        {shouldRemoveImage && editingCategory && (
+                          <div className="absolute inset-0 bg-red-100 bg-opacity-50 rounded-lg flex items-center justify-center">
+                            <div className="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-medium">
+                              Will be removed
+                            </div>
+                          </div>
+                        )}
                         <Button
                           type="button"
                           variant="destructive"
@@ -603,7 +669,7 @@ export default function AdminBusinessCategories() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDelete(category.id)}
+                          onClick={() => handleDelete(category)}
                           disabled={deleteCategory.isPending}
                         >
                           <Trash2 className="h-4 w-4 mr-1" />
@@ -623,6 +689,119 @@ export default function AdminBusinessCategories() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Business Category</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this business category? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {categoryToDelete && (
+            <div className="space-y-4">
+              {/* Category Header */}
+              <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                  {categoryToDelete.image?.url ? (
+                    <img
+                      src={getImageUrl(categoryToDelete.image.url)}
+                      alt={categoryToDelete.image.name || categoryToDelete.name}
+                      className="w-16 h-16 rounded-lg object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>';
+                        }
+                      }}
+                    />
+                  ) : (
+                    <ImageIcon className="h-8 w-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-lg">{categoryToDelete.name}</div>
+                  <div className="text-sm text-gray-600">{categoryToDelete.description}</div>
+                  <div className="text-xs text-gray-400">Category ID: {categoryToDelete.id}</div>
+                </div>
+              </div>
+
+              {/* Category Information Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Category Details</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Name:</span>
+                      <span className="font-medium">{categoryToDelete.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Status:</span>
+                      <span className="font-medium">
+                        <Badge variant={categoryToDelete.isActive ? "default" : "secondary"}>
+                          {categoryToDelete.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Sort Order:</span>
+                      <span className="font-medium">{categoryToDelete.sortOrder}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Timestamps</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Created:</span>
+                      <span className="font-medium">
+                        {new Date(categoryToDelete.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Last Updated:</span>
+                      <span className="font-medium">
+                        {new Date(categoryToDelete.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              {categoryToDelete.description && (
+                <div className="space-y-2">
+                  <h4 className="font-medium text-gray-900">Description</h4>
+                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                    {categoryToDelete.description}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setIsDeleteDialogOpen(false);
+              setCategoryToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete} 
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteCategory.isPending}
+            >
+              {deleteCategory.isPending ? 'Deleting...' : 'Delete Category'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

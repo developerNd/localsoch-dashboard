@@ -162,14 +162,35 @@ export default function AdminSubscriptionPlans() {
   const deletePlanMutation = useMutation({
     mutationFn: async (id: number) => {
       const token = getAuthToken();
-      const response = await fetch(getApiUrl(`/api/subscription-plans/${id}`), {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) throw new Error('Failed to delete plan');
-      return response.json();
+      
+      console.log('🔍 Deleting subscription plan with ID:', id);
+      console.log('🔍 API URL:', getApiUrl(`/api/subscription-plans/${id}`));
+      
+      try {
+        const response = await fetch(getApiUrl(`/api/subscription-plans/${id}`), {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+        });
+        
+        console.log('🔍 Delete response status:', response.status);
+        console.log('🔍 Delete response status text:', response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('🔍 Delete error response:', errorText);
+          throw new Error(`Failed to delete subscription plan: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('🔍 Delete success result:', result);
+        return result;
+      } catch (error) {
+        console.error('🔍 Fetch error:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
@@ -180,10 +201,11 @@ export default function AdminSubscriptionPlans() {
       setIsDeleteDialogOpen(false);
       setPlanToDelete(null);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('🔍 Delete mutation error:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to delete subscription plan",
         variant: "destructive",
       });
     },
@@ -322,6 +344,32 @@ export default function AdminSubscriptionPlans() {
       ...prev,
       features: prev.features.map((f, i) => i === index ? value : f)
     }));
+  };
+
+  const handleDelete = (plan: SubscriptionPlan) => {
+    setPlanToDelete(plan);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!planToDelete) return;
+    
+    console.log('🔍 Confirming delete for plan:', planToDelete);
+    console.log('🔍 Plan ID:', planToDelete.id, 'Type:', typeof planToDelete.id);
+    
+    try {
+      // Ensure ID is a valid number
+      const planId = parseInt(planToDelete.id.toString());
+      if (isNaN(planId)) {
+        throw new Error('Invalid plan ID');
+      }
+      
+      console.log('🔍 Parsed plan ID:', planId);
+      await deletePlanMutation.mutateAsync(planId);
+    } catch (error) {
+      console.error('🔍 Error in confirmDelete:', error);
+      // Error handling is already done in the mutation
+    }
   };
 
   if (isLoading) {
@@ -552,10 +600,7 @@ export default function AdminSubscriptionPlans() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          setPlanToDelete(plan);
-                          setIsDeleteDialogOpen(true);
-                        }}
+                        onClick={() => handleDelete(plan)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -750,37 +795,126 @@ export default function AdminSubscriptionPlans() {
 
           {/* Delete Confirmation Dialog */}
           <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-            <AlertDialogContent>
+            <AlertDialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete Subscription Plan</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete <strong>{planToDelete?.name}</strong>? 
-                  This action cannot be undone and will affect any active subscriptions.
+                  Are you sure you want to delete this subscription plan? This action cannot be undone and will affect any active subscriptions.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               {planToDelete && (
-                <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg my-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Package className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-lg">{planToDelete.name}</div>
-                    <div className="text-sm text-gray-600">{planToDelete.description}</div>
-                    <div className="text-xs text-gray-400">
-                      ₹{planToDelete.price} per {planToDelete.duration} {planToDelete.durationType}
+                <div className="space-y-4">
+                  {/* Plan Header */}
+                  <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Package className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-lg">{planToDelete.name}</div>
+                      <div className="text-sm text-gray-600">{planToDelete.description}</div>
+                      <div className="text-xs text-gray-400">Plan ID: {planToDelete.id}</div>
                     </div>
                   </div>
+
+                  {/* Plan Information Grid */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-gray-900">Plan Details</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Name:</span>
+                          <span className="font-medium">{planToDelete.name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Price:</span>
+                          <span className="font-medium">₹{planToDelete.price}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Duration:</span>
+                          <span className="font-medium">{planToDelete.duration} {planToDelete.durationType}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Max Products:</span>
+                          <span className="font-medium">
+                            {planToDelete.maxProducts === -1 ? 'Unlimited' : planToDelete.maxProducts}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Status:</span>
+                          <span className="font-medium">
+                            <Badge variant={planToDelete.isActive ? "default" : "secondary"}>
+                              {planToDelete.isActive ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Popular:</span>
+                          <span className="font-medium">
+                            <Badge variant={planToDelete.isPopular ? "default" : "secondary"}>
+                              {planToDelete.isPopular ? 'Yes' : 'No'}
+                            </Badge>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-gray-900">Timestamps</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Created:</span>
+                          <span className="font-medium">
+                            {new Date(planToDelete.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Last Updated:</span>
+                          <span className="font-medium">
+                            {new Date(planToDelete.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Features */}
+                  {planToDelete.features && planToDelete.features.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-gray-900">Features</h4>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          {planToDelete.features.map((feature, index) => (
+                            <li key={index} className="flex items-center">
+                              <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></div>
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Description */}
+                  {planToDelete.description && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-gray-900">Description</h4>
+                      <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                        {planToDelete.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel onClick={() => {
+                  setIsDeleteDialogOpen(false);
+                  setPlanToDelete(null);
+                }}>
+                  Cancel
+                </AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => {
-                    if (planToDelete) {
-                      deletePlanMutation.mutate(planToDelete.id);
-                    }
-                  }}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={confirmDelete}
+                  className="bg-red-600 hover:bg-red-700"
                   disabled={deletePlanMutation.isPending}
                 >
                   {deletePlanMutation.isPending ? (

@@ -73,7 +73,9 @@ export default function AdminProducts() {
 
   const handleApprovalUpdate = (product: any) => {
     setSelectedProduct(product);
-    setApprovalData({ status: product.isApproved ? 'approved' : 'pending' });
+    // Use approvalStatus if available, otherwise fall back to isApproved
+    const currentStatus = product.approvalStatus || (product.isApproved ? 'approved' : 'pending');
+    setApprovalData({ status: currentStatus });
     setApprovalDialog(true);
   };
 
@@ -112,13 +114,20 @@ export default function AdminProducts() {
   };
 
   const getStatusBadge = (product: any) => {
-    if (!product.isApproved) {
-      return <Badge variant="secondary">Pending Approval</Badge>;
+    // Check approvalStatus first, then fall back to isApproved
+    const status = product.approvalStatus || (product.isApproved ? 'approved' : 'pending');
+    
+    switch (status) {
+      case 'approved':
+        return product.isActive ? 
+          <Badge variant="default">Active</Badge> : 
+          <Badge variant="outline">Inactive</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      case 'pending':
+      default:
+        return <Badge variant="secondary">Pending Approval</Badge>;
     }
-    if (!product.isActive) {
-      return <Badge variant="outline">Inactive</Badge>;
-    }
-    return <Badge variant="default">Active</Badge>;
   };
 
   const getPriceDisplay = (price: number) => {
@@ -350,7 +359,7 @@ export default function AdminProducts() {
                       <div className="font-semibold text-lg">{selectedProduct.name}</div>
                       <div className="text-sm text-gray-600">{selectedProduct.description}</div>
                       <div className="text-sm text-gray-500">Vendor: {selectedProduct.vendor?.name}</div>
-                      <div className="text-xs text-gray-400">Current Status: {selectedProduct.isApproved ? 'Approved' : 'Pending'}</div>
+                      <div className="text-xs text-gray-400">Current Status: {selectedProduct.approvalStatus || (selectedProduct.isApproved ? 'Approved' : 'Pending')}</div>
                     </div>
                   </div>
 
@@ -524,7 +533,7 @@ export default function AdminProducts() {
                     <div className="font-semibold text-lg">{productToDelete.name}</div>
                     <div className="text-sm text-gray-600">{productToDelete.description}</div>
                     <div className="text-sm text-gray-500">Vendor: {productToDelete.vendor?.name}</div>
-                    <div className="text-xs text-gray-400">Status: {productToDelete.isApproved ? 'Approved' : 'Pending'}</div>
+                    <div className="text-xs text-gray-400">Status: {productToDelete.approvalStatus || (productToDelete.isApproved ? 'Approved' : 'Pending')}</div>
                   </div>
                 </div>
 

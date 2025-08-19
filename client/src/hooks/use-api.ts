@@ -351,7 +351,12 @@ export function useUpdateProductStatus() {
   
   return useMutation({
     mutationFn: async ({ id, status, reason }: { id: number; status: string; reason?: string }) => {
-      const response = await apiRequest('PUT', `/api/products/${id}/status`, { status, reason });
+      const response = await apiRequest('PUT', `/api/products/${id}`, { 
+        data: { 
+          isApproved: status === 'approved',
+          approvalStatus: status 
+        } 
+      });
       return await response.json();
     },
     onSuccess: () => {
