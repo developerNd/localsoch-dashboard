@@ -2,8 +2,8 @@
 export const API_CONFIG = {
   // Use production API URL
   get API_URL() {
-    // return 'https://api.localsoch.com';
-    return "http://192.168.150.101:1337";
+    return 'https://api.localsoch.com';
+    // return "http://192.168.150.101:1337";
   },
   
   // Get the appropriate image URL based on environment
