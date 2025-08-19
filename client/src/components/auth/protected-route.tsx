@@ -44,8 +44,18 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
           return; // Don't redirect if we're already on the pending approval page
         }
         
+        console.log('🔍 Protected Route Status Check:', {
+          isApproved,
+          isPending,
+          isRejected,
+          isSuspended,
+          approvalLoading,
+          vendorId: user?.vendorId
+        });
+        
         // Only redirect for explicitly non-approved statuses
         if (isRejected || isSuspended) {
+          console.log('🔍 Protected Route: Redirecting due to rejected/suspended status');
           redirectAttempted.current = true;
           // Use setTimeout to prevent immediate redirect loops
           setTimeout(() => {
@@ -54,8 +64,20 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
           return;
         }
         
-        // For pending status, only redirect if we're sure it's not approved
-        if (isPending && !isApproved) {
+        // For pending status, redirect
+        if (isPending) {
+          console.log('🔍 Protected Route: Redirecting due to pending status');
+          redirectAttempted.current = true;
+          // Use setTimeout to prevent immediate redirect loops
+          setTimeout(() => {
+            setLocation('/seller/pending-approval');
+          }, 100);
+          return;
+        }
+        
+        // If not approved, also redirect
+        if (!isApproved) {
+          console.log('🔍 Protected Route: Redirecting due to not approved status');
           redirectAttempted.current = true;
           // Use setTimeout to prevent immediate redirect loops
           setTimeout(() => {

@@ -172,8 +172,17 @@ export default function PendingApproval() {
   const statusInfo = getStatusInfo();
   const StatusIcon = statusInfo.icon || Clock;
 
+  // Debug logging
+  console.log('🔍 Pending Approval Page Debug:', {
+    vendorResponse,
+    statusInfo,
+    isLoading: fetchLoading,
+    redirectAttempted: redirectAttempted.current
+  });
+
   // If user is already approved, redirect to seller dashboard
   if (!fetchLoading && vendorResponse && (vendorResponse.status === 'approved' || vendorResponse.isApproved === true)) {
+    console.log('🔍 Pending Approval: User is approved, redirecting to dashboard');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

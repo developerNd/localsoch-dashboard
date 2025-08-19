@@ -42,14 +42,33 @@ export function useVendorApproval() {
   const booleanApproved = vendorData?.isApproved === true;
   const isApproved = statusApproved || booleanApproved;
   
+  // More explicit pending status detection
   const statusPending = vendorData?.status === 'pending';
-  const noStatus = !vendorData?.status && !vendorData?.isApproved;
-  const isPending = statusPending || noStatus;
+  const noStatusSet = !vendorData?.status || vendorData?.status === '';
+  const notApproved = !isApproved;
+  const isPending = statusPending || (noStatusSet && notApproved);
   
   const isRejected = vendorData?.status === 'rejected';
   const isSuspended = vendorData?.status === 'suspended';
   const approvalStatus = vendorData?.status || (vendorData?.isApproved ? 'approved' : 'pending');
   const rejectionReason = vendorData?.statusReason || '';
+
+  // Debug logging
+  console.log('🔍 Vendor Approval Status Debug:', {
+    vendorData: vendorData,
+    status: vendorData?.status,
+    isApproved: vendorData?.isApproved,
+    statusApproved,
+    booleanApproved,
+    isApproved,
+    statusPending,
+    noStatusSet,
+    notApproved,
+    isPending,
+    isRejected,
+    isSuspended,
+    approvalStatus
+  });
 
   return {
     vendorData,

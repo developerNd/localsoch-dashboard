@@ -50,8 +50,18 @@ export default function SellerDashboard() {
         return; // Don't redirect if we're already on the pending approval page
       }
       
+      console.log('🔍 Seller Dashboard Status Check:', {
+        isApproved,
+        isPending,
+        isRejected,
+        isSuspended,
+        approvalLoading,
+        vendorId: user?.vendorId
+      });
+      
       // Only redirect if status is explicitly not approved
       if (isRejected || isSuspended) {
+        console.log('🔍 Redirecting due to rejected/suspended status');
         redirectAttempted.current = true;
         // Use setTimeout to prevent immediate redirect loops
         setTimeout(() => {
@@ -60,8 +70,20 @@ export default function SellerDashboard() {
         return;
       }
       
-      // For pending status, only redirect if we're sure it's not approved
-      if (isPending && !isApproved) {
+      // For pending status, redirect if not approved
+      if (isPending) {
+        console.log('🔍 Redirecting due to pending status');
+        redirectAttempted.current = true;
+        // Use setTimeout to prevent immediate redirect loops
+        setTimeout(() => {
+          window.location.href = '/seller/pending-approval';
+        }, 100);
+        return;
+      }
+      
+      // If not approved and not pending, also redirect
+      if (!isApproved) {
+        console.log('🔍 Redirecting due to not approved status');
         redirectAttempted.current = true;
         // Use setTimeout to prevent immediate redirect loops
         setTimeout(() => {
