@@ -859,10 +859,17 @@ export function useSellerEarnings(vendorId: number | undefined) {
   return useQuery({
     queryKey: ['/api/earnings/seller', vendorId],
     queryFn: async () => {
-      // Fetch seller-specific orders
-      const response = await apiRequest('GET', `/api/orders?filters[vendor][id][$eq]=${vendorId}&populate=*`);
-      const data = await response.json();
-      const orders = data.data || data;
+      // Fetch seller-specific orders and products; try reviews if available
+      const [ordersRes, productsRes, reviewsRes] = await Promise.all([
+        apiRequest('GET', `/api/orders?filters[vendor][id][$eq]=${vendorId}&populate=*`),
+        apiRequest('GET', `/api/products?filters[vendor][id][$eq]=${vendorId}&populate=*`),
+        apiRequest('GET', `/api/reviews/seller/${vendorId}/stats?populate=*`).catch(() => null as any),
+      ]);
+      const ordersJson = await ordersRes.json();
+      const productsJson = await productsRes.json();
+      const reviewsJson = reviewsRes ? await reviewsRes.json() : null;
+      const orders = ordersJson.data || ordersJson;
+      const productsForSeller = productsJson.data || productsJson || [];
       
       if (!Array.isArray(orders)) {
         return {
@@ -997,26 +1004,26 @@ export function useSellerEarnings(vendorId: number | undefined) {
         }
       });
       
-      // Get total products count from topProducts length or use a default
-      const totalProductsCount = topProducts.length;
+      // Use actual count of seller products
+      const totalProductsCount = Array.isArray(productsForSeller) ? productsForSeller.length : 0;
       const productPerformance = totalProductsCount > 0 
         ? (productsWithSales.size / totalProductsCount) * 100 
         : 0;
       
-      // Calculate customer satisfaction (placeholder - would need reviews system)
-      // For now, calculate based on order completion rate
-      let customerSatisfaction = 4.0; // Default rating
-      
-      if (totalOrders > 0) {
-        // Only calculate satisfaction if there are orders
-        if (orderCompletionRate > 80) customerSatisfaction = 4.5;
+      // Customer satisfaction: prefer real review stats if available
+      let customerSatisfaction = 0;
+      const reviewStats = reviewsJson ? (reviewsJson.data || reviewsJson) : null;
+      const avgRating = reviewStats?.averageRating || reviewStats?.avgRating || reviewStats?.rating;
+      if (typeof avgRating === 'number' && !Number.isNaN(avgRating)) {
+        customerSatisfaction = Math.max(0, Math.min(5, avgRating));
+      } else {
+        // Fallback to completion-based heuristic
+        if (totalOrders === 0) customerSatisfaction = 4.0;
+        else if (orderCompletionRate > 80) customerSatisfaction = 4.5;
         else if (orderCompletionRate > 60) customerSatisfaction = 4.0;
         else if (orderCompletionRate > 40) customerSatisfaction = 3.5;
         else if (orderCompletionRate > 20) customerSatisfaction = 3.0;
         else customerSatisfaction = 2.5;
-      } else {
-        // No orders yet - show neutral rating
-        customerSatisfaction = 4.0;
       }
       
       // Recent orders (last 10)
@@ -1035,13 +1042,16 @@ export function useSellerEarnings(vendorId: number | undefined) {
         recentOrders,
         performanceMetrics: {
           orderCompletionRate: Math.round(orderCompletionRate),
-          customerSatisfaction: customerSatisfaction,
+          customerSatisfaction: Math.round(customerSatisfaction * 10) / 10,
           productPerformance: Math.round(productPerformance),
           revenueGrowth: Math.round(revenueGrowth)
         }
       };
     },
     enabled: !!vendorId && vendorId > 0,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+    staleTime: 15000,
   });
 } 
 

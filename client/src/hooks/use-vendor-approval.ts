@@ -53,23 +53,6 @@ export function useVendorApproval() {
   const approvalStatus = vendorData?.status || (vendorData?.isApproved ? 'approved' : 'pending');
   const rejectionReason = vendorData?.statusReason || '';
 
-  // Debug logging
-  console.log('🔍 Vendor Approval Status Debug:', {
-    vendorData: vendorData,
-    status: vendorData?.status,
-    isApproved: vendorData?.isApproved,
-    statusApproved,
-    booleanApproved,
-    isApproved,
-    statusPending,
-    noStatusSet,
-    notApproved,
-    isPending,
-    isRejected,
-    isSuspended,
-    approvalStatus
-  });
-
   return {
     vendorData,
     isLoading,

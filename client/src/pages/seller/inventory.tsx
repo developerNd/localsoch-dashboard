@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Header from '@/components/layout/header';
@@ -16,6 +15,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { getImageUrl } from '@/lib/config';
+import { DataTable } from '@/components/ui/data-table';
 
 // Helper function to normalize Strapi product data
 const normalizeProduct = (product: any) => {
@@ -37,7 +37,6 @@ export default function SellerInventory() {
   const [stockFilter, setStockFilter] = useState<string>('all');
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [newStock, setNewStock] = useState<number>(0);
-  const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -49,22 +48,17 @@ export default function SellerInventory() {
       let url = '/api/products?populate=*';
       if (user?.vendorId) {
         url = `/api/products?filters[vendor][id][$eq]=${user.vendorId}&populate=*`;
-        console.log('🔍 Fetching products for vendor ID:', user.vendorId);
-      } else if (user?.role && typeof user.role === 'object' && 'name' in user.role && (user.role as any).name === 'seller') {
-        console.log('🔍 Seller logged in but no vendorId found. Fetching all products for now.');
-        // If seller but no vendorId, fetch all products for now
-        url = '/api/products?populate=*';
       }
-      console.log('🔍 Products API URL:', url);
       const response = await apiRequest('GET', url);
       const data = await response.json();
-      console.log('🔍 Products API response:', data);
       const products = data.data || [];
-      // Normalize the products for consistent data structure
       return products.map(normalizeProduct);
     },
     retry: false,
-    enabled: !!user, // Only run query when user is available
+    enabled: !!user,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+    staleTime: 15000,
   });
 
   const updateStockMutation = useMutation({
@@ -92,23 +86,11 @@ export default function SellerInventory() {
     },
   });
 
-  // Filter and search products
+  // Filter products (search removed)
   const filteredProducts = Array.isArray(products) ? products.filter((product: any) => {
-    // Stock filter
     if (stockFilter === 'low') return product.stock <= 5;
     if (stockFilter === 'out') return product.stock === 0;
     if (stockFilter === 'normal') return product.stock > 5;
-    
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        product.name?.toLowerCase().includes(query) ||
-        product.description?.toLowerCase().includes(query) ||
-        product.category?.toLowerCase().includes(query)
-      );
-    }
-    
     return true;
   }) : [];
 
@@ -188,28 +170,7 @@ export default function SellerInventory() {
           </div>
         </div>
 
-        {/* Search and Filters */}
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="flex-1">
-            <Input
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="max-w-sm"
-            />
-          </div>
-          <Select value={stockFilter} onValueChange={setStockFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filter by stock" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Products</SelectItem>
-              <SelectItem value="low">Low Stock (≤5)</SelectItem>
-              <SelectItem value="out">Out of Stock</SelectItem>
-              <SelectItem value="normal">Normal Stock (&gt;5)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Filters moved below stats, above table */}
 
         {/* Inventory Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -266,6 +227,118 @@ export default function SellerInventory() {
           </Card>
         </div>
 
+        {/* Inventory Filters above table */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Select value={stockFilter} onValueChange={setStockFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by stock" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Products</SelectItem>
+                <SelectItem value="low">Low Stock (≤5)</SelectItem>
+                <SelectItem value="out">Out of Stock</SelectItem>
+                <SelectItem value="normal">Normal Stock (&gt;5)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="text-sm text-gray-500">Showing {filteredProducts.length} of {totalProducts} products</div>
+        </div>
+
+        {/* Inventory Table */}
+        {filteredProducts.length === 0 ? (
+          <Card>
+            <CardContent>
+              <div className="text-center py-8">
+                <i className="fas fa-box text-4xl text-gray-300 mb-4"></i>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
+                <p className="text-gray-600 mb-4">{stockFilter === 'all' ? 'No products available in inventory.' : 'No products match the current filters.'}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <DataTable
+            data={filteredProducts}
+            columns={[
+              {
+                key: 'product',
+                header: 'Product',
+                render: (_: any, product: any) => (
+                  <div className="flex items-center space-x-3">
+                    {product.image ? (
+                      <img src={getImageUrl(product.image)} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
+                        <i className="fas fa-image text-gray-400"></i>
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">{product.name}</p>
+                      <p className="text-sm text-gray-500">{product.category || 'Uncategorized'}</p>
+                    </div>
+                  </div>
+                )
+              },
+              {
+                key: 'stock',
+                header: 'Current Stock',
+                sortable: true,
+                render: (_: any, product: any) => {
+                  const stockStatus = getStockStatus(product.stock);
+                  return (
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium">{product.stock}</span>
+                      <Badge variant={stockStatus.color as any}>{stockStatus.text}</Badge>
+                    </div>
+                  );
+                }
+              },
+              {
+                key: 'level',
+                header: 'Stock Level',
+                render: (_: any, product: any) => {
+                  const stockPercentage = getStockPercentage(product.stock);
+                  return (
+                    <div className="space-y-2">
+                      <Progress value={stockPercentage} className="w-24" />
+                      <span className="text-xs text-gray-500">{stockPercentage.toFixed(0)}% of max</span>
+                    </div>
+                  );
+                }
+              },
+              {
+                key: 'value',
+                header: 'Value',
+                sortable: true,
+                render: (_: any, product: any) => (
+                  <span className="font-medium text-green-600">₹{((product.stock || 0) * (product.price || 0)).toLocaleString()}</span>
+                )
+              },
+              {
+                key: 'actions',
+                header: 'Actions',
+                render: (_: any, product: any) => (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditingProduct(product);
+                      setNewStock(product.stock || 0);
+                    }}
+                  >
+                    <i className="fas fa-edit mr-2"></i>
+                    Update
+                  </Button>
+                )
+              }
+            ]}
+            title={`Inventory (${filteredProducts.length})`}
+            searchable={false}
+            pageSize={10}
+            emptyMessage="No products found"
+          />
+        )}
+
         {/* Stock Update Dialog */}
         <Dialog open={!!editingProduct} onOpenChange={() => setEditingProduct(null)}>
           <DialogContent>
@@ -300,108 +373,6 @@ export default function SellerInventory() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Inventory Management</CardTitle>
-            <p className="text-sm text-gray-500">
-              Showing {filteredProducts.length} of {totalProducts} total products
-            </p>
-          </CardHeader>
-          <CardContent>
-            {filteredProducts.length === 0 ? (
-              <div className="text-center py-8">
-                <i className="fas fa-box text-4xl text-gray-300 mb-4"></i>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-                <p className="text-gray-600 mb-4">
-                  {stockFilter === 'all' && !searchQuery
-                    ? "No products available in inventory."
-                    : `No products match the current filters.`
-                  }
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Current Stock</TableHead>
-                      <TableHead>Stock Level</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredProducts.map((product: any) => {
-                      const stockStatus = getStockStatus(product.stock);
-                      const stockPercentage = getStockPercentage(product.stock);
-                      const productValue = (product.stock || 0) * (product.price || 0);
-                      
-                      return (
-                        <TableRow key={product.id}>
-                          <TableCell>
-                            <div className="flex items-center space-x-3">
-                              {product.image ? (
-                                <img 
-                                  src={getImageUrl(product.image)} 
-                                  alt={product.name}
-                                  className="w-10 h-10 rounded-lg object-cover"
-                                />
-                              ) : (
-                                <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                                  <i className="fas fa-image text-gray-400"></i>
-                                </div>
-                              )}
-                              <div>
-                                <p className="font-medium text-gray-900">{product.name}</p>
-                                <p className="text-sm text-gray-500">{product.category || 'Uncategorized'}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">{product.stock}</span>
-                              <Badge variant={stockStatus.color as any}>
-                                {stockStatus.text}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-2">
-                              <Progress value={stockPercentage} className="w-24" />
-                              <span className="text-xs text-gray-500">
-                                {stockPercentage.toFixed(0)}% of max
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium text-green-600">
-                              ₹{productValue.toLocaleString()}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingProduct(product);
-                                setNewStock(product.stock || 0);
-                              }}
-                            >
-                              <i className="fas fa-edit mr-2"></i>
-                              Update
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </main>
     </div>
   );

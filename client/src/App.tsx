@@ -29,6 +29,7 @@ import AdminProductCategories from "@/pages/admin/product-categories";
 import AdminSubscriptionPlans from "@/pages/admin/subscription-plans";
 import SubscriptionSelection from "@/pages/subscription-selection";
 import IncompleteRegistration from "@/pages/incomplete-registration";
+import RedirectToPendingApproval from "@/components/RedirectToPendingApproval";
 
 
 // Root redirect component
@@ -186,6 +187,13 @@ function Router() {
         <Route path="/incomplete-registration">
           <ProtectedRoute>
             <IncompleteRegistration />
+          </ProtectedRoute>
+        </Route>
+        
+        {/* Redirect /pending-approval to /seller/pending-approval to prevent loops */}
+        <Route path="/pending-approval">
+          <ProtectedRoute>
+            <RedirectToPendingApproval />
           </ProtectedRoute>
         </Route>
       

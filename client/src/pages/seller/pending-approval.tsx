@@ -97,20 +97,10 @@ export default function PendingApproval() {
       const status = vendorResponse.status;
       const isApproved = vendorResponse.isApproved;
       
-      // Only redirect if status is explicitly 'approved' or isApproved is true
-      // Don't redirect for pending, rejected, or suspended statuses
-      if (status === 'approved' || isApproved === true) {
-        redirectAttempted.current = true;
-        // Clear the query cache to ensure fresh data on dashboard
-        queryClient.invalidateQueries({ queryKey: ['/api/vendors/approval-status', user?.vendorId] });
-        queryClient.invalidateQueries({ queryKey: ['/api/vendors/me'] });
-        // Use setTimeout to ensure the redirect happens after state updates
-        setTimeout(() => {
-          setLocation('/seller');
-        }, 100);
-      }
+      // Don't auto-redirect from this page - let the protected route handle it
+      // This prevents conflicts between page-level and route-level redirects
     }
-  }, [vendorResponse, fetchLoading, setLocation, queryClient, user?.vendorId]);
+  }, [vendorResponse, fetchLoading, queryClient, user?.vendorId]);
 
   const handleLogout = () => {
     logout();
@@ -171,27 +161,6 @@ export default function PendingApproval() {
 
   const statusInfo = getStatusInfo();
   const StatusIcon = statusInfo.icon || Clock;
-
-  // Debug logging
-  console.log('🔍 Pending Approval Page Debug:', {
-    vendorResponse,
-    statusInfo,
-    isLoading: fetchLoading,
-    redirectAttempted: redirectAttempted.current
-  });
-
-  // If user is already approved, redirect to seller dashboard
-  if (!fetchLoading && vendorResponse && (vendorResponse.status === 'approved' || vendorResponse.isApproved === true)) {
-    console.log('🔍 Pending Approval: User is approved, redirecting to dashboard');
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting to dashboard...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (fetchLoading) {
     return (
@@ -261,15 +230,6 @@ export default function PendingApproval() {
 
             {/* Actions */}
             <div className="space-y-3">
-              {statusInfo.status === 'approved' && (
-                <Button 
-                  className="w-full" 
-                  onClick={() => setLocation('/seller')}
-                >
-                  Access Dashboard
-                </Button>
-              )}
-              
               {statusInfo.status === 'rejected' && (
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
@@ -292,6 +252,12 @@ export default function PendingApproval() {
                 <div className="text-center text-sm text-gray-600">
                   <p>We typically review applications within 24-48 hours.</p>
                   <p className="mt-1">You'll receive an email notification once your application is reviewed.</p>
+                </div>
+              )}
+              
+              {statusInfo.status === 'approved' && (
+                <div className="text-center text-sm text-gray-600">
+                  <p>Your application has been approved! You will be redirected to your dashboard automatically.</p>
                 </div>
               )}
               
@@ -325,4 +291,4 @@ export default function PendingApproval() {
       </div>
     </div>
   );
-} 
+}

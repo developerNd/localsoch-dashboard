@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useSellerReviews, useSellerReviewStats, useVendors } from '@/hooks/use-api';
 import { getImageUrl } from '@/lib/config';
+import { DataTable } from '@/components/ui/data-table';
 
 export default function SellerReviews() {
   const [ratingFilter, setRatingFilter] = useState<string>('all');
@@ -52,7 +53,7 @@ export default function SellerReviews() {
       id: user?.id,
       username: user?.username,
       vendorId: user?.vendorId,
-      role: user?.role?.name
+      role: typeof user?.role === 'object' ? user?.role?.name : user?.role
     }
   });
 
@@ -195,7 +196,7 @@ export default function SellerReviews() {
                       <i className="fas fa-star text-warning text-sm"></i>
                       <div className="flex-1 bg-gray-200 rounded-full h-2">
                         <div
-                          className="bg-warning h-2 rounded-full"
+                          className="bg-yellow-500 h-2 rounded-full"
                           style={{ width: `${percentage}%` }}
                         ></div>
                       </div>
@@ -213,12 +214,9 @@ export default function SellerReviews() {
 
 
         {/* Reviews List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Shop Reviews</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredReviews.length === 0 ? (
+        {filteredReviews.length === 0 ? (
+          <Card>
+            <CardContent>
               <div className="text-center py-8">
                 <i className="fas fa-star text-4xl text-gray-300 mb-4"></i>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -231,65 +229,50 @@ export default function SellerReviews() {
                   }
                 </p>
               </div>
-            ) : (
-              <div className="space-y-6">
-                {filteredReviews.map((review: any) => (
-                  <div key={review.id} className="border-b border-gray-200 pb-6 last:border-b-0">
-                    <div className="flex items-start space-x-4">
-                      <Avatar>
-                        <AvatarFallback>
-                          {review.customerName?.split(' ').map((n: string) => n[0]).join('') || 'CU'}
-                        </AvatarFallback>
-                      </Avatar>
-                      
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <h4 className="font-medium text-gray-900">{review.customerName || 'Anonymous'}</h4>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <div className="flex">
-                                {renderStars(review.rating)}
-                              </div>
-                              <span className="text-sm text-gray-500">
-                                {new Date(review.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex space-x-2">
-                            {!review.isApproved && (
-                              <Badge variant="secondary">
-                                Pending Approval
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {review.order && (
-                          <div className="mb-3">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
-                                <i className="fas fa-shopping-bag text-blue-600 text-xs"></i>
-                              </div>
-                              <span className="text-sm font-medium text-gray-700">
-                                Order #{review.order.orderNumber}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {review.comment && (
-                          <p className="text-gray-700 leading-relaxed">
-                            {review.comment}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <DataTable
+            data={filteredReviews}
+            columns={[
+              { key: 'customerName', header: 'Customer', render: (value: any, row: any) => (
+                <div className="flex items-center space-x-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs">
+                      {value?.split(' ').map((n: string) => n[0]).join('') || 'CU'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">{value || 'Anonymous'}</span>
+                </div>
+              ) },
+              { key: 'rating', header: 'Rating', render: (value: any) => (
+                <div className="flex items-center space-x-2">
+                  <div className="flex">
+                    {renderStars(value)}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <span className="text-sm font-medium text-gray-600">{value}/5</span>
+                </div>
+              ) },
+              { key: 'comment', header: 'Comment', render: (value: any) => (
+                <div className="max-w-md">
+                  <p className="text-sm text-gray-700">{value || 'No comment'}</p>
+                </div>
+              ) },
+              { key: 'createdAt', header: 'Date', render: (value: any) => (
+                <div>
+                  <div className="text-sm text-gray-600">{new Date(value).toLocaleDateString()}</div>
+                  <div className="text-xs text-gray-500">{new Date(value).toLocaleTimeString()}</div>
+                </div>
+              ) },
+            ]}
+            title={`Shop Reviews (${filteredReviews.length})`}
+            searchable={true}
+            searchPlaceholder="Search by customer name or comment..."
+            searchKeys={['customerName', 'comment']}
+            pageSize={10}
+            emptyMessage="No reviews found"
+          />
+        )}
       </main>
     </div>
   );

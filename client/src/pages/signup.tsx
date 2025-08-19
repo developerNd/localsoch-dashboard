@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getApiUrl, API_ENDPOINTS } from "@/lib/config";
+import { LocationSelector } from "@/components/ui/location-selector";
+import { LocationQuickSearch } from "@/components/ui/location-quick-search";
 
 interface BusinessCategory {
   id: number;
@@ -355,41 +357,27 @@ export default function Signup() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      type="text"
-                      value={formData.city}
-                      onChange={(e) => handleInputChange('city', e.target.value)}
-                      placeholder="Enter city"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="state">State</Label>
-                    <Input
-                      id="state"
-                      type="text"
-                      value={formData.state}
-                      onChange={(e) => handleInputChange('state', e.target.value)}
-                      placeholder="Enter state"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pincode">Pincode</Label>
-                    <Input
-                      id="pincode"
-                      type="text"
-                      value={formData.pincode}
-                      onChange={(e) => handleInputChange('pincode', e.target.value)}
-                      placeholder="Enter pincode"
-                      required
-                    />
-                  </div>
+                {/* Quick Location Search */}
+                <div className="mb-4">
+                  <LocationQuickSearch
+                    onLocationSelect={(state, city, pincode) => {
+                      handleInputChange('state', state);
+                      handleInputChange('city', city);
+                      handleInputChange('pincode', pincode);
+                    }}
+                    placeholder="Quick search: Type city, state, or pincode..."
+                    label="Quick Location Search (Optional)"
+                  />
                 </div>
+                
+                <LocationSelector
+                  selectedState={formData.state}
+                  selectedCity={formData.city}
+                  selectedPincode={formData.pincode}
+                  onStateChange={(state) => handleInputChange('state', state)}
+                  onCityChange={(city) => handleInputChange('city', city)}
+                  onPincodeChange={(pincode) => handleInputChange('pincode', pincode)}
+                />
               </div>
 
               {/* Terms and Conditions */}

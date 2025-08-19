@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useUpdateVendor, useUpdateUser, useCreateVendor } from '@/hooks/use-api';
 import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
+import { LocationSelector } from '@/components/ui/location-selector';
 
 // Business category type
 interface BusinessCategory {
@@ -829,47 +830,27 @@ export default function SellerProfile() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div>
-                        <Label htmlFor="city">City *</Label>
-                        <Input
-                          id="city"
-                          {...shopForm.register('city')}
-                          placeholder="Enter city"
-                        />
+                    <LocationSelector
+                      selectedState={shopForm.watch('state')}
+                      selectedCity={shopForm.watch('city')}
+                      selectedPincode={shopForm.watch('pincode')}
+                      onStateChange={(state) => shopForm.setValue('state', state)}
+                      onCityChange={(city) => shopForm.setValue('city', city)}
+                      onPincodeChange={(pincode) => shopForm.setValue('pincode', pincode)}
+                    />
+                    {(shopForm.formState.errors.city || shopForm.formState.errors.state || shopForm.formState.errors.pincode) && (
+                      <div className="space-y-1">
                         {shopForm.formState.errors.city && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {shopForm.formState.errors.city.message}
-                          </p>
+                          <p className="text-sm text-red-500">{shopForm.formState.errors.city.message}</p>
                         )}
-                      </div>
-                      <div>
-                        <Label htmlFor="state">State *</Label>
-                        <Input
-                          id="state"
-                          {...shopForm.register('state')}
-                          placeholder="Enter state"
-                        />
                         {shopForm.formState.errors.state && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {shopForm.formState.errors.state.message}
-                          </p>
+                          <p className="text-sm text-red-500">{shopForm.formState.errors.state.message}</p>
                         )}
-                      </div>
-                      <div>
-                        <Label htmlFor="pincode">Pincode *</Label>
-                        <Input
-                          id="pincode"
-                          {...shopForm.register('pincode')}
-                          placeholder="Enter pincode"
-                        />
                         {shopForm.formState.errors.pincode && (
-                          <p className="text-sm text-red-500 mt-1">
-                            {shopForm.formState.errors.pincode.message}
-                          </p>
+                          <p className="text-sm text-red-500">{shopForm.formState.errors.pincode.message}</p>
                         )}
                       </div>
-                    </div>
+                    )}
 
                     <Separator />
 

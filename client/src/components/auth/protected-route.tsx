@@ -10,9 +10,20 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, isLoading, isAuthenticated } = useAuth();
-  const { isApproved, isPending, isRejected, isSuspended, isLoading: approvalLoading } = useVendorApproval();
   const [, setLocation] = useLocation();
+  const location = useLocation()[0];
   const redirectAttempted = useRef(false);
+  const lastPathRef = useRef(location);
+
+  const { isApproved, isPending, isRejected, isSuspended, isLoading: approvalLoading } = useVendorApproval();
+
+  // Reset redirect flag when path changes
+  useEffect(() => {
+    if (lastPathRef.current !== location) {
+      redirectAttempted.current = false;
+      lastPathRef.current = location;
+    }
+  }, [location]);
 
   useEffect(() => {
     // Add a small delay to give authentication time to load
@@ -22,6 +33,9 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
         return;
       }
 
+      const onPendingPage = location === '/seller/pending-approval';
+      const onSellerPage = location === '/seller' || location.startsWith('/seller/');
+
       // Check user role first
       const userRole = user?.role;
       const roleName = typeof userRole === 'object' ? userRole.name : userRole;
@@ -30,72 +44,44 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
       if (roleName !== 'admin') {
         const pendingData = localStorage.getItem('pendingSellerData');
         if (pendingData && user) {
-          // User has registered but hasn't completed subscription purchase
-          setLocation('/incomplete-registration');
+          if (location !== '/incomplete-registration') {
+            setLocation('/incomplete-registration');
+          }
           return;
         }
       }
 
-      // Check seller approval status - only redirect once per status change
+      // Vendor status-based routing
       if (user?.vendorId && !approvalLoading && !redirectAttempted.current) {
-        // Check if we're already on the pending approval page to prevent loops
-        const currentPage = localStorage.getItem('currentPage');
-        if (currentPage === 'pending-approval') {
-          return; // Don't redirect if we're already on the pending approval page
+        // If already on pending page: only leave if approved
+        if (onPendingPage) {
+          if (isApproved && !isPending && !isRejected && !isSuspended) {
+            redirectAttempted.current = true;
+            setLocation('/seller');
+          }
+          return; // Stay on pending page for pending/rejected/suspended
         }
-        
-        console.log('🔍 Protected Route Status Check:', {
-          isApproved,
-          isPending,
-          isRejected,
-          isSuspended,
-          approvalLoading,
-          vendorId: user?.vendorId
-        });
-        
-        // Only redirect for explicitly non-approved statuses
-        if (isRejected || isSuspended) {
-          console.log('🔍 Protected Route: Redirecting due to rejected/suspended status');
-          redirectAttempted.current = true;
-          // Use setTimeout to prevent immediate redirect loops
-          setTimeout(() => {
+
+        // If on seller-related pages and not approved → go to pending page
+        if (onSellerPage) {
+          const notApproved = isRejected || isSuspended || isPending || !isApproved;
+          if (notApproved) {
+            redirectAttempted.current = true;
             setLocation('/seller/pending-approval');
-          }, 100);
-          return;
-        }
-        
-        // For pending status, redirect
-        if (isPending) {
-          console.log('🔍 Protected Route: Redirecting due to pending status');
-          redirectAttempted.current = true;
-          // Use setTimeout to prevent immediate redirect loops
-          setTimeout(() => {
-            setLocation('/seller/pending-approval');
-          }, 100);
-          return;
-        }
-        
-        // If not approved, also redirect
-        if (!isApproved) {
-          console.log('🔍 Protected Route: Redirecting due to not approved status');
-          redirectAttempted.current = true;
-          // Use setTimeout to prevent immediate redirect loops
-          setTimeout(() => {
-            setLocation('/seller/pending-approval');
-          }, 100);
-          return;
+            return;
+          }
         }
       }
 
+      // Role-based route access control
       if (user && allowedRoles) {
-        // Check if user has vendorId (seller) or not (admin)
         const userType = user.vendorId ? 'seller' : 'admin';
         if (!allowedRoles.includes(userType)) {
           // Redirect to appropriate dashboard based on user type
           if (user.vendorId) {
-            setLocation('/seller');
+            if (location !== '/seller') setLocation('/seller');
           } else {
-            setLocation('/admin');
+            if (location !== '/admin') setLocation('/admin');
           }
           return;
         }
@@ -103,7 +89,7 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     }, 100); // 100ms delay
 
     return () => clearTimeout(timer);
-  }, [user, isLoading, isAuthenticated, allowedRoles, setLocation, isApproved, isPending, isRejected, isSuspended, approvalLoading]);
+  }, [user, isLoading, isAuthenticated, allowedRoles, setLocation, isApproved, isPending, isRejected, isSuspended, approvalLoading, location]);
 
   if (isLoading || (user?.vendorId && approvalLoading)) {
     return (

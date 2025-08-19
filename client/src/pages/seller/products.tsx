@@ -702,17 +702,8 @@ export default function SellerProducts() {
         )}
 
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
-          <div className="flex-1 min-w-0">
-            <Input
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="max-w-sm"
-            />
-          </div>
+        <div className="flex items-center gap-4 mb-6">
           {effectiveVendorId ? (
-            // Seller filters
             <div className="flex-shrink-0 flex space-x-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-40">
@@ -740,8 +731,7 @@ export default function SellerProducts() {
               </Select>
             </div>
           ) : (
-            // Admin filters - can add seller filter here later
-            <div className="flex-shrink-0 text-sm text-gray-500">
+            <div className="text-sm text-gray-500">
               Showing all products from all sellers
             </div>
           )}
@@ -1016,17 +1006,7 @@ export default function SellerProducts() {
           </Dialog>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {user?.vendorId ? 'My Products' : 'All Products'} ({filteredProducts.length})
-            </CardTitle>
-            {products && (
-              <p className="text-sm text-gray-500">
-                Showing {filteredProducts.length} of {products.length} products
-              </p>
-            )}
-          </CardHeader>
+        {/* <Card> */}
           <CardContent>
             {isLoading ? (
               <div className="text-center py-8">
@@ -1064,7 +1044,7 @@ export default function SellerProducts() {
               />
             )}
           </CardContent>
-        </Card>
+        {/* </Card> */}
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

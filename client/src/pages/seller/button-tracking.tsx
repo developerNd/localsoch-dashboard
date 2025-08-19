@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Phone, MessageCircle, TrendingUp, Calendar, Clock } from 'lucide-react';
+import { Phone, MessageCircle, TrendingUp } from 'lucide-react';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import { useAuth } from '@/hooks/use-auth';
 import { useVendorButtonAnalytics, useVendorButtonClickLogs } from '@/hooks/use-api';
+import { DataTable } from '@/components/ui/data-table';
 
 export default function SellerButtonTracking() {
   const { user } = useAuth();
@@ -208,83 +209,52 @@ export default function SellerButtonTracking() {
 
 
         {/* Button Clicks Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Button Clicks</CardTitle>
-          </CardHeader>
-          <CardContent>
-            
-            {analyticsData.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-medium">User</th>
-                      <th className="text-left py-3 px-4 font-medium">Contact Number</th>
-                      <th className="text-left py-3 px-4 font-medium">Location</th>
-                      <th className="text-left py-3 px-4 font-medium">Button Type</th>
-                      <th className="text-left py-3 px-4 font-medium">Clicked At</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analyticsData.map((item: any) => (
-                      <tr key={item.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4">
-                          <div className="font-medium">{item.userName}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {item.contactNumber || item.whatsappNumber || item.userPhone}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {item.buttonType === 'call' ? 'Call Number' : 
-                             item.buttonType === 'whatsapp' ? 'WhatsApp Number' :
-                             'Contact Info'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">{item.userLocation}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge 
-                            variant="secondary"
-                            className={
-                              item.buttonType === 'call' ? 'bg-green-100 text-green-800' :
-                              item.buttonType === 'whatsapp' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }
-                          >
-                            <div className="flex items-center">
-                              {item.buttonType === 'call' && <Phone className="h-3 w-3 mr-1" />}
-                              {item.buttonType === 'whatsapp' && <MessageCircle className="h-3 w-3 mr-1" />}
-                              {item.buttonType.charAt(0).toUpperCase() + item.buttonType.slice(1)}
-                            </div>
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm text-gray-600">
-                            {new Date(item.clickedAt).toLocaleDateString()}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(item.clickedAt).toLocaleTimeString()}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
+        {analyticsData.length === 0 ? (
+          <Card>
+            <CardContent>
               <div className="text-center py-8">
                 <MessageCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-600">No button clicks found</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Button clicks will appear here when customers interact with your buttons
-                </p>
+                <p className="text-sm text-gray-500 mt-2">Button clicks will appear here when customers interact with your buttons</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <DataTable
+            data={analyticsData}
+            columns={[
+              { key: 'userName', header: 'User', render: (value: any) => <span className="font-medium">{value}</span> },
+              { key: 'contactNumber', header: 'Contact', render: (_: any, row: any) => (
+                <div>
+                  <div className="text-sm text-gray-600">{row.contactNumber || row.whatsappNumber || row.userPhone}</div>
+                  <div className="text-xs text-gray-400">{row.buttonType === 'call' ? 'Call Number' : row.buttonType === 'whatsapp' ? 'WhatsApp Number' : 'Contact Info'}</div>
+                </div>
+              ) },
+              { key: 'userLocation', header: 'Location' },
+              { key: 'buttonType', header: 'Button Type', render: (value: any) => (
+                <Badge className={value === 'call' ? 'bg-green-100 text-green-800' : value === 'whatsapp' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}>
+                  <div className="flex items-center">
+                    {value === 'call' && <Phone className="h-3 w-3 mr-1" />}
+                    {value === 'whatsapp' && <MessageCircle className="h-3 w-3 mr-1" />}
+                    {value?.charAt(0).toUpperCase() + value?.slice(1)}
+                  </div>
+                </Badge>
+              ) },
+              { key: 'clickedAt', header: 'Clicked At', render: (value: any) => (
+                <div>
+                  <div className="text-sm text-gray-600">{new Date(value).toLocaleDateString()}</div>
+                  <div className="text-xs text-gray-500">{new Date(value).toLocaleTimeString()}</div>
+                </div>
+              ) },
+            ]}
+            title={`Recent Button Clicks (${analyticsData.length})`}
+            searchable={true}
+            searchPlaceholder="Search by user, contact, or type..."
+            searchKeys={['userName', 'contactNumber', 'whatsappNumber', 'userPhone', 'buttonType', 'userLocation']}
+            pageSize={10}
+            emptyMessage="No button clicks found"
+          />
+        )}
 
 
       </main>
