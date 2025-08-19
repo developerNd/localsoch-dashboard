@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
@@ -96,7 +95,8 @@ const StatusChart = ({ data }: { data: any[] }) => {
 };
 
 export default function AdminAnalytics() {
-  const [period, setPeriod] = useState('30days');
+  // Remove period state
+  // const [period, setPeriod] = useState('30days');
 
   // Data generation functions
   const generateRevenueData = () => {
@@ -250,7 +250,8 @@ export default function AdminAnalytics() {
             <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
             <p className="text-gray-600">Platform analytics and performance insights</p>
           </div>
-          <Select value={period} onValueChange={setPeriod}>
+          {/* Remove period state */}
+          {/* <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-40">
               <SelectValue />
             </SelectTrigger>
@@ -260,7 +261,7 @@ export default function AdminAnalytics() {
               <SelectItem value="3months">Last 3 months</SelectItem>
               <SelectItem value="1year">Last year</SelectItem>
             </SelectContent>
-          </Select>
+          </Select> */}
         </div>
 
         {/* Key Metrics */}
