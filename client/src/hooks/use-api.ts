@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { toStrapiFormat, normalizeProduct, normalizeVendor, normalizeOrder, normalizeCategory } from '@/lib/strapi-adapter';
 import { getApiUrl } from '@/lib/config';
+import { getAuthToken } from '@/lib/auth';
 
 const API_URL = getApiUrl('');
 
@@ -1052,16 +1053,41 @@ export function useVendorByUser(userId: number | undefined) {
         return null;
       }
       
-      const response = await fetch(`${getApiUrl('')}/api/vendors?filters[user][id][$eq]=${userId}&populate=*`);
-      const data = await response.json();
-      
-      if (data.data && data.data.length > 0) {
-        return data.data[0];
+      try {
+        const token = getAuthToken();
+        const response = await fetch(`${getApiUrl('')}/api/vendors?filters[user][id][$eq]=${userId}&populate=*`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to fetch vendor by user:', response.status, response.statusText);
+          return null;
+        }
+        
+        const data = await response.json();
+        
+        if (data.data && data.data.length > 0) {
+          return data.data[0];
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('Error fetching vendor by user:', error);
+        return null;
       }
-      
-      return null;
     },
     enabled: !!userId,
+    retry: (failureCount, error) => {
+      // Don't retry for 403 errors (permission issues)
+      if (error instanceof Error && error.message.includes('403')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: 2000,
   });
 }
 
@@ -1073,16 +1099,41 @@ export function useVendorSubscription(vendorId: number | undefined) {
         return null;
       }
       
-      const response = await fetch(`${getApiUrl('')}/api/subscriptions/vendor/${vendorId}/current`);
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        return data.data;
+      try {
+        const token = getAuthToken();
+        const response = await fetch(`${getApiUrl('')}/api/subscriptions/vendor/${vendorId}/current`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to fetch vendor subscription:', response.status, response.statusText);
+          return null;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          return data.data;
+        }
+        
+        return null;
+      } catch (error) {
+        console.error('Error fetching vendor subscription:', error);
+        return null;
       }
-      
-      return null;
     },
     enabled: !!vendorId,
+    retry: (failureCount, error) => {
+      // Don't retry for 403 errors (permission issues)
+      if (error instanceof Error && error.message.includes('403')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: 2000,
   });
 }
 
@@ -1091,7 +1142,13 @@ export function useVendorSubscriptions() {
     queryKey: ['/api/subscriptions/all'],
     queryFn: async () => {
       try {
-        const response = await fetch(`${getApiUrl('')}/api/subscriptions?populate=*&sort[0]=createdAt:desc`);
+        const token = getAuthToken();
+        const response = await fetch(`${getApiUrl('')}/api/subscriptions?populate=*&sort[0]=createdAt:desc`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          }
+        });
         
         if (!response.ok) {
           console.error('Failed to fetch subscriptions:', response.status, response.statusText);
@@ -1110,6 +1167,14 @@ export function useVendorSubscriptions() {
         return [];
       }
     },
+    retry: (failureCount, error) => {
+      // Don't retry for 403 errors (permission issues)
+      if (error instanceof Error && error.message.includes('403')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: 2000,
   });
 }
 
@@ -1118,7 +1183,13 @@ export function useProductsWithVendors() {
     queryKey: ['/api/products/with-vendors'],
     queryFn: async () => {
       try {
-        const response = await fetch(`${getApiUrl('')}/api/products?populate=*`);
+        const token = getAuthToken();
+        const response = await fetch(`${getApiUrl('')}/api/products?populate=*`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          }
+        });
         
         if (!response.ok) {
           console.error('Failed to fetch products with vendors:', response.status, response.statusText);
@@ -1137,6 +1208,14 @@ export function useProductsWithVendors() {
         return [];
       }
     },
+    retry: (failureCount, error) => {
+      // Don't retry for 403 errors (permission issues)
+      if (error instanceof Error && error.message.includes('403')) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: 2000,
   });
 }
 

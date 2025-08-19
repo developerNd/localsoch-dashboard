@@ -31,9 +31,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error instanceof Error && error.message.includes('403')) {
         return false;
       }
-      return failureCount < 3;
+      // Reduce retry count to prevent infinite loops
+      return failureCount < 1;
     },
-    retryDelay: 1000,
+    retryDelay: 3000,
     queryFn: async () => {
       const token = getAuthToken();
       if (!token) throw new Error('No token');

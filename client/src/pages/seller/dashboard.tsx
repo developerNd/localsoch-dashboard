@@ -7,17 +7,28 @@ import MobileNav from '@/components/layout/mobile-nav';
 import { useAuth } from '@/hooks/use-auth';
 import { useSellerOrders, useSellerEarnings, useProducts, useVendors, useVendorSubscription, useVendorByUser } from '@/hooks/use-api';
 import { Link } from 'wouter';
+import { useEffect, useRef } from 'react';
 
 export default function SellerDashboard() {
   const { user } = useAuth();
+  const renderCount = useRef(0);
+
+  // Prevent infinite re-renders
+  useEffect(() => {
+    renderCount.current += 1;
+    if (renderCount.current > 10) {
+      console.error('Too many re-renders detected, stopping');
+      return;
+    }
+  });
 
   // Get vendor record for the current user
-  const { data: vendorRecord, isLoading: vendorLoading } = useVendorByUser(user?.id);
+  const { data: vendorRecord, isLoading: vendorLoading, error: vendorError } = useVendorByUser(user?.id);
   
   // Get vendor ID from vendor record
   const vendorId = vendorRecord?.id;
 
-  // Fetch real data
+  // Fetch real data only if vendorId is available
   const { data: orders, isLoading: ordersLoading } = useSellerOrders(vendorId);
   const { data: earnings, isLoading: earningsLoading } = useSellerEarnings(vendorId);
   const { data: products, isLoading: productsLoading } = useProducts();
@@ -62,6 +73,35 @@ export default function SellerDashboard() {
   // Check if user is seller
   const isSeller = user && typeof user.role === 'object' && user.role?.name === 'seller';
   
+  // Show error if vendor data failed to load
+  if (vendorError && !vendorLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <Sidebar />
+        <MobileNav />
+        
+        <main className="flex-1 lg:ml-64 pt-20 p-4 lg:p-8 pb-20 lg:pb-8">
+          <div className="max-w-2xl mx-auto text-center py-12">
+            <div className="bg-white rounded-lg shadow-sm p-8">
+              <i className="fas fa-exclamation-triangle text-6xl text-red-500 mb-6"></i>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Vendor Data Error</h2>
+              <p className="text-gray-600 mb-6">
+                Failed to load vendor information. Please try refreshing the page or contact support.
+              </p>
+              <Button 
+                onClick={() => window.location.reload()} 
+                variant="outline"
+              >
+                Refresh Page
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
