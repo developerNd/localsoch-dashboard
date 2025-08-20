@@ -92,10 +92,6 @@ export default function NotificationsPage() {
     if (!notification.isRead) {
       markAsRead.mutate(notification.id);
     }
-    
-    if (notification.actionUrl) {
-      window.location.href = notification.actionUrl;
-    }
   };
 
   const handleMarkAllAsRead = () => {
@@ -346,11 +342,6 @@ function NotificationList({
                   <span className="text-sm text-gray-400">
                     {new Date(notification.createdAt).toLocaleString()}
                   </span>
-                  {notification.actionText && (
-                    <span className="text-sm text-blue-600 font-medium">
-                      {notification.actionText}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>

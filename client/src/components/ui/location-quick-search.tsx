@@ -3,12 +3,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Search, MapPin } from 'lucide-react';
-import { searchLocations, SearchResult } from '@/lib/location-service-hybrid';
+import { searchLocations } from '@/lib/location-api';
 
 interface LocationQuickSearchProps {
   onLocationSelect: (state: string, city: string, pincode: string) => void;
   placeholder?: string;
   label?: string;
+}
+
+interface SearchResult {
+  state: string;
+  city: string;
+  pincode: string;
 }
 
 export function LocationQuickSearch({
@@ -67,7 +73,7 @@ export function LocationQuickSearch({
     <div className="relative">
       {label && <Label className="mb-2 block">{label}</Label>}
       
-      <form onSubmit={handleSubmit} className="relative">
+      <div className="relative">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -83,50 +89,61 @@ export function LocationQuickSearch({
               console.log('🔍 Quick search: Input focused');
               setShowResults(true);
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (results.length > 0) {
+                  handleSelect(results[0]);
+                }
+              }
+            }}
           />
           <Button
-            type="submit"
+            type="button"
             size="sm"
             className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 px-2"
             disabled={isSearching || results.length === 0}
+            onClick={() => {
+              if (results.length > 0) {
+                handleSelect(results[0]);
+              }
+            }}
           >
             {isSearching ? '...' : 'Select'}
           </Button>
         </div>
-      </form>
+      </div>
 
       {/* Search Results */}
       {showResults && (query.length >= 3) && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
           {isSearching ? (
-            <div className="p-4 text-center text-sm text-gray-500">
+            <div className="p-4 text-center text-gray-500">
               Searching...
             </div>
-          ) : results.length === 0 ? (
-            <div className="p-4 text-center text-sm text-gray-500">
-              No locations found
-            </div>
-          ) : (
+          ) : results.length > 0 ? (
             <div className="py-1">
               {results.map((result, index) => (
                 <button
                   key={index}
                   onClick={() => handleSelect(result)}
-                  className="w-full px-4 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none flex items-center space-x-2"
                 >
-                  <div className="flex items-center space-x-2">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <div className="font-medium text-sm">
-                        {result.city}, {result.state}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Pincode: {result.pincode}
-                      </div>
+                  <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {result.city}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {result.state} - {result.pincode}
                     </div>
                   </div>
                 </button>
               ))}
+            </div>
+          ) : (
+            <div className="p-4 text-center text-gray-500">
+              No locations found
             </div>
           )}
         </div>

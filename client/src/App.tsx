@@ -24,6 +24,7 @@ import AdminSellers from "@/pages/admin/sellers";
 import AdminProducts from "@/pages/admin/products";
 import AdminOrders from "@/pages/admin/orders";
 import AdminBanners from "@/pages/admin/banners";
+import AdminNotifications from "@/pages/admin/notifications";
 import AdminBusinessCategories from "@/pages/admin/business-categories";
 import AdminProductCategories from "@/pages/admin/product-categories";
 import AdminSubscriptionPlans from "@/pages/admin/subscription-plans";
@@ -159,6 +160,12 @@ function Router() {
       <Route path="/admin/banners">
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminBanners />
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/admin/notifications">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminNotifications />
         </ProtectedRoute>
       </Route>
       

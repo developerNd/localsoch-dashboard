@@ -259,6 +259,19 @@ export function useUnreadCount(userId: number | undefined) {
   });
 }
 
+export function useVendorUnreadCount(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications/vendor-unread-count', vendorId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/notifications/vendor/${vendorId}/unread-count`);
+      const data = await response.json();
+      return data.data || data;
+    },
+    enabled: !!vendorId && vendorId > 0,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+}
+
 export function useMarkNotificationAsRead() {
   const queryClient = useQueryClient();
   
@@ -1249,6 +1262,149 @@ export function useSubscriptionPlans() {
       const response = await apiRequest('GET', '/api/subscription-plans?filters[isActive][$eq]=true&sort[0]=sortOrder:asc&populate=*');
       const data = await response.json();
       return data.data || [];
+    },
+  });
+}
+
+// Notification API hooks
+export function useNotifications(userId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications', userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      const response = await apiRequest('GET', `/api/notifications?filters[user][id][$eq]=${userId}&populate=*&sort[0]=createdAt:desc`);
+      const data = await response.json();
+      return data.data || [];
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useVendorNotifications(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications/vendor', vendorId],
+    queryFn: async () => {
+      if (!vendorId) return [];
+      const response = await apiRequest('GET', `/api/notifications?filters[vendor][id][$eq]=${vendorId}&populate=*&sort[0]=createdAt:desc`);
+      const data = await response.json();
+      return data.data || [];
+    },
+    enabled: !!vendorId,
+  });
+}
+
+export function useUnreadCount(userId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications/unread-count', userId],
+    queryFn: async () => {
+      if (!userId) return { count: 0 };
+      const response = await apiRequest('GET', `/api/notifications?filters[user][id][$eq]=${userId}&filters[isRead][$eq]=false`);
+      const data = await response.json();
+      return { count: data.data?.length || 0 };
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useVendorUnreadCount(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/notifications/vendor/unread-count', vendorId],
+    queryFn: async () => {
+      if (!vendorId) return { count: 0 };
+      const response = await apiRequest('GET', `/api/notifications?filters[vendor][id][$eq]=${vendorId}&filters[isRead][$eq]=false`);
+      const data = await response.json();
+      return { count: data.data?.length || 0 };
+    },
+    enabled: !!vendorId,
+  });
+}
+
+export function useMarkNotificationAsRead() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (notificationId: number) => {
+      const response = await apiRequest('PUT', `/api/notifications/${notificationId}`, {
+        data: { isRead: true }
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate and refetch notifications and unread counts
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor/unread-count'] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsAsRead() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (userId: number) => {
+      // Get all unread notifications for the user
+      const response = await apiRequest('GET', `/api/notifications?filters[user][id][$eq]=${userId}&filters[isRead][$eq]=false`);
+      const data = await response.json();
+      
+      // Mark each notification as read
+      const updatePromises = data.data?.map((notification: any) =>
+        apiRequest('PUT', `/api/notifications/${notification.id}`, {
+          data: { isRead: true }
+        })
+      ) || [];
+      
+      await Promise.all(updatePromises);
+      return { success: true };
+    },
+    onSuccess: () => {
+      // Invalidate and refetch notifications and unread counts
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor/unread-count'] });
+    },
+  });
+}
+
+export function useDeleteNotification() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (notificationId: number) => {
+      const response = await apiRequest('DELETE', `/api/notifications/${notificationId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate and refetch notifications and unread counts
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor/unread-count'] });
+    },
+  });
+}
+
+export function useClearAllNotifications() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (userId: number) => {
+      // Get all notifications for the user
+      const response = await apiRequest('GET', `/api/notifications?filters[user][id][$eq]=${userId}`);
+      const data = await response.json();
+      
+      // Delete each notification
+      const deletePromises = data.data?.map((notification: any) =>
+        apiRequest('DELETE', `/api/notifications/${notification.id}`)
+      ) || [];
+      
+      await Promise.all(deletePromises);
+      return { success: true };
+    },
+    onSuccess: () => {
+      // Invalidate and refetch notifications and unread counts
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor/unread-count'] });
     },
   });
 } 

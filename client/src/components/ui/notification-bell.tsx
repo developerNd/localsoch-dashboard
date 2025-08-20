@@ -11,7 +11,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import { 
   useNotifications, 
+  useVendorNotifications,
   useUnreadCount, 
+  useVendorUnreadCount,
   useMarkNotificationAsRead, 
   useMarkAllNotificationsAsRead,
   useDeleteNotification,
@@ -34,12 +36,56 @@ interface Notification {
 }
 
 export function NotificationBell() {
+  console.log('🔔 NotificationBell - Component rendering');
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   
-  const { data: notifications = [], isLoading } = useNotifications(user?.id);
-  const { data: unreadData } = useUnreadCount(user?.id);
-  const unreadCount = unreadData?.count || 0;
+  // Get vendor ID for sellers
+  const vendorId = user?.vendorId;
+  
+  // Debug logging
+  console.log('🔔 NotificationBell - User:', user);
+  console.log('🔔 NotificationBell - User ID:', user?.id);
+  console.log('🔔 NotificationBell - Vendor ID:', vendorId);
+  
+  // Fetch notifications for both user and vendor (for sellers)
+  const { data: userNotifications = [], isLoading: userNotificationsLoading, error: userNotificationsError } = useNotifications(user?.id);
+  const { data: vendorNotifications = [], isLoading: vendorNotificationsLoading, error: vendorNotificationsError } = useVendorNotifications(vendorId);
+  
+  // Debug logging for notification hooks
+  console.log('🔔 NotificationBell - User notifications:', userNotifications);
+  console.log('🔔 NotificationBell - User notifications loading:', userNotificationsLoading);
+  console.log('🔔 NotificationBell - User notifications error:', userNotificationsError);
+  console.log('🔔 NotificationBell - Vendor notifications:', vendorNotifications);
+  console.log('🔔 NotificationBell - Vendor notifications loading:', vendorNotificationsLoading);
+  console.log('🔔 NotificationBell - Vendor notifications error:', vendorNotificationsError);
+  
+  // Combine notifications and remove duplicates
+  const allNotifications = [...userNotifications, ...vendorNotifications];
+  const uniqueNotifications = allNotifications.filter((notification, index, self) => 
+    index === self.findIndex(n => n.id === notification.id)
+  );
+  
+  const { data: userUnreadData, error: userUnreadError } = useUnreadCount(user?.id);
+  const { data: vendorUnreadData, error: vendorUnreadError } = useVendorUnreadCount(vendorId);
+  
+  // Debug logging for unread count hooks
+  console.log('🔔 NotificationBell - User unread data:', userUnreadData);
+  console.log('🔔 NotificationBell - User unread error:', userUnreadError);
+  console.log('🔔 NotificationBell - Vendor unread data:', vendorUnreadData);
+  console.log('🔔 NotificationBell - Vendor unread error:', vendorUnreadError);
+  
+  // Calculate total unread count from both user and vendor notifications
+  const userUnreadCount = userUnreadData?.count || 0;
+  const vendorUnreadCount = vendorUnreadData?.count || 0;
+  const unreadCount = userUnreadCount + vendorUnreadCount;
+  
+  // Debug logging for unread counts
+  console.log('🔔 NotificationBell - User unread count:', userUnreadCount);
+  console.log('🔔 NotificationBell - Vendor unread count:', vendorUnreadCount);
+  console.log('🔔 NotificationBell - Total unread count:', unreadCount);
+  
+  const isLoading = userNotificationsLoading || vendorNotificationsLoading;
   
 
   
@@ -91,10 +137,6 @@ export function NotificationBell() {
       markAsRead.mutate(notification.id);
     }
     
-    if (notification.actionUrl) {
-      window.location.href = notification.actionUrl;
-    }
-    
     setIsOpen(false);
   };
 
@@ -119,11 +161,15 @@ export function NotificationBell() {
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
-          {unreadCount > 0 ? (
-            <Bell className="h-5 w-5" />
-          ) : (
-            <BellOff className="h-5 w-5" />
-          )}
+          {/* Always show bell for debugging */}
+          <Bell className="h-5 w-5" />
+          
+          {/* Always show debug badge for testing */}
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+            {unreadCount || 0}
+          </span>
+          
+          {/* Original conditional badges */}
           {unreadCount > 0 && (
             <Badge 
               variant="destructive" 
@@ -135,32 +181,36 @@ export function NotificationBell() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h4 className="font-semibold">Notifications</h4>
-          <div className="flex items-center space-x-2">
+        <div className="p-4 border-b">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-semibold">Notifications</h4>
             {unreadCount > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleMarkAllAsRead}
                 disabled={markAllAsRead.isPending}
+                className="h-8 px-2 text-xs"
               >
-                <Check className="h-4 w-4 mr-1" />
-                Mark all read
-              </Button>
-            )}
-            {notifications.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClearAll}
-                disabled={clearAll.isPending}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Clear all
+                <Check className="h-3 w-3 mr-1" />
+                Mark read
               </Button>
             )}
           </div>
+                      {uniqueNotifications.length > 0 && (
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearAll}
+                  disabled={clearAll.isPending}
+                  className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Clear all
+                </Button>
+              </div>
+            )}
         </div>
         
         <ScrollArea className="h-80">
@@ -168,14 +218,14 @@ export function NotificationBell() {
             <div className="p-4 text-center text-gray-500">
               Loading notifications...
             </div>
-          ) : notifications.length === 0 ? (
+          ) : uniqueNotifications.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
               <BellOff className="h-8 w-8 mx-auto mb-2 text-gray-300" />
               No notifications
             </div>
           ) : (
             <div className="p-2">
-              {notifications.map((notification: Notification) => (
+              {uniqueNotifications.map((notification: Notification) => (
                 <div
                   key={notification.id}
                   className={`p-3 rounded-lg cursor-pointer transition-colors ${
@@ -186,35 +236,38 @@ export function NotificationBell() {
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
-                      <span className="text-lg">
+                    <div className="flex items-start space-x-3 flex-1 min-w-0">
+                      <span className="text-lg flex-shrink-0">
                         {getNotificationIcon(notification.type)}
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
-                          <h5 className={`font-medium text-sm ${getNotificationColor(notification.type)}`}>
+                          <h5 className={`font-medium text-sm ${getNotificationColor(notification.type)} truncate`}>
                             {notification.title}
                           </h5>
                           {!notification.isRead && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2 break-words">
                           {notification.message}
                         </p>
                         <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-gray-400 truncate">
                             {new Date(notification.createdAt).toLocaleDateString()}
                           </span>
-                          {notification.actionText && (
-                            <span className="text-xs text-blue-600 font-medium">
-                              {notification.actionText}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
-                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleDeleteNotification(e, notification.id)}
+                      disabled={deleteNotification.isPending}
+                      className="h-6 w-6 p-0 ml-2 flex-shrink-0 text-gray-400 hover:text-red-500"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               ))}

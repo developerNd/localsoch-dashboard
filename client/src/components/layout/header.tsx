@@ -17,7 +17,10 @@ import { getImageUrl } from '@/lib/config';
 export default function Header() {
   const { user, logout } = useAuth();
   
-
+  // Debug logging for header
+  console.log('🔔 Header - User:', user);
+  console.log('🔔 Header - User ID:', user?.id);
+  console.log('🔔 Header - Vendor ID:', user?.vendorId);
   
   // Use utility functions for consistent role checking
   const userIsAdmin = isAdmin(user);

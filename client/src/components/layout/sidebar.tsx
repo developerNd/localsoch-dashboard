@@ -98,6 +98,7 @@ export default function Sidebar({ className }: SidebarProps) {
       badge: analytics?.totalOrders 
     },
     { href: '/admin/banners', icon: 'fas fa-image', label: 'Banners' },
+    { href: '/admin/notifications', icon: 'fas fa-bell', label: 'Notifications' },
     { href: '/admin/business-categories', icon: 'fas fa-building', label: 'Business Categories' },
     { href: '/admin/product-categories', icon: 'fas fa-tags', label: 'Product Categories' },
     { href: '/admin/subscription-plans', icon: 'fas fa-credit-card', label: 'Subscription Plans' },

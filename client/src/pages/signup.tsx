@@ -12,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { getApiUrl, API_ENDPOINTS } from "@/lib/config";
 import { LocationSelector } from "@/components/ui/location-selector";
-import { LocationQuickSearch } from "@/components/ui/location-quick-search";
+// import { LocationQuickSearch } from "@/components/ui/location-quick-search"; // REMOVED
+import { getStates } from "@/lib/location-api";
+import { useCallback } from 'react';
 
 interface BusinessCategory {
   id: number;
@@ -34,9 +36,12 @@ interface SignupFormData {
   shopDescription: string;
   address: string;
   city: string;
-  state: string;
+  state: string; // This will store state ID
+  stateName: string; // This will store state name for display
   pincode: string;
   businessCategoryId: number | null;
+  otherBusinessCategory: string; // For custom business category
+  gstNumber: string; // GST number field
   acceptTerms: boolean;
 }
 
@@ -54,13 +59,17 @@ export default function Signup() {
     address: "",
     city: "",
     state: "",
+    stateName: "",
     pincode: "",
     businessCategoryId: null,
+    otherBusinessCategory: "",
+    gstNumber: "",
     acceptTerms: false,
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [signupStatus, setSignupStatus] = useState("");
+  const [showOtherBusinessCategory, setShowOtherBusinessCategory] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -76,9 +85,70 @@ export default function Signup() {
     },
   });
 
+  // New query for states to map names to IDs
+  const { data: states } = useQuery({
+    queryKey: ['location-states'],
+    queryFn: getStates,
+  });
+
   const handleInputChange = (field: keyof SignupFormData, value: string | boolean | number | null) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // New handler for state change to map name to ID
+  const handleStateChange = useCallback((stateId: string) => {
+    console.log('🔍 Signup: handleStateChange called with stateId:', stateId);
+    console.log('🔍 Signup: Available states:', states);
+    
+    const state = states?.find(s => s.id === stateId);
+    console.log('🔍 Signup: Found state:', state);
+    
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        state: stateId,
+        stateName: state?.name || ''
+      };
+      console.log('🔍 Signup: Updated formData:', newData);
+      return newData;
+    });
+  }, [states]);
+
+  const handleCityChange = useCallback((city: string) => {
+    handleInputChange('city', city);
+  }, []);
+
+  const handlePincodeChange = useCallback((pincode: string) => {
+    handleInputChange('pincode', pincode);
+  }, []);
+
+  // Function to create custom business category
+  const createCustomBusinessCategory = async (categoryName: string) => {
+    try {
+      const response = await fetch(getApiUrl('/api/business-categories/custom'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: categoryName,
+          description: `Custom business category: ${categoryName}`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create custom business category');
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error creating custom business category:', error);
+      throw error;
+    }
+  };
+
+  // REMOVED: handleLocationSelect function
 
   const validateForm = (): string | null => {
     if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
@@ -96,8 +166,11 @@ export default function Signup() {
     if (!formData.shopName || !formData.address || !formData.city || !formData.state || !formData.pincode) {
       return "Shop details are required";
     }
-    if (!formData.businessCategoryId) {
-      return "Please select a business category";
+    if (!formData.businessCategoryId && !formData.otherBusinessCategory) {
+      return "Please select a business category or specify a custom one";
+    }
+    if (showOtherBusinessCategory && !formData.otherBusinessCategory) {
+      return "Please specify your business category";
     }
     return null;
   };
@@ -117,6 +190,18 @@ export default function Signup() {
     setSignupStatus("Creating your account...");
 
     try {
+      // Handle custom business category creation
+      let finalBusinessCategoryId = formData.businessCategoryId;
+      if (showOtherBusinessCategory && formData.otherBusinessCategory) {
+        try {
+          setSignupStatus("Creating custom business category...");
+          const customCategory = await createCustomBusinessCategory(formData.otherBusinessCategory);
+          finalBusinessCategoryId = customCategory.id;
+        } catch (error) {
+          setError('Failed to create custom business category. Please try again.');
+          return;
+        }
+      }
       // Step 1: Create user account
       const userResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.REGISTER), {
         method: 'POST',
@@ -161,8 +246,11 @@ export default function Signup() {
           address: formData.address,
           city: formData.city,
           state: formData.state,
+          stateName: formData.stateName,
           pincode: formData.pincode,
-          businessCategoryId: formData.businessCategoryId,
+          businessCategoryId: finalBusinessCategoryId,
+          otherBusinessCategory: formData.otherBusinessCategory,
+          gstNumber: formData.gstNumber,
           phone: formData.phone,
           email: formData.email,
         },
@@ -205,7 +293,7 @@ export default function Signup() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Personal Information */}
+                            {/* Personal Information */}
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -322,28 +410,64 @@ export default function Signup() {
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="businessCategory">Business Category</Label>
-                  <Select 
-                    value={formData.businessCategoryId?.toString() || ""} 
-                    onValueChange={(value) => handleInputChange('businessCategoryId', value ? parseInt(value) : null)}
-                    disabled={categoriesLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select business category"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {businessCategories?.map((category: BusinessCategory) => (
-                        <SelectItem key={category.id} value={category.id.toString()}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {businessCategories?.length === 0 && !categoriesLoading && (
-                    <p className="text-sm text-gray-500 mt-1">No business categories available</p>
-                  )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="businessCategory">Business Category</Label>
+                    <Select 
+                      value={showOtherBusinessCategory ? "other" : (formData.businessCategoryId?.toString() || "")} 
+                      onValueChange={(value) => {
+                        if (value === "other") {
+                          setShowOtherBusinessCategory(true);
+                          handleInputChange('businessCategoryId', null);
+                        } else {
+                          setShowOtherBusinessCategory(false);
+                          handleInputChange('businessCategoryId', value ? parseInt(value) : null);
+                        }
+                      }}
+                      disabled={categoriesLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select business category"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {businessCategories?.map((category: BusinessCategory) => (
+                          <SelectItem key={category.id} value={category.id.toString()}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {businessCategories?.length === 0 && !categoriesLoading && (
+                      <p className="text-sm text-gray-500 mt-1">No business categories available</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="gstNumber">GST Number (Optional)</Label>
+                    <Input
+                      id="gstNumber"
+                      type="text"
+                      value={formData.gstNumber}
+                      onChange={(e) => handleInputChange('gstNumber', e.target.value)}
+                      placeholder="Enter GST number"
+                    />
+                  </div>
                 </div>
+                
+                {showOtherBusinessCategory && (
+                  <div>
+                    <Label htmlFor="otherBusinessCategory">Specify Business Category</Label>
+                    <Input
+                      id="otherBusinessCategory"
+                      type="text"
+                      value={formData.otherBusinessCategory}
+                      onChange={(e) => handleInputChange('otherBusinessCategory', e.target.value)}
+                      placeholder="Enter your business category"
+                      required
+                    />
+                  </div>
+                )}
                 
                 <div>
                   <Label htmlFor="address">Address</Label>
@@ -357,26 +481,15 @@ export default function Signup() {
                   />
                 </div>
                 
-                {/* Quick Location Search */}
-                <div className="mb-4">
-                  <LocationQuickSearch
-                    onLocationSelect={(state, city, pincode) => {
-                      handleInputChange('state', state);
-                      handleInputChange('city', city);
-                      handleInputChange('pincode', pincode);
-                    }}
-                    placeholder="Quick search: Type city, state, or pincode..."
-                    label="Quick Location Search (Optional)"
-                  />
-                </div>
+                {/* REMOVED: LocationQuickSearch component */}
                 
                 <LocationSelector
                   selectedState={formData.state}
                   selectedCity={formData.city}
                   selectedPincode={formData.pincode}
-                  onStateChange={(state) => handleInputChange('state', state)}
-                  onCityChange={(city) => handleInputChange('city', city)}
-                  onPincodeChange={(pincode) => handleInputChange('pincode', pincode)}
+                  onStateChange={handleStateChange}
+                  onCityChange={handleCityChange}
+                  onPincodeChange={handlePincodeChange}
                 />
               </div>
 
