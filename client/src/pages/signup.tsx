@@ -42,6 +42,7 @@ interface SignupFormData {
   businessCategoryId: number | null;
   otherBusinessCategory: string; // For custom business category
   gstNumber: string; // GST number field
+  referralCode: string; // Referral code field
   acceptTerms: boolean;
 }
 
@@ -64,6 +65,7 @@ export default function Signup() {
     businessCategoryId: null,
     otherBusinessCategory: "",
     gstNumber: "",
+    referralCode: "",
     acceptTerms: false,
   });
   const [error, setError] = useState("");
@@ -202,7 +204,7 @@ export default function Signup() {
           return;
         }
       }
-      // Step 1: Create user account
+      // Step 1: Create user account with basic credentials
       const userResponse = await fetch(getApiUrl(API_ENDPOINTS.AUTH.REGISTER), {
         method: 'POST',
         headers: {
@@ -221,6 +223,26 @@ export default function Signup() {
       }
 
       const userData = await userResponse.json();
+      
+      // Step 1.5: Update user with additional fields
+      const updateResponse = await fetch(getApiUrl(`/api/users/${userData.user.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userData.jwt}`,
+        },
+        body: JSON.stringify({
+          data: {
+            phone: formData.phone,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+          }
+        }),
+      });
+
+      if (!updateResponse.ok) {
+        console.warn('Failed to update user with additional fields, but account was created');
+      }
       setSignupStatus("Account created! Assigning seller role...");
 
       // Step 2: Assign seller role (this will be done after payment)
@@ -253,6 +275,7 @@ export default function Signup() {
           gstNumber: formData.gstNumber,
           phone: formData.phone,
           email: formData.email,
+          referralCode: formData.referralCode,
         },
       }));
 
@@ -452,6 +475,20 @@ export default function Signup() {
                       onChange={(e) => handleInputChange('gstNumber', e.target.value)}
                       placeholder="Enter GST number"
                     />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                    <Input
+                      id="referralCode"
+                      type="text"
+                      value={formData.referralCode}
+                      onChange={(e) => handleInputChange('referralCode', e.target.value)}
+                      placeholder="Enter referral code if you have one"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Using a referral code? You'll get 20% discount on seller registration!
+                    </p>
                   </div>
                 </div>
                 

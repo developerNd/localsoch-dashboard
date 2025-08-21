@@ -204,7 +204,6 @@ export default function PendingApproval() {
             <div className="bg-white rounded-lg p-4 border">
               <h3 className="font-medium text-gray-900 mb-2">Your Information</h3>
               <div className="space-y-1 text-sm text-gray-600">
-                <p><span className="font-medium">Name:</span> {user?.firstName} {user?.lastName}</p>
                 <p><span className="font-medium">Email:</span> {user?.email}</p>
                 <p><span className="font-medium">Username:</span> {user?.username}</p>
                 {vendorResponse && (

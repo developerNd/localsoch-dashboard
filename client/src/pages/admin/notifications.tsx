@@ -11,6 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { ChevronsUpDown, Check } from 'lucide-react';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
@@ -38,22 +42,28 @@ interface BroadcastFormData {
   message: string;
   type: 'info' | 'success' | 'warning' | 'error' | 'system';
   isImportant: boolean;
-  targetAudience: 'all' | 'users' | 'sellers' | 'specific';
-  actionUrl?: string;
-  actionText?: string;
+  targetAudience: 'all' | 'users' | 'sellers' | 'specific_users' | 'specific_sellers';
+  selectedUsers: number[];
+  selectedSellers: number[];
+  sendPushNotification: boolean;
+  pushNotificationType: 'in_app_only' | 'push_only' | 'both';
 }
 
 export default function AdminNotifications() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
+  const [sellerSearchOpen, setSellerSearchOpen] = useState(false);
   const [formData, setFormData] = useState<BroadcastFormData>({
     title: '',
     message: '',
     type: 'info',
     isImportant: false,
     targetAudience: 'all',
-    actionUrl: '',
-    actionText: '',
+    selectedUsers: [],
+    selectedSellers: [],
+    sendPushNotification: false,
+    pushNotificationType: 'in_app_only',
   });
   const [previewData, setPreviewData] = useState<BroadcastFormData | null>(null);
   const { toast } = useToast();
@@ -77,18 +87,40 @@ export default function AdminNotifications() {
       const response = await fetch(getApiUrl('/api/users?populate=*'));
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
-      return data.data || [];
+      return data || [];
     },
   });
 
-  // Fetch vendors for specific targeting
-  const { data: vendors } = useQuery({
-    queryKey: ['/api/vendors'],
+  // Fetch sellers (users with seller role)
+  const { data: sellers } = useQuery({
+    queryKey: ['/api/users/sellers'],
     queryFn: async () => {
-      const response = await fetch(getApiUrl('/api/vendors?populate=*'));
-      if (!response.ok) throw new Error('Failed to fetch vendors');
+      const response = await fetch(getApiUrl('/api/users?populate=*&filters%5Brole%5D%5Bid%5D%5B%24eq%5D=4'));
+      if (!response.ok) throw new Error('Failed to fetch sellers');
       const data = await response.json();
-      return data.data || [];
+      return data || [];
+    },
+  });
+
+  // Fetch authenticated users (users with authenticated role)
+  const { data: authenticatedUsers } = useQuery({
+    queryKey: ['/api/users/authenticated'],
+    queryFn: async () => {
+      const response = await fetch(getApiUrl('/api/users?populate=*&filters%5Brole%5D%5Bid%5D%5B%24eq%5D=1'));
+      if (!response.ok) throw new Error('Failed to fetch authenticated users');
+      const data = await response.json();
+      return data || [];
+    },
+  });
+
+  // Fetch push notification statistics
+  const { data: pushNotificationStats } = useQuery({
+    queryKey: ['/api/notifications/push/stats'],
+    queryFn: async () => {
+      const response = await fetch(getApiUrl('/api/notifications/push/stats'));
+      if (!response.ok) throw new Error('Failed to fetch push notification stats');
+      const data = await response.json();
+      return data.data || { totalUsers: 0, totalVendors: 0, totalDevices: 0 };
     },
   });
 
@@ -113,8 +145,10 @@ export default function AdminNotifications() {
         type: 'info',
         isImportant: false,
         targetAudience: 'all',
-        actionUrl: '',
-        actionText: '',
+        selectedUsers: [],
+        selectedSellers: [],
+        sendPushNotification: false,
+        pushNotificationType: 'in_app_only',
       });
     },
     onError: (error: any) => {
@@ -171,19 +205,22 @@ export default function AdminNotifications() {
       let targetVendors: any[] = [];
 
       // Determine target audience
-      switch (formData.targetAudience) {
-        case 'all':
-          targetUsers = users || [];
-          targetVendors = vendors || [];
-          break;
+              switch (formData.targetAudience) {
+          case 'all':
+            targetUsers = authenticatedUsers || [];
+            targetVendors = sellers || [];
+            break;
         case 'users':
-          targetUsers = users || [];
+          targetUsers = authenticatedUsers || [];
           break;
         case 'sellers':
-          targetVendors = vendors || [];
+          targetVendors = sellers || [];
           break;
-        case 'specific':
-          // For specific targeting, you might want to add a selection UI
+        case 'specific_users':
+          targetUsers = authenticatedUsers?.filter((user: any) => formData.selectedUsers.includes(user.id)) || [];
+          break;
+        case 'specific_sellers':
+          targetVendors = sellers?.filter((seller: any) => formData.selectedSellers.includes(seller.id)) || [];
           break;
       }
 
@@ -191,29 +228,25 @@ export default function AdminNotifications() {
       const notifications = [];
 
       // Add user notifications
-      targetUsers.forEach(user => {
+      targetUsers.forEach((user: any) => {
         notifications.push({
           title: formData.title,
           message: formData.message,
           type: formData.type,
           isImportant: formData.isImportant,
-          actionUrl: formData.actionUrl,
-          actionText: formData.actionText,
           user: user.id,
           isAdminCreated: true,
         });
       });
 
       // Add vendor notifications
-      targetVendors.forEach(vendor => {
+      targetVendors.forEach((seller: any) => {
         notifications.push({
           title: formData.title,
           message: formData.message,
           type: formData.type,
           isImportant: formData.isImportant,
-          actionUrl: formData.actionUrl,
-          actionText: formData.actionText,
-          vendor: vendor.id,
+          vendor: seller.id,
           isAdminCreated: true,
         });
       });
@@ -227,17 +260,78 @@ export default function AdminNotifications() {
         return;
       }
 
-      // Send bulk notifications
-      const response = await apiRequest('POST', '/api/notifications/bulk', {
-        notifications,
-      });
+      // Handle push notifications if enabled
+      if (formData.sendPushNotification) {
+        try {
+          const pushNotificationData = {
+            notification: {
+              title: formData.title,
+              message: formData.message,
+              type: formData.type
+            },
+            data: {
+              type: formData.type,
+              isImportant: formData.isImportant.toString(),
+              isAdminCreated: 'true'
+            }
+          };
 
-      const result = await response.json();
+          // Send push notifications based on target audience
+          if (formData.pushNotificationType === 'push_only' || formData.pushNotificationType === 'both') {
+            if (targetUsers.length > 0) {
+              const userIds = targetUsers.map((user: any) => user.id);
+              await apiRequest('POST', '/api/notifications/push/users', {
+                userIds,
+                ...pushNotificationData
+              });
+            }
 
-      toast({
-        title: 'Broadcast Complete',
-        description: result.message || `Notification sent to ${notifications.length} recipients`,
-      });
+            if (targetVendors.length > 0) {
+              const vendorIds = targetVendors.map((vendor: any) => vendor.id);
+              await apiRequest('POST', '/api/notifications/push/vendors', {
+                vendorIds,
+                ...pushNotificationData
+              });
+            }
+          }
+
+          // Send in-app notifications if not push-only
+          if (formData.pushNotificationType === 'in_app_only' || formData.pushNotificationType === 'both') {
+            const response = await apiRequest('POST', '/api/notifications/bulk', {
+              notifications,
+              targetAudience: formData.targetAudience,
+            });
+            const result = await response.json();
+          }
+
+          toast({
+            title: 'Broadcast Complete',
+            description: `Notification sent to ${notifications.length} recipients${
+              formData.pushNotificationType !== 'in_app_only' ? ' (including push notifications)' : ''
+            }`,
+          });
+        } catch (pushError: any) {
+          console.error('Push notification error:', pushError);
+          toast({
+            title: 'Push Notification Error',
+            description: 'In-app notifications sent, but push notifications failed',
+            variant: 'destructive',
+          });
+        }
+      } else {
+        // Send only in-app notifications
+        const response = await apiRequest('POST', '/api/notifications/bulk', {
+          notifications,
+          targetAudience: formData.targetAudience,
+        });
+
+        const result = await response.json();
+
+        toast({
+          title: 'Broadcast Complete',
+          description: result.message || `Notification sent to ${notifications.length} recipients`,
+        });
+      }
 
       // Reset form
       setFormData({
@@ -246,8 +340,10 @@ export default function AdminNotifications() {
         type: 'info',
         isImportant: false,
         targetAudience: 'all',
-        actionUrl: '',
-        actionText: '',
+        selectedUsers: [],
+        selectedSellers: [],
+        sendPushNotification: false,
+        pushNotificationType: 'in_app_only',
       });
 
     } catch (error: any) {
@@ -271,12 +367,16 @@ export default function AdminNotifications() {
 
   const getTargetAudienceCount = (targetAudience: string) => {
     switch (targetAudience) {
-      case 'all':
-        return (users?.length || 0) + (vendors?.length || 0);
+              case 'all':
+          return (authenticatedUsers?.length || 0) + (sellers?.length || 0);
       case 'users':
-        return users?.length || 0;
+        return authenticatedUsers?.length || 0;
       case 'sellers':
-        return vendors?.length || 0;
+        return sellers?.length || 0;
+      case 'specific_users':
+        return formData.selectedUsers.length;
+      case 'specific_sellers':
+        return formData.selectedSellers.length;
       default:
         return 0;
     }
@@ -321,7 +421,7 @@ export default function AdminNotifications() {
                 Send Notification
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Send Broadcast Notification</DialogTitle>
                   <DialogDescription>
@@ -378,32 +478,197 @@ export default function AdminNotifications() {
                           <SelectItem value="all">All Users & Sellers</SelectItem>
                           <SelectItem value="users">Users Only</SelectItem>
                           <SelectItem value="sellers">Sellers Only</SelectItem>
-                          <SelectItem value="specific">Specific Users</SelectItem>
+                          <SelectItem value="specific_users">Specific Users</SelectItem>
+                          <SelectItem value="specific_sellers">Specific Sellers</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {formData.targetAudience === 'specific_users' && (
                     <div>
-                      <Label htmlFor="actionUrl">Action URL (Optional)</Label>
-                      <Input
-                        id="actionUrl"
-                        value={formData.actionUrl}
-                        onChange={(e) => handleInputChange('actionUrl', e.target.value)}
-                        placeholder="https://example.com"
+                      <Label htmlFor="selectedUsers">Select Users</Label>
+                      <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={userSearchOpen}
+                            className="w-full justify-between"
+                          >
+                            {formData.selectedUsers.length > 0
+                              ? `${formData.selectedUsers.length} user(s) selected`
+                              : "Select users..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder="Search users..." />
+                            <CommandList>
+                              <CommandEmpty>No users found.</CommandEmpty>
+                                                  <CommandGroup>
+                      {authenticatedUsers?.map((user: any) => (
+                                  <CommandItem
+                                    key={user.id}
+                                    onSelect={() => {
+                                      const isSelected = formData.selectedUsers.includes(user.id);
+                                      if (isSelected) {
+                                        handleInputChange('selectedUsers', formData.selectedUsers.filter(id => id !== user.id));
+                                      } else {
+                                        handleInputChange('selectedUsers', [...formData.selectedUsers, user.id]);
+                                      }
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.selectedUsers.includes(user.id) ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {user.username || user.email}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {formData.selectedUsers.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600">
+                            Selected: {formData.selectedUsers.length} user(s)
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {authenticatedUsers?.filter((user: any) => formData.selectedUsers.includes(user.id)).map((user: any) => (
+                              <Badge key={user.id} variant="secondary" className="text-xs">
+                                {user.username || user.email}
+                                <button
+                                  onClick={() => handleInputChange('selectedUsers', formData.selectedUsers.filter(id => id !== user.id))}
+                                  className="ml-1 text-gray-500 hover:text-gray-700"
+                                >
+                                  ×
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {formData.targetAudience === 'specific_sellers' && (
+                    <div>
+                      <Label htmlFor="selectedSellers">Select Sellers</Label>
+                      <Popover open={sellerSearchOpen} onOpenChange={setSellerSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={sellerSearchOpen}
+                            className="w-full justify-between"
+                          >
+                            {formData.selectedSellers.length > 0
+                              ? `${formData.selectedSellers.length} seller(s) selected`
+                              : "Select sellers..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder="Search sellers..." />
+                            <CommandList>
+                              <CommandEmpty>No sellers found.</CommandEmpty>
+                              <CommandGroup>
+                                {sellers?.map((seller: any) => (
+                                  <CommandItem
+                                    key={seller.id}
+                                    onSelect={() => {
+                                      const isSelected = formData.selectedSellers.includes(seller.id);
+                                      if (isSelected) {
+                                        handleInputChange('selectedSellers', formData.selectedSellers.filter(id => id !== seller.id));
+                                      } else {
+                                        handleInputChange('selectedSellers', [...formData.selectedSellers, seller.id]);
+                                      }
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.selectedSellers.includes(seller.id) ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                                                         {seller.username || seller.email}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {formData.selectedSellers.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600">
+                            Selected: {formData.selectedSellers.length} seller(s)
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {sellers?.filter((seller: any) => formData.selectedSellers.includes(seller.id)).map((seller: any) => (
+                              <Badge key={seller.id} variant="secondary" className="text-xs">
+                                {seller.username || seller.email}
+                                <button
+                                  onClick={() => handleInputChange('selectedSellers', formData.selectedSellers.filter(id => id !== seller.id))}
+                                  className="ml-1 text-gray-500 hover:text-gray-700"
+                                >
+                                  ×
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+
+
+                  {/* Push Notification Options */}
+                  <div className="space-y-4 border-t pt-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="sendPushNotification"
+                        checked={formData.sendPushNotification}
+                        onCheckedChange={(checked) => handleInputChange('sendPushNotification', checked)}
                       />
+                      <Label htmlFor="sendPushNotification" className="font-medium">Send Push Notification</Label>
                     </div>
 
-                    <div>
-                      <Label htmlFor="actionText">Action Button Text (Optional)</Label>
-                      <Input
-                        id="actionText"
-                        value={formData.actionText}
-                        onChange={(e) => handleInputChange('actionText', e.target.value)}
-                        placeholder="View Details"
-                      />
-                    </div>
+                    {formData.sendPushNotification && (
+                      <div className="ml-6 space-y-3">
+                        <div>
+                          <Label htmlFor="pushNotificationType">Notification Type</Label>
+                          <Select 
+                            value={formData.pushNotificationType} 
+                            onValueChange={(value) => handleInputChange('pushNotificationType', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="in_app_only">In-App Only</SelectItem>
+                              <SelectItem value="push_only">Push Only</SelectItem>
+                              <SelectItem value="both">Both (In-App + Push)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="bg-yellow-50 p-3 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            <i className="fas fa-bell mr-2"></i>
+                            <strong>Push notifications</strong> will be sent to mobile devices with the app installed.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -423,7 +688,7 @@ export default function AdminNotifications() {
                   </div>
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="sticky bottom-0 bg-white border-t pt-4 mt-4">
                   <Button variant="outline" onClick={handlePreview}>
                     Preview
                   </Button>
@@ -439,7 +704,7 @@ export default function AdminNotifications() {
           </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -503,6 +768,25 @@ export default function AdminNotifications() {
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                   <i className="fas fa-calendar-day text-green-600 text-xl"></i>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Push Devices</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {pushNotificationStats?.totalDevices || 0}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {pushNotificationStats?.totalUsers || 0} users, {pushNotificationStats?.totalVendors || 0} vendors
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-mobile-alt text-purple-600 text-xl"></i>
                 </div>
               </div>
             </CardContent>
@@ -603,11 +887,6 @@ export default function AdminNotifications() {
                     </Badge>
                   </div>
                   <p className="text-gray-600 mb-3">{previewData.message}</p>
-                  {previewData.actionText && (
-                    <Button variant="outline" size="sm">
-                      {previewData.actionText}
-                    </Button>
-                  )}
                   {previewData.isImportant && (
                     <div className="mt-2 text-yellow-600 text-sm">
                       <i className="fas fa-star mr-1"></i>

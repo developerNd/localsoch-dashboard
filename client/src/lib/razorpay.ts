@@ -228,6 +228,7 @@ export const completeSellerRegistration = async (paymentResponse: any): Promise<
           contact: sellerData.formData.phone,
           whatsapp: sellerData.formData.phone,
           businessCategoryId: sellerData.formData.businessCategoryId,
+          referralCode: sellerData.formData.referralCode,
         }
       }),
     });

@@ -32,7 +32,6 @@ const productFormSchema = z.object({
   stock: z.number().min(0, "Stock must be 0 or greater"),
   categoryId: z.number().optional(),
   image: z.any().optional(), // For single image upload
-  images: z.array(z.any()).optional(), // For multiple images upload
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
@@ -287,7 +286,6 @@ export default function SellerProducts() {
       stock: 0,
       categoryId: undefined,
       image: undefined,
-      images: [],
     },
   });
 
@@ -499,10 +497,7 @@ export default function SellerProducts() {
         productData.image = data.image;
       }
       
-      // Handle multiple images if present
-      if (data.images && data.images.length > 0) {
-        productData.images = data.images;
-      }
+
       
 
       
@@ -583,7 +578,6 @@ export default function SellerProducts() {
       stock: 0,
       categoryId: undefined,
       image: undefined,
-      images: [],
     });
   };
 
@@ -816,52 +810,7 @@ export default function SellerProducts() {
                   </div>
                 </div>
 
-                {/* Multiple Images Upload */}
-                <div>
-                  <Label htmlFor="images">Additional Images (Optional)</Label>
-                  <div className="mt-2">
-                    <Input
-                      id="images"
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        if (files.length > 0) {
-                          form.setValue('images', files);
-                        }
-                      }}
-                      className="cursor-pointer"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Upload multiple images for product gallery (Max 5 images)
-                    </p>
-                    {form.watch('images') && Array.isArray(form.watch('images')) && form.watch('images')!.length > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(form.watch('images') as File[]).map((file: File, index: number) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={URL.createObjectURL(file)}
-                              alt={`Preview ${index + 1}`}
-                              className="w-16 h-16 rounded-lg object-cover border"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentImages = (form.watch('images') as File[]) || [];
-                                const newImages = currentImages.filter((_, i) => i !== index);
-                                form.setValue('images', newImages);
-                              }}
-                              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+
 
                 <div>
                   <Label htmlFor="name">Product Name *</Label>

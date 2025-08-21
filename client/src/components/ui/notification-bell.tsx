@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, BellOff, Check, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,8 @@ import {
   useDeleteNotification,
   useClearAllNotifications
 } from '@/hooks/use-api';
+import { useQueryClient } from '@tanstack/react-query';
+import { getSocket, authenticateSocket, onNewNotification, offNewNotification } from '@/lib/socket';
 
 interface Notification {
   id: number;
@@ -36,31 +38,17 @@ interface Notification {
 }
 
 export function NotificationBell() {
-  console.log('🔔 NotificationBell - Component rendering');
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   
   // Get vendor ID for sellers
   const vendorId = user?.vendorId;
   
-  // Debug logging
-  console.log('🔔 NotificationBell - User:', user);
-  console.log('🔔 NotificationBell - User ID:', user?.id);
-  console.log('🔔 NotificationBell - Vendor ID:', vendorId);
-  
   // Fetch notifications for both user and vendor (for sellers)
   const { data: userNotifications = [], isLoading: userNotificationsLoading, error: userNotificationsError } = useNotifications(user?.id);
   const { data: vendorNotifications = [], isLoading: vendorNotificationsLoading, error: vendorNotificationsError } = useVendorNotifications(vendorId);
   
-  // Debug logging for notification hooks
-  console.log('🔔 NotificationBell - User notifications:', userNotifications);
-  console.log('🔔 NotificationBell - User notifications loading:', userNotificationsLoading);
-  console.log('🔔 NotificationBell - User notifications error:', userNotificationsError);
-  console.log('🔔 NotificationBell - Vendor notifications:', vendorNotifications);
-  console.log('🔔 NotificationBell - Vendor notifications loading:', vendorNotificationsLoading);
-  console.log('🔔 NotificationBell - Vendor notifications error:', vendorNotificationsError);
-  
-  // Combine notifications and remove duplicates
+          // Combine notifications and remove duplicates
   const allNotifications = [...userNotifications, ...vendorNotifications];
   const uniqueNotifications = allNotifications.filter((notification, index, self) => 
     index === self.findIndex(n => n.id === notification.id)
@@ -69,21 +57,10 @@ export function NotificationBell() {
   const { data: userUnreadData, error: userUnreadError } = useUnreadCount(user?.id);
   const { data: vendorUnreadData, error: vendorUnreadError } = useVendorUnreadCount(vendorId);
   
-  // Debug logging for unread count hooks
-  console.log('🔔 NotificationBell - User unread data:', userUnreadData);
-  console.log('🔔 NotificationBell - User unread error:', userUnreadError);
-  console.log('🔔 NotificationBell - Vendor unread data:', vendorUnreadData);
-  console.log('🔔 NotificationBell - Vendor unread error:', vendorUnreadError);
-  
   // Calculate total unread count from both user and vendor notifications
   const userUnreadCount = userUnreadData?.count || 0;
   const vendorUnreadCount = vendorUnreadData?.count || 0;
   const unreadCount = userUnreadCount + vendorUnreadCount;
-  
-  // Debug logging for unread counts
-  console.log('🔔 NotificationBell - User unread count:', userUnreadCount);
-  console.log('🔔 NotificationBell - Vendor unread count:', vendorUnreadCount);
-  console.log('🔔 NotificationBell - Total unread count:', unreadCount);
   
   const isLoading = userNotificationsLoading || vendorNotificationsLoading;
   
@@ -93,6 +70,66 @@ export function NotificationBell() {
   const markAllAsRead = useMarkAllNotificationsAsRead();
   const deleteNotification = useDeleteNotification();
   const clearAll = useClearAllNotifications();
+
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const sock = getSocket();
+    if (user?.id) {
+      authenticateSocket({ userId: user.id, userType: 'user' });
+    }
+    if (vendorId) {
+      authenticateSocket({ userId: vendorId, userType: 'vendor' });
+    }
+
+    const handleNew = (notification: any) => {
+      // Check if this notification is for the current user or vendor
+      const isForCurrentUser = notification.user === user?.id;
+      const isForCurrentVendor = notification.vendor?.id === vendorId || notification.vendor === vendorId;
+      
+      // Invalidate queries so UI updates in real-time
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications', user.id] });
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count', user.id] });
+      }
+      if (vendorId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor', vendorId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor/unread-count', vendorId] });
+      }
+      
+      // Force refetch notifications immediately
+      if (isForCurrentUser || isForCurrentVendor) {
+        // Refetch with specific query keys
+        if (user?.id) {
+          queryClient.refetchQueries({ queryKey: ['/api/notifications', user.id] });
+          queryClient.refetchQueries({ queryKey: ['/api/notifications/unread-count', user.id] });
+        }
+        if (vendorId) {
+          queryClient.refetchQueries({ queryKey: ['/api/notifications/vendor', vendorId] });
+          queryClient.refetchQueries({ queryKey: ['/api/notifications/vendor/unread-count', vendorId] });
+        }
+        
+        // Also try general invalidation
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/notifications/vendor/unread-count'] });
+        
+        // Force a re-render by updating the cache directly
+        queryClient.setQueryData(['/api/notifications/vendor', vendorId], (oldData: any) => {
+          if (oldData && Array.isArray(oldData)) {
+            return [notification, ...oldData];
+          }
+          return oldData;
+        });
+      }
+    };
+
+    onNewNotification(handleNew);
+    return () => {
+      offNewNotification(handleNew);
+    };
+  }, [user?.id, vendorId, queryClient]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -133,11 +170,22 @@ export function NotificationBell() {
   };
 
   const handleNotificationClick = (notification: Notification) => {
+    console.log('🔔 NotificationBell - Clicking notification:', notification.id, 'isRead:', notification.isRead);
+    
     if (!notification.isRead) {
-      markAsRead.mutate(notification.id);
+      console.log('🔔 NotificationBell - Marking as read...');
+      markAsRead.mutate(notification.id, {
+        onSuccess: () => {
+          console.log('🔔 NotificationBell - Successfully marked as read');
+        },
+        onError: (error) => {
+          console.error('🔔 NotificationBell - Error marking as read:', error);
+        }
+      });
     }
     
-    setIsOpen(false);
+    // Don't close the popup on click - let user manually close it
+    // setIsOpen(false);
   };
 
   const handleMarkAllAsRead = () => {
@@ -154,7 +202,16 @@ export function NotificationBell() {
 
   const handleDeleteNotification = (e: React.MouseEvent, notificationId: number) => {
     e.stopPropagation();
-    deleteNotification.mutate(notificationId);
+    console.log('🔔 NotificationBell - Deleting notification:', notificationId);
+    
+    deleteNotification.mutate(notificationId, {
+      onSuccess: () => {
+        console.log('🔔 NotificationBell - Successfully deleted notification');
+      },
+      onError: (error) => {
+        console.error('🔔 NotificationBell - Error deleting notification:', error);
+      }
+    });
   };
 
   return (

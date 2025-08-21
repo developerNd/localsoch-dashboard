@@ -27,7 +27,6 @@ interface SubscriptionPlan {
   features: string[];
   maxProducts: number;
   maxOrders: number;
-  commissionRate: number;
 }
 
 export default function SubscriptionSelection() {
@@ -41,6 +40,7 @@ export default function SubscriptionSelection() {
   const [isNewRegistration, setIsNewRegistration] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [purchaseCompleted, setPurchaseCompleted] = useState(false);
+  const [referralDiscount, setReferralDiscount] = useState<{ applied: boolean; percentage: number; originalPrice: number; finalPrice: number } | null>(null);
 
   // Get vendor record for existing users
   const { data: vendorRecord } = useVendorByUser(user?.id);
@@ -77,8 +77,54 @@ export default function SubscriptionSelection() {
     }
   }, []);
 
-  const handlePlanSelection = (plan: SubscriptionPlan) => {
+  const handlePlanSelection = async (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
+    
+    // Check for referral discount when plan is selected
+    if (isNewRegistration && pendingData?.formData?.referralCode) {
+      try {
+        const validationResponse = await fetch(getApiUrl('/api/referrals/validate-code'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${pendingData.jwt}`,
+          },
+          body: JSON.stringify({
+            referralCode: pendingData.formData.referralCode
+          })
+        });
+        
+        if (validationResponse.ok) {
+          const validationData = await validationResponse.json();
+          if (validationData.success) {
+            const discountPercentage = 20;
+            const finalPrice = plan.price * (1 - discountPercentage / 100);
+            
+            setReferralDiscount({
+              applied: true,
+              percentage: discountPercentage,
+              originalPrice: plan.price,
+              finalPrice: finalPrice
+            });
+            
+            console.log('🎁 Referral discount available:', {
+              originalPrice: plan.price,
+              discountPercentage: discountPercentage,
+              finalPrice: finalPrice
+            });
+          } else {
+            setReferralDiscount(null);
+          }
+        } else {
+          setReferralDiscount(null);
+        }
+      } catch (error) {
+        console.warn('Failed to validate referral code for discount:', error);
+        setReferralDiscount(null);
+      }
+    } else {
+      setReferralDiscount(null);
+    }
   };
 
   const handlePayment = async () => {
@@ -115,11 +161,61 @@ export default function SubscriptionSelection() {
     setError('');
 
     try {
+      // Check for referral code and apply discount
+      let finalAmount = selectedPlan.price;
+      let discountApplied = false;
+      let discountPercentage = 0;
+      
+      if (isNewRegistration && pendingData?.formData?.referralCode) {
+        try {
+          // Validate referral code to get discount
+          const validationResponse = await fetch(getApiUrl('/api/referrals/validate-code'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${pendingData.jwt}`,
+            },
+            body: JSON.stringify({
+              referralCode: pendingData.formData.referralCode
+            })
+          });
+          
+          if (validationResponse.ok) {
+            const validationData = await validationResponse.json();
+            if (validationData.success) {
+              // Apply 20% discount for sellers
+              discountPercentage = 20;
+              finalAmount = selectedPlan.price * (1 - discountPercentage / 100);
+              discountApplied = true;
+              
+              console.log('🎁 Referral discount applied:', {
+                originalPrice: selectedPlan.price,
+                discountPercentage: discountPercentage,
+                finalAmount: finalAmount
+              });
+              
+              // Set referral discount state for UI display
+              setReferralDiscount({
+                applied: true,
+                percentage: discountPercentage,
+                originalPrice: selectedPlan.price,
+                finalPrice: finalAmount
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to validate referral code for discount:', error);
+          // Continue without discount if validation fails
+        }
+      }
+      
       const paymentData: PaymentData = {
-        amount: selectedPlan.price,
+        amount: finalAmount,
         currency: selectedPlan.currency,
         name: 'LocalSoch',
-        description: `${selectedPlan.name} - Seller Subscription`,
+        description: discountApplied 
+          ? `${selectedPlan.name} - Seller Subscription (${discountPercentage}% referral discount applied)`
+          : `${selectedPlan.name} - Seller Subscription`,
         customerName: isNewRegistration 
           ? `${pendingData.formData.firstName} ${pendingData.formData.lastName}`
           : `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || 'Seller',
@@ -484,10 +580,6 @@ export default function SubscriptionSelection() {
                       {plan.maxOrders === -1 ? 'Unlimited' : plan.maxOrders}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Commission:</span>
-                    <span className="font-medium">{plan.commissionRate}%</span>
-                  </div>
                 </div>
 
                 {/* Selection Indicator */}
@@ -501,6 +593,29 @@ export default function SubscriptionSelection() {
             </Card>
           ))}
         </div>
+
+        {/* Referral Discount Indicator */}
+        {referralDiscount?.applied && selectedPlan && (
+          <Card className="mb-6 border-green-200 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-4">
+                <div className="flex items-center text-green-700">
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  <span className="font-medium">Referral Discount Applied!</span>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center space-x-2">
+                    <span className="text-lg line-through text-gray-500">₹{referralDiscount.originalPrice}</span>
+                    <span className="text-2xl font-bold text-green-700">₹{referralDiscount.finalPrice}</span>
+                  </div>
+                  <div className="text-sm text-green-600">
+                    {referralDiscount.percentage}% discount
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Payment Button */}
         <div className="text-center">
@@ -541,7 +656,9 @@ export default function SubscriptionSelection() {
                   Processing Payment...
                 </>
               ) : selectedPlan ? (
-                `Pay ₹${selectedPlan.price} for ${selectedPlan.name}`
+                referralDiscount?.applied 
+                  ? `Pay ₹${referralDiscount.finalPrice} for ${selectedPlan.name} (${referralDiscount.percentage}% off)`
+                  : `Pay ₹${selectedPlan.price} for ${selectedPlan.name}`
               ) : (
                 'Select a Plan to Continue'
               )}
