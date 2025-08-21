@@ -21,6 +21,7 @@ import MobileNav from '@/components/layout/mobile-nav';
 import { useToast } from '@/hooks/use-toast';
 import { getApiUrl } from '@/lib/config';
 import { apiRequest } from '@/lib/queryClient';
+import { useAuth } from '@/hooks/use-auth';
 
 interface Notification {
   id: number;
@@ -50,6 +51,7 @@ interface BroadcastFormData {
 }
 
 export default function AdminNotifications() {
+  const { user } = useAuth();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [userSearchOpen, setUserSearchOpen] = useState(false);
@@ -84,9 +86,9 @@ export default function AdminNotifications() {
   const { data: users } = useQuery({
     queryKey: ['/api/users'],
     queryFn: async () => {
-      const response = await fetch(getApiUrl('/api/users?populate=*'));
-      if (!response.ok) throw new Error('Failed to fetch users');
+      const response = await apiRequest('GET', '/api/users?populate[role]=*');
       const data = await response.json();
+      console.log('🔍 All users fetched:', data?.length || 0);
       return data || [];
     },
   });
@@ -95,9 +97,10 @@ export default function AdminNotifications() {
   const { data: sellers } = useQuery({
     queryKey: ['/api/users/sellers'],
     queryFn: async () => {
-      const response = await fetch(getApiUrl('/api/users?populate=*&filters%5Brole%5D%5Bid%5D%5B%24eq%5D=4'));
-      if (!response.ok) throw new Error('Failed to fetch sellers');
+      // Try role name first (works for sellers)
+      const response = await apiRequest('GET', '/api/users?populate[role]=*&filters[role][name][$eq]=seller');
       const data = await response.json();
+      console.log('🔍 Sellers fetched by name:', data?.length || 0);
       return data || [];
     },
   });
@@ -106,9 +109,10 @@ export default function AdminNotifications() {
   const { data: authenticatedUsers } = useQuery({
     queryKey: ['/api/users/authenticated'],
     queryFn: async () => {
-      const response = await fetch(getApiUrl('/api/users?populate=*&filters%5Brole%5D%5Bid%5D%5B%24eq%5D=1'));
-      if (!response.ok) throw new Error('Failed to fetch authenticated users');
+      // Try role ID 1 (this works)
+      const response = await apiRequest('GET', '/api/users?populate=*&filters%5Brole%5D%5Bid%5D%5B%24eq%5D=1');
       const data = await response.json();
+      console.log('🔍 Authenticated users fetched by ID:', data?.length || 0);
       return data || [];
     },
   });
@@ -787,6 +791,66 @@ export default function AdminNotifications() {
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                   <i className="fas fa-mobile-alt text-purple-600 text-xl"></i>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* User Count Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Users</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {users?.length || 0}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    All registered users
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-users text-green-600 text-xl"></i>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Authenticated Users</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {authenticatedUsers?.length || 0}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Users with authenticated role
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-user text-purple-600 text-xl"></i>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Sellers</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {sellers?.length || 0}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Users with seller role
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-store text-orange-600 text-xl"></i>
                 </div>
               </div>
             </CardContent>
