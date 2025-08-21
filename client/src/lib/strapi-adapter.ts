@@ -113,6 +113,7 @@ export function normalizeProduct(strapiProduct: StrapiEntity) {
     sellerId: vendorId || 1, // Map vendor to sellerId
     categoryId: normalized.category?.id || 1,
     category: normalized.category, // Keep the full category object for display
+    customCategory: normalized.customCategory, // Add custom category field
     name: normalized.name,
     description: normalized.description,
     mrp: normalized.mrp?.toString() || normalized.price?.toString() || "0.00",

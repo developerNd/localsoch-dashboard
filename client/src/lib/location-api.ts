@@ -187,7 +187,21 @@ export const searchLocations = async (query: string): Promise<{
 };
 
 /**
- * Get all cities for a state (flattened list)
+ * Get all districts for a state (fallback method)
+ */
+export const getAllDistrictsForState = async (stateId: string): Promise<string[]> => {
+  try {
+    const districts = await getDistricts(stateId);
+    const districtNames = districts.map(district => district.name);
+    return districtNames.sort();
+  } catch (error) {
+    console.error('Error fetching all districts for state:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all cities for a state (flattened list) - kept for backward compatibility
  */
 export const getAllCitiesForState = async (stateId: string): Promise<string[]> => {
   try {
@@ -198,7 +212,13 @@ export const getAllCitiesForState = async (stateId: string): Promise<string[]> =
       try {
         const cities = await getCities(stateId, district.name);
         cities.forEach(city => {
-          allCities.push(city.name);
+          // Filter to only include PO/SO type offices and process names
+          if (city.officeType === 'PO' || city.officeType === 'SO') {
+            let mainCityName = city.name;
+            // Remove common suffixes
+            mainCityName = mainCityName.replace(/\s+(SO|HO|Town|Colliery|Project|Nagar|Basti|Bazar|Bhawan)\s*$/i, '');
+            allCities.push(mainCityName);
+          }
         });
       } catch (error) {
         console.warn(`Error fetching cities for district ${district.name}:`, error);
@@ -206,10 +226,38 @@ export const getAllCitiesForState = async (stateId: string): Promise<string[]> =
       }
     }
 
-    return [...new Set(allCities)]; // Remove duplicates
+    return [...new Set(allCities)].sort(); // Remove duplicates and sort
   } catch (error) {
     console.error('Error fetching all cities for state:', error);
     throw error;
+  }
+};
+
+/**
+ * Get all districts for a state (this will be used as "cities")
+ */
+export const getAllCitiesOnlyForState = async (stateId: string): Promise<string[]> => {
+  try {
+    // Get districts instead of cities
+    const response = await fetch(getApiUrl(`${LOCATION_API_BASE}/states/${stateId}/districts`));
+    if (!response.ok) {
+      throw new Error(`Failed to fetch districts: ${response.status}`);
+    }
+    const data = await response.json();
+    const districts = data.data || [];
+    
+    console.log('🔍 Districts from API:', districts.slice(0, 5));
+    
+    // Extract district names
+    const districtNames = districts.map((district: any) => district.name);
+    console.log('🔍 District names:', districtNames.slice(0, 10));
+    
+    return districtNames.sort();
+  } catch (error) {
+    console.error('Error fetching districts for state:', error);
+    // Fallback to old method if new API fails
+    console.log('Falling back to old method for districts...');
+    return getAllDistrictsForState(stateId);
   }
 };
 
@@ -237,6 +285,28 @@ export const getAllPincodesForCity = async (stateId: string, cityName: string): 
     }
 
     return [...new Set(pincodes)]; // Remove duplicates
+  } catch (error) {
+    console.error('Error fetching pincodes for city:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get pincodes for a specific city in a state (new API)
+ */
+export const getPincodesForCity = async (stateId: string, cityName: string): Promise<string[]> => {
+  try {
+    const encodedCityName = encodeURIComponent(cityName);
+    const response = await fetch(getApiUrl(`${LOCATION_API_BASE}/states/${stateId}/cities/${encodedCityName}/pincodes`));
+    if (!response.ok) {
+      throw new Error(`Failed to fetch pincodes: ${response.status}`);
+    }
+    const data = await response.json();
+    const pincodes = data.data || [];
+    
+    // Extract unique pincodes
+    const uniquePincodes = [...new Set(pincodes.map((pincode: any) => pincode.pincode))];
+    return uniquePincodes;
   } catch (error) {
     console.error('Error fetching pincodes for city:', error);
     throw error;

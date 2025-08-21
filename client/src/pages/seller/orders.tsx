@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { Truck, MapPin, User, Mail, Phone, Clock, Package, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
@@ -55,13 +57,13 @@ interface Order {
 }
 
 const statusConfig = {
-  pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800' },
-  confirmed: { label: 'Confirmed', color: 'bg-blue-100 text-blue-800' },
-  shipped: { label: 'Shipped', color: 'bg-purple-100 text-purple-800' },
-  delivered: { label: 'Delivered', color: 'bg-green-100 text-green-800' },
-  ready: { label: 'Ready for Pickup', color: 'bg-orange-100 text-orange-800' },
-  pickedUp: { label: 'Picked Up', color: 'bg-green-100 text-green-800' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+  pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800', icon: AlertCircle },
+  confirmed: { label: 'Confirmed', color: 'bg-blue-100 text-blue-800', icon: CheckCircle },
+  shipped: { label: 'Shipped', color: 'bg-purple-100 text-purple-800', icon: Truck },
+  delivered: { label: 'Delivered', color: 'bg-green-100 text-green-800', icon: Package },
+  ready: { label: 'Ready for Pickup', color: 'bg-orange-100 text-orange-800', icon: MapPin },
+  pickedUp: { label: 'Picked Up', color: 'bg-green-100 text-green-800', icon: CheckCircle },
+  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800', icon: XCircle },
 } as const;
 
 const statusFlow = {
@@ -245,20 +247,9 @@ export default function SellerOrders() {
       header: 'Actions',
       render: (_: any, order: Order) => (
         <div className="flex items-center space-x-2">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
-                View
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Order Details</DialogTitle>
-                <DialogDescription>Order #{order.orderNumber}</DialogDescription>
-              </DialogHeader>
-              <OrderDetailsModal order={order} onStatusUpdate={handleStatusUpdate} getOrderProgress={getOrderProgress} />
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
+            View
+          </Button>
           {statusFlow[order.status as keyof typeof statusFlow]?.length > 0 && (
             <Select value={order.status} onValueChange={(value) => handleStatusUpdate(order.id, value)}>
               <SelectTrigger className="w-32">
@@ -478,6 +469,25 @@ export default function SellerOrders() {
                 ))}
               </div>
             )}
+            
+            {/* Order Details Modal */}
+            <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Order Details</DialogTitle>
+                  <DialogDescription>
+                    View and manage order information
+                  </DialogDescription>
+                </DialogHeader>
+                {selectedOrder && (
+                  <OrderDetailsModal 
+                    order={selectedOrder} 
+                    onStatusUpdate={handleStatusUpdate} 
+                    getOrderProgress={getOrderProgress} 
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
       </main>
     </div>
   );

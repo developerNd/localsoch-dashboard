@@ -31,7 +31,17 @@ const productFormSchema = z.object({
   discount: z.string().optional(),
   stock: z.number().min(0, "Stock must be 0 or greater"),
   categoryId: z.number().optional(),
+  customCategory: z.string().optional(),
   image: z.any().optional(), // For single image upload
+}).refine((data) => {
+  // If categoryId is -1 (Other), customCategory is required
+  if (data.categoryId === -1) {
+    return data.customCategory && data.customCategory.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "Custom category name is required when selecting 'Other'",
+  path: ["customCategory"],
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
@@ -131,11 +141,20 @@ export default function SellerProducts() {
 
   // Helper function to get category name from product
   const getCategoryName = (product: any) => {
-    // Try multiple paths for category name
-    return getProductNestedData(product, ['category', 'data', 'attributes', 'name']) ||
+    // First check for custom category
+    const customCategory = getProductData(product, 'customCategory');
+    
+    if (customCategory) {
+      return customCategory;
+    }
+    
+    // Try multiple paths for category name from relation
+    const categoryName = getProductNestedData(product, ['category', 'data', 'attributes', 'name']) ||
            getProductNestedData(product, ['category', 'name']) ||
            getProductNestedData(product, ['category', 'attributes', 'name']) ||
            'Uncategorized';
+    
+    return categoryName;
   };
 
   // Helper function to get image path from product
@@ -199,13 +218,9 @@ export default function SellerProducts() {
   // Fetch all products and filter by seller
   const { data: allProducts, isLoading, error } = useProducts();
   
-
-  
   // Filter products for the current seller
   // Use only the vendorId from the user object (no fallback)
   const effectiveVendorId = user?.vendorId;
-  
-
   
   const products = Array.isArray(allProducts) ? allProducts.filter((product: any) => {
     // Check multiple possible vendor ID fields
@@ -286,6 +301,7 @@ export default function SellerProducts() {
       stock: 0,
       categoryId: undefined,
       image: undefined,
+      customCategory: '',
     },
   });
 
@@ -376,11 +392,23 @@ export default function SellerProducts() {
       header: 'Category',
       width: '120px',
       sortable: true,
-      render: (value: any, product: any) => (
-        <Badge variant="secondary">
-          {getCategoryName(product)}
-        </Badge>
-      )
+      render: (value: any, product: any) => {
+        const categoryName = getCategoryName(product);
+        const isCustomCategory = getProductData(product, 'customCategory');
+        
+        return (
+          <div className="flex items-center space-x-1">
+            <Badge variant={isCustomCategory ? "outline" : "secondary"}>
+              {categoryName}
+            </Badge>
+            {isCustomCategory && (
+              <span className="text-xs text-gray-500" title="Custom Category">
+                ✏️
+              </span>
+            )}
+          </div>
+        );
+      }
     },
     {
       key: 'status',
@@ -486,27 +514,33 @@ export default function SellerProducts() {
         price: parseFloat(data.price),
         discount: parseFloat(calculatedDiscount),
         stock: data.stock,
-        category: data.categoryId ? { id: data.categoryId } : undefined, // Relation format
         vendor: effectiveVendorId ? { id: effectiveVendorId } : undefined, // Include vendor ID
       };
       
-
+      // Handle category - if "Other" is selected, use custom category name
+      if (data.categoryId === -1 && data.customCategory) {
+        // For custom category, we'll store it as a string field
+        productData.customCategory = data.customCategory.trim();
+        productData.category = undefined; // Don't set category relation
+      } else if (data.categoryId && data.categoryId > 0) {
+        // For existing category, set the relation
+        productData.category = { id: data.categoryId };
+        productData.customCategory = undefined;
+      }
       
       // Handle image upload if present
       if (data.image) {
         productData.image = data.image;
       }
       
-
-      
-
-      
       if (editingProduct) {
         await updateProductMutation.mutateAsync({ id: editingProduct.id, data: productData });
         // Force refresh the products data
         queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       } else {
-        await createProductMutation.mutateAsync(productData);
+        const result = await createProductMutation.mutateAsync(productData);
+        // Force refresh the products data after creation
+        queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       }
       setIsAddDialogOpen(false);
       clearForm();
@@ -522,6 +556,11 @@ export default function SellerProducts() {
     const mrp = (getProductData(product, 'mrp') || price).toString(); // Use price as MRP if MRP is not set
     const discount = calculateDiscount(mrp, price);
     
+    // Check if product has a custom category
+    const customCategory = getProductData(product, 'customCategory');
+    const categoryId = getProductNestedData(product, ['category', 'data', 'id']) || 
+                      getProductNestedData(product, ['category', 'id']);
+    
     form.reset({
       name: getProductData(product, 'name') || '',
       description: getProductData(product, 'description') || '',
@@ -529,8 +568,8 @@ export default function SellerProducts() {
       price: price,
       discount: discount,
       stock: getProductData(product, 'stock') || 0,
-      categoryId: getProductNestedData(product, ['category', 'data', 'id']) || 
-                  getProductNestedData(product, ['category', 'id']),
+      categoryId: customCategory ? -1 : (categoryId || undefined), // Set to -1 if custom category
+      customCategory: customCategory || '', // Set custom category if exists
       image: undefined, // Reset image for edit
     });
     
@@ -578,6 +617,7 @@ export default function SellerProducts() {
       stock: 0,
       categoryId: undefined,
       image: undefined,
+      customCategory: '',
     });
   };
 
@@ -923,8 +963,14 @@ export default function SellerProducts() {
                 <div>
                   <Label htmlFor="categoryId">Category</Label>
                   <Select 
-                    value={form.watch('categoryId')?.toString()} 
-                    onValueChange={(value) => form.setValue('categoryId', parseInt(value))}
+                    value={form.watch('categoryId') === -1 ? 'other' : form.watch('categoryId')?.toString()} 
+                    onValueChange={(value) => {
+                      if (value === 'other') {
+                        form.setValue('categoryId', -1); // Use -1 to indicate "Other"
+                      } else {
+                        form.setValue('categoryId', parseInt(value));
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
@@ -935,8 +981,26 @@ export default function SellerProducts() {
                           {getProductData(category, 'name')}
                         </SelectItem>
                       ))}
+                      <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
+                  
+                  {/* Custom category input when "Other" is selected */}
+                  {form.watch('categoryId') === -1 && (
+                    <div className="mt-2">
+                      <Label htmlFor="customCategory">Custom Category Name</Label>
+                      <Input
+                        id="customCategory"
+                        {...form.register('customCategory')}
+                        placeholder="Enter custom category name"
+                      />
+                      {form.formState.errors.customCategory && (
+                        <p className="text-sm text-destructive mt-1">
+                          {form.formState.errors.customCategory.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 <DialogFooter>

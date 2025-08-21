@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { getStates, getDistricts, getCities, getAllCitiesForState, getAllPincodesForCity } from '@/lib/location-api';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { getStates, getDistricts, getCities, getAllCitiesOnlyForState, getAllCitiesForState } from '@/lib/location-api';
 
 interface LocationSelectorProps {
   selectedState: string;
@@ -24,16 +26,13 @@ export function LocationSelector({
   const [states, setStates] = useState<{ id: string; name: string }[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
   const [cities, setCities] = useState<string[]>([]);
-  const [pincodes, setPincodes] = useState<string[]>([]);
   
   const [loadingStates, setLoadingStates] = useState(false);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
-  const [loadingPincodes, setLoadingPincodes] = useState(false);
 
   // Cache for API responses
   const citiesCache = useRef<Map<string, string[]>>(new Map());
-  const pincodesCache = useRef<Map<string, string[]>>(new Map());
 
   // Memoize callbacks to prevent unnecessary re-renders
   const handleStateChange = useCallback((stateName: string) => {
@@ -91,30 +90,22 @@ export function LocationSelector({
       
       console.log('🔍 LocationSelector: Loading initial data for state:', selectedState);
       
-      // Load cities for the selected state
+      // Load districts for the selected state
       setLoadingCities(true);
       try {
-        const allCities = await getAllCitiesForState(selectedState);
-        setCities(allCities);
-        citiesCache.current.set(selectedState, allCities);
-        
-        // If we have a selected city, load its pincodes
-        if (selectedCity && allCities.includes(selectedCity)) {
-          console.log('🔍 LocationSelector: Loading pincodes for city:', selectedCity);
-          setLoadingPincodes(true);
-          try {
-            const cityPincodes = await getAllPincodesForCity(selectedState, selectedCity);
-            setPincodes(cityPincodes);
-            pincodesCache.current.set(`${selectedState}-${selectedCity}`, cityPincodes);
-          } catch (error) {
-            console.error('Error loading initial pincodes:', error);
-            setPincodes([]);
-          } finally {
-            setLoadingPincodes(false);
-          }
+        console.log('🔍 Loading districts for state:', selectedState);
+        let allDistricts;
+        try {
+          allDistricts = await getAllCitiesOnlyForState(selectedState);
+        } catch (error) {
+          console.log('🔍 New API failed, falling back to old method');
+          allDistricts = await getAllCitiesForState(selectedState);
         }
+        console.log('🔍 Loaded districts:', allDistricts.length, allDistricts.slice(0, 5));
+        setCities(allDistricts);
+        citiesCache.current.set(selectedState, allDistricts);
       } catch (error) {
-        console.error('Error loading initial cities:', error);
+        console.error('Error loading initial districts:', error);
         setCities([]);
       } finally {
         setLoadingCities(false);
@@ -122,7 +113,7 @@ export function LocationSelector({
     };
     
     loadInitialData();
-  }, [selectedState, selectedCity, states.length]); // Run when states are loaded and selected values change
+  }, [selectedState, states.length]); // Run when states are loaded and selected values change
 
   // Update districts when state changes (with reduced API calls)
   useEffect(() => {
@@ -130,7 +121,6 @@ export function LocationSelector({
       if (!selectedState) {
         setDistricts([]);
         setCities([]);
-        setPincodes([]);
         return;
       }
 
@@ -159,7 +149,6 @@ export function LocationSelector({
     const loadCities = async () => {
       if (!selectedState) {
         setCities([]);
-        setPincodes([]);
         return;
       }
 
@@ -178,18 +167,26 @@ export function LocationSelector({
 
       setLoadingCities(true);
       try {
-        const allCities = await getAllCitiesForState(selectedState);
-        setCities(allCities);
+        console.log('🔍 Loading districts for state (effect):', selectedState);
+        let allDistricts;
+        try {
+          allDistricts = await getAllCitiesOnlyForState(selectedState);
+        } catch (error) {
+          console.log('🔍 New API failed, falling back to old method');
+          allDistricts = await getAllCitiesForState(selectedState);
+        }
+        console.log('🔍 Loaded districts (effect):', allDistricts.length, allDistricts.slice(0, 5));
+        setCities(allDistricts);
         
         // Cache the result
-        citiesCache.current.set(cacheKey, allCities);
+        citiesCache.current.set(cacheKey, allDistricts);
         
-        // Only reset pincode if the current city is not in the new state's cities
-        if (selectedPincode && selectedCity && !allCities.includes(selectedCity)) {
+        // Only reset pincode if the current city is not in the new state's districts
+        if (selectedPincode && selectedCity && !allDistricts.includes(selectedCity)) {
           onPincodeChange('');
         }
       } catch (error) {
-        console.error('Error loading cities:', error);
+        console.error('Error loading districts:', error);
         setCities([]);
       } finally {
         setLoadingCities(false);
@@ -198,43 +195,11 @@ export function LocationSelector({
     loadCities();
   }, [selectedState]); // Only depend on selectedState
 
-  // Update pincodes when city changes (with caching)
-  useEffect(() => {
-    const loadPincodes = async () => {
-      if (!selectedState || !selectedCity) {
-        setPincodes([]);
-        return;
-      }
 
-      // Check cache first
-      const cacheKey = `${selectedState}-${selectedCity}`;
-      if (pincodesCache.current.has(cacheKey)) {
-        const cachedPincodes = pincodesCache.current.get(cacheKey)!;
-        setPincodes(cachedPincodes);
-        return;
-      }
-
-      setLoadingPincodes(true);
-      try {
-        const cityPincodes = await getAllPincodesForCity(selectedState, selectedCity);
-        setPincodes(cityPincodes);
-        
-        // Cache the result
-        pincodesCache.current.set(cacheKey, cityPincodes);
-      } catch (error) {
-        console.error('Error loading pincodes:', error);
-        setPincodes([]);
-      } finally {
-        setLoadingPincodes(false);
-      }
-    };
-    loadPincodes();
-  }, [selectedState, selectedCity]); // Only depend on selectedState and selectedCity
 
   // Memoize options to prevent unnecessary re-renders
   const stateOptions = useMemo(() => states.map(s => s.name), [states]);
   const cityOptions = useMemo(() => cities, [cities]);
-  const pincodeOptions = useMemo(() => pincodes, [pincodes]);
 
   return (
     <div className="space-y-4">
@@ -251,11 +216,11 @@ export function LocationSelector({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">District</label>
         <SearchableSelect
           value={selectedCity}
           onValueChange={handleCityChange}
-          placeholder={loadingCities ? "Loading cities..." : "Select city"}
+          placeholder={loadingCities ? "Loading districts..." : "Select district"}
           options={cityOptions}
           disabled={disabled || loadingCities || !selectedState}
           loading={loadingCities}
@@ -263,14 +228,16 @@ export function LocationSelector({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Pincode</label>
-        <SearchableSelect
+        <Label htmlFor="pincode" className="block text-sm font-medium text-gray-700 mb-2">Pincode</Label>
+        <Input
+          id="pincode"
+          type="text"
           value={selectedPincode}
-          onValueChange={handlePincodeChange}
-          placeholder={loadingPincodes ? "Loading pincodes..." : "Select pincode"}
-          options={pincodeOptions}
-          disabled={disabled || loadingPincodes || !selectedCity}
-          loading={loadingPincodes}
+          onChange={(e) => handlePincodeChange(e.target.value)}
+          placeholder="Enter pincode"
+          disabled={disabled}
+          maxLength={6}
+          pattern="[0-9]{6}"
         />
       </div>
     </div>

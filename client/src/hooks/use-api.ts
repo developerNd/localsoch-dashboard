@@ -110,6 +110,7 @@ export function useCreateProduct() {
           price: productData.price,
           discount: productData.discount,
           stock: productData.stock,
+          customCategory: productData.customCategory, // Add custom category
           image: uploadedFiles[0]?.id, // Use first uploaded file as main image
           images: uploadedFiles.map(file => file.id), // Use all uploaded files as images array
         };
@@ -122,11 +123,15 @@ export function useCreateProduct() {
         const strapiData = toStrapiFormat(productDataWithFiles);
         requestData = strapiData;
         headers = { 'Content-Type': 'application/json' };
+        console.log('🔍 Product data with files:', productDataWithFiles);
+        console.log('🔍 Strapi data being sent:', strapiData);
       } else {
         // Use JSON for non-file uploads
         const strapiData = toStrapiFormat(productData);
         requestData = strapiData;
         headers = { 'Content-Type': 'application/json' };
+        console.log('🔍 Product data without files:', productData);
+        console.log('🔍 Strapi data being sent:', strapiData);
       }
       
       const response = await apiRequest('POST', '/api/products', requestData, headers);
@@ -416,8 +421,18 @@ export function useUpdateVendorStatus() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, status, reason }: { id: number; status: string; reason?: string }) => {
-      const response = await apiRequest('PUT', `/api/vendors/${id}/status`, { status, reason });
+    mutationFn: async ({ id, status, reason, businessCategory }: { 
+      id: number; 
+      status: string; 
+      reason?: string;
+      businessCategory?: number;
+    }) => {
+      console.log('🔍 useUpdateVendorStatus sending:', { id, status, reason, businessCategory });
+      const response = await apiRequest('PUT', `/api/vendors/${id}/status`, { 
+        status, 
+        reason,
+        businessCategory 
+      });
       return await response.json();
     },
     onSuccess: () => {
@@ -463,7 +478,7 @@ export function useVendorButtonAnalytics(vendorId: number | undefined) {
     queryKey: ['/api/vendors/button-analytics', vendorId],
     queryFn: async () => {
       // Analytics endpoint is now public, no authentication required
-      const response = await fetch(`${API_URL}/api/vendors/${vendorId}?analytics=true`, {
+      const response = await fetch(`${API_URL}/api/vendors/${vendorId}/button-analytics`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
