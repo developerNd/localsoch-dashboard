@@ -24,7 +24,7 @@ app.use(helmet({
         "'unsafe-eval'"
       ],
       imgSrc: ["'self'", "data:", "https:", "https://api.localsoch.com"],
-      connectSrc: ["'self'", "https:", "https://api.localsoch.com"],
+      connectSrc: ["'self'", "https:", "https://api.localsoch.com", "wss://api.localsoch.com", "ws://api.localsoch.com"],
       frameSrc: [
         "https://checkout.razorpay.com",
         "https://*.razorpay.com"
