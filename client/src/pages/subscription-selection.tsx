@@ -41,6 +41,12 @@ export default function SubscriptionSelection() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [purchaseCompleted, setPurchaseCompleted] = useState(false);
   const [referralDiscount, setReferralDiscount] = useState<{ applied: boolean; percentage: number; originalPrice: number; finalPrice: number } | null>(null);
+  const [referralCode, setReferralCode] = useState('');
+  const [showReferralInput, setShowReferralInput] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState<{ applied: boolean; percentage: number; originalPrice: number; finalPrice: number; code: string } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [showCouponInput, setShowCouponInput] = useState(false);
 
   // Get vendor record for existing users
   const { data: vendorRecord } = useVendorByUser(user?.id);
@@ -77,49 +83,125 @@ export default function SubscriptionSelection() {
     }
   }, []);
 
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a coupon code",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedPlan) {
+      toast({
+        title: "Error",
+        description: "Please select a plan first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCouponLoading(true);
+    try {
+      const token = isNewRegistration ? pendingData?.jwt : localStorage.getItem('authToken');
+      const userId = isNewRegistration ? pendingData?.user?.id : user?.id;
+
+      const response = await fetch(getApiUrl('/api/coupons/validate'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          couponCode: couponCode.trim(),
+          orderAmount: selectedPlan.price,
+          userId: userId
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const discountPercentage = data.coupon.discountPercentage || 20;
+        const finalPrice = Math.round(selectedPlan.price * (1 - discountPercentage / 100));
+        
+        setCouponDiscount({
+          applied: true,
+          percentage: discountPercentage,
+          originalPrice: selectedPlan.price,
+          finalPrice: finalPrice,
+          code: couponCode.trim()
+        });
+
+        toast({
+          title: "Coupon Applied!",
+          description: `You saved ${discountPercentage}% on your subscription!`,
+          variant: "default",
+        });
+      } else {
+        setCouponDiscount(null);
+        toast({
+          title: "Invalid Coupon",
+          description: data.message || "Please check your coupon code and try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error applying coupon:', error);
+      setCouponDiscount(null);
+      toast({
+        title: "Error",
+        description: "Failed to apply coupon. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponDiscount(null);
+    setCouponCode('');
+    setShowCouponInput(false);
+    toast({
+      title: "Coupon Removed",
+      description: "Coupon has been removed from your order",
+      variant: "default",
+    });
+  };
+
   const handlePlanSelection = async (plan: SubscriptionPlan) => {
     setSelectedPlan(plan);
     
+    // Reset coupon discount when plan changes
+    setCouponDiscount(null);
+    setCouponCode('');
+    setShowCouponInput(false);
+    
     // Check for referral discount when plan is selected
-    if (isNewRegistration && pendingData?.formData?.referralCode) {
+    if (isNewRegistration && referralCode.trim()) {
       try {
-        const validationResponse = await fetch(getApiUrl('/api/referrals/validate-code'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${pendingData.jwt}`,
-          },
-          body: JSON.stringify({
-            referralCode: pendingData.formData.referralCode
-          })
-        });
+        // For now, use a simple validation - any non-empty referral code gets 20% discount
+        // This can be enhanced later with actual referral code validation
+        const discountPercentage = 20;
+        const finalPrice = Math.round(plan.price * (1 - discountPercentage / 100));
         
-        if (validationResponse.ok) {
-          const validationData = await validationResponse.json();
-          if (validationData.success) {
-            const discountPercentage = 20;
-            const finalPrice = plan.price * (1 - discountPercentage / 100);
-            
-            setReferralDiscount({
-              applied: true,
-              percentage: discountPercentage,
-              originalPrice: plan.price,
-              finalPrice: finalPrice
-            });
-            
-            console.log('🎁 Referral discount available:', {
-              originalPrice: plan.price,
-              discountPercentage: discountPercentage,
-              finalPrice: finalPrice
-            });
-          } else {
-            setReferralDiscount(null);
-          }
-        } else {
-          setReferralDiscount(null);
-        }
+        setReferralDiscount({
+          applied: true,
+          percentage: discountPercentage,
+          originalPrice: plan.price,
+          finalPrice: finalPrice
+        });
+
+        console.log('🎁 Referral discount applied:', {
+          code: referralCode.trim(),
+          discount: discountPercentage,
+          originalPrice: plan.price,
+          finalPrice: finalPrice
+        });
       } catch (error) {
-        console.warn('Failed to validate referral code for discount:', error);
+        console.warn('Failed to apply referral discount:', error);
         setReferralDiscount(null);
       }
     } else {
@@ -162,60 +244,70 @@ export default function SubscriptionSelection() {
 
     try {
       // Check for referral code and apply discount
-      let finalAmount = selectedPlan.price;
+      let finalAmount = Math.round(selectedPlan.price);
       let discountApplied = false;
       let discountPercentage = 0;
+      let discountType = '';
       
-      if (isNewRegistration && pendingData?.formData?.referralCode) {
-        try {
-          // Validate referral code to get discount
-          const validationResponse = await fetch(getApiUrl('/api/referrals/validate-code'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${pendingData.jwt}`,
-            },
-            body: JSON.stringify({
-              referralCode: pendingData.formData.referralCode
-            })
-          });
-          
-          if (validationResponse.ok) {
-            const validationData = await validationResponse.json();
-            if (validationData.success) {
-              // Apply 20% discount for sellers
-              discountPercentage = 20;
-              finalAmount = selectedPlan.price * (1 - discountPercentage / 100);
-              discountApplied = true;
-              
-              console.log('🎁 Referral discount applied:', {
-                originalPrice: selectedPlan.price,
-                discountPercentage: discountPercentage,
-                finalAmount: finalAmount
-              });
-              
-              // Set referral discount state for UI display
-              setReferralDiscount({
-                applied: true,
-                percentage: discountPercentage,
-                originalPrice: selectedPlan.price,
-                finalPrice: finalAmount
-              });
-            }
-          }
-        } catch (error) {
-          console.warn('Failed to validate referral code for discount:', error);
-          // Continue without discount if validation fails
-        }
+      // Apply coupon discount first (if any)
+      if (couponDiscount?.applied) {
+        finalAmount = Math.round(couponDiscount.finalPrice);
+        discountApplied = true;
+        discountPercentage = couponDiscount.percentage;
+        discountType = 'coupon';
+      }
+      // Then apply referral discount (if no coupon applied)
+      else if (isNewRegistration && referralCode.trim()) {
+        // Simple referral discount - any non-empty code gets 20% discount
+        discountPercentage = 20;
+        finalAmount = Math.round(selectedPlan.price * (1 - discountPercentage / 100));
+        discountApplied = true;
+        discountType = 'referral';
+        
+        console.log('🎁 Referral discount applied:', {
+          originalPrice: selectedPlan.price,
+          discountPercentage: discountPercentage,
+          finalAmount: finalAmount
+        });
+        
+        // Set referral discount state for UI display
+        setReferralDiscount({
+          applied: true,
+          percentage: discountPercentage,
+          originalPrice: selectedPlan.price,
+          finalPrice: finalAmount
+        });
       }
       
+      // Ensure finalAmount is properly rounded to avoid floating point issues
+      finalAmount = Math.round(finalAmount);
+      
+      console.log('💰 Payment calculation:', {
+        originalPrice: selectedPlan.price,
+        finalAmount: finalAmount,
+        finalAmountRounded: Math.round(finalAmount),
+        discountApplied: discountApplied,
+        discountPercentage: discountPercentage,
+        discountType: discountType,
+        couponDiscount: couponDiscount?.finalPrice,
+        referralDiscount: referralDiscount?.finalPrice
+      });
+      
+      // Final check to ensure amount is a clean integer
+      const amountInRupees = Math.round(finalAmount);
+      
+      console.log('💳 Final payment amount:', {
+        finalAmount: finalAmount,
+        amountInRupees: amountInRupees
+      });
+      
       const paymentData: PaymentData = {
-        amount: finalAmount,
+        amount: amountInRupees, // Send amount in rupees (not paise) to Razorpay
         currency: selectedPlan.currency,
         name: 'LocalSoch',
         description: discountApplied 
-          ? `${selectedPlan.name} - Seller Subscription (${discountPercentage}% referral discount applied)`
-          : `${selectedPlan.name} - Seller Subscription`,
+          ? `${selectedPlan.name} - Seller Subscription (${discountPercentage}% ${discountType} discount applied${discountType === 'coupon' ? ` - Coupon: ${couponDiscount?.code}` : referralCode.trim() ? ` - Referral: ${referralCode.trim()}` : ''})`
+          : `${selectedPlan.name} - Seller Subscription${referralCode.trim() ? ` (Referral: ${referralCode.trim()})` : ''}`,
         customerName: isNewRegistration 
           ? `${pendingData.formData.firstName} ${pendingData.formData.lastName}`
           : `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || 'Seller',
@@ -238,7 +330,7 @@ export default function SubscriptionSelection() {
           
           if (isNewRegistration) {
             // Complete seller registration with subscription
-            const success = await completeSellerRegistration(response);
+            const success = await completeSellerRegistration(response, referralCode.trim());
             
             if (success) {
               // Clear pending data
@@ -513,6 +605,8 @@ export default function SubscriptionSelection() {
           </Card>
         )}
 
+
+
         {/* Subscription Plans */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {plans?.map((plan: SubscriptionPlan) => (
@@ -589,27 +683,226 @@ export default function SubscriptionSelection() {
                     Selected
                   </div>
                 )}
+
+                {/* Coupon Section - Only show for selected plan */}
+                {/* {selectedPlan?.id === plan.id && (
+                  <div className="border-t pt-4 mt-4">
+                    <div className="space-y-3">
+                      <div className="text-sm font-medium text-gray-700">Have a coupon code?</div>
+                      
+                      {!showCouponInput ? (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowCouponInput(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                        >
+                          <Star className="h-4 w-4 mr-2" />
+                          Apply Coupon Code
+                        </Button>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={couponCode}
+                              onChange={(e) => setCouponCode(e.target.value)}
+                              placeholder="Enter coupon code"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApplyCoupon();
+                              }}
+                              size="sm"
+                              disabled={couponLoading}
+                              className="px-4"
+                            >
+                              {couponLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                'Apply'
+                              )}
+                            </Button>
+                          </div>
+                          
+                          {couponDiscount?.applied && (
+                            <div className="bg-green-50 border border-green-200 rounded-md p-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-green-700 font-medium">
+                                  Coupon Applied: {couponDiscount.code}
+                                </span>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveCoupon();
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-red-600 hover:text-red-700"
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-xs text-green-600">
+                                  {couponDiscount.percentage}% discount
+                                </span>
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-xs line-through text-gray-500">
+                                    ₹{couponDiscount.originalPrice}
+                                  </span>
+                                  <span className="text-sm font-bold text-green-700">
+                                    ₹{Math.round(couponDiscount.finalPrice)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowCouponInput(false);
+                              setCouponCode('');
+                              setCouponDiscount(null);
+                            }}
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-gray-500"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )} */}
+
+                {/* Referral Code Section - Only show for selected plan and new registrations */}
+                {selectedPlan?.id === plan.id && isNewRegistration && (
+                  <div className="border-t pt-4 mt-4">
+                    <div className="space-y-3">
+                      <div className="text-sm font-medium text-gray-700">Have a referral code?</div>
+                      
+                      {!showReferralInput ? (
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowReferralInput(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                        >
+                          <Star className="h-4 w-4 mr-2" />
+                          Apply Referral Code
+                        </Button>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={referralCode}
+                              onChange={(e) => setReferralCode(e.target.value)}
+                              placeholder="Enter referral code"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePlanSelection(selectedPlan);
+                              }}
+                              size="sm"
+                              className="px-4"
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                          
+                          {referralDiscount?.applied && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-yellow-700 font-medium">
+                                  Referral Applied: {referralCode}
+                                </span>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowReferralInput(false);
+                                    setReferralCode('');
+                                    setReferralDiscount(null);
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-red-600 hover:text-red-700"
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-xs text-yellow-600">
+                                  {referralDiscount.percentage}% discount
+                                </span>
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-xs line-through text-gray-500">
+                                    ₹{referralDiscount.originalPrice}
+                                  </span>
+                                  <span className="text-sm font-bold text-yellow-700">
+                                    ₹{Math.round(referralDiscount.finalPrice)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          <Button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowReferralInput(false);
+                              setReferralCode('');
+                              setReferralDiscount(null);
+                            }}
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-gray-500"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Referral Discount Indicator */}
-        {referralDiscount?.applied && selectedPlan && (
-          <Card className="mb-6 border-green-200 bg-green-50">
+
+
+        {/* Coupon Discount Indicator */}
+        {couponDiscount?.applied && selectedPlan && (
+          <Card className="mb-6 border-blue-200 bg-blue-50">
             <CardContent className="pt-6">
               <div className="flex items-center justify-center space-x-4">
-                <div className="flex items-center text-green-700">
+                <div className="flex items-center text-blue-700">
                   <CheckCircle className="h-5 w-5 mr-2" />
-                  <span className="font-medium">Referral Discount Applied!</span>
+                  <span className="font-medium">Coupon Discount Applied!</span>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center space-x-2">
-                    <span className="text-lg line-through text-gray-500">₹{referralDiscount.originalPrice}</span>
-                    <span className="text-2xl font-bold text-green-700">₹{referralDiscount.finalPrice}</span>
+                    <span className="text-lg line-through text-gray-500">₹{couponDiscount.originalPrice}</span>
+                    <span className="text-2xl font-bold text-blue-700">₹{Math.round(couponDiscount.finalPrice)}</span>
                   </div>
-                  <div className="text-sm text-green-600">
-                    {referralDiscount.percentage}% discount
+                  <div className="text-sm text-blue-600">
+                    {couponDiscount.percentage}% discount - Code: {couponDiscount.code}
                   </div>
                 </div>
               </div>
@@ -656,9 +949,11 @@ export default function SubscriptionSelection() {
                   Processing Payment...
                 </>
               ) : selectedPlan ? (
-                referralDiscount?.applied 
-                  ? `Pay ₹${referralDiscount.finalPrice} for ${selectedPlan.name} (${referralDiscount.percentage}% off)`
-                  : `Pay ₹${selectedPlan.price} for ${selectedPlan.name}`
+                couponDiscount?.applied 
+                  ? `Pay ₹${Math.round(couponDiscount.finalPrice)} for ${selectedPlan.name} (${couponDiscount.percentage}% coupon off)`
+                  : referralDiscount?.applied 
+                    ? `Pay ₹${Math.round(referralDiscount.finalPrice)} for ${selectedPlan.name} (${referralDiscount.percentage}% referral off)`
+                    : `Pay ₹${selectedPlan.price} for ${selectedPlan.name}`
               ) : (
                 'Select a Plan to Continue'
               )}

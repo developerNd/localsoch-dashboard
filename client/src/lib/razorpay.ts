@@ -181,7 +181,7 @@ export const verifyPayment = async (
 };
 
 // Complete seller registration after payment
-export const completeSellerRegistration = async (paymentResponse: any): Promise<boolean> => {
+export const completeSellerRegistration = async (paymentResponse: any, referralCode?: string): Promise<boolean> => {
   try {
     const pendingData = localStorage.getItem('pendingSellerData');
     if (!pendingData) {
@@ -228,7 +228,7 @@ export const completeSellerRegistration = async (paymentResponse: any): Promise<
           contact: sellerData.formData.phone,
           whatsapp: sellerData.formData.phone,
           businessCategoryId: sellerData.formData.businessCategoryId,
-          referralCode: sellerData.formData.referralCode,
+          referralCode: referralCode || sellerData.formData.referralCode || '',
         }
       }),
     });

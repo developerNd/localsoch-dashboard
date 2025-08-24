@@ -42,7 +42,6 @@ interface SignupFormData {
   businessCategoryId: number | null;
   otherBusinessCategory: string; // For custom business category
   gstNumber: string; // GST number field
-  referralCode: string; // Referral code field
   acceptTerms: boolean;
 }
 
@@ -65,7 +64,6 @@ export default function Signup() {
     businessCategoryId: null,
     otherBusinessCategory: "",
     gstNumber: "",
-    referralCode: "",
     acceptTerms: false,
   });
   const [error, setError] = useState("");
@@ -275,7 +273,6 @@ export default function Signup() {
           gstNumber: formData.gstNumber,
           phone: formData.phone,
           email: formData.email,
-          referralCode: formData.referralCode,
         },
       }));
 
@@ -477,19 +474,7 @@ export default function Signup() {
                     />
                   </div>
                   
-                  <div>
-                    <Label htmlFor="referralCode">Referral Code (Optional)</Label>
-                    <Input
-                      id="referralCode"
-                      type="text"
-                      value={formData.referralCode}
-                      onChange={(e) => handleInputChange('referralCode', e.target.value)}
-                      placeholder="Enter referral code if you have one"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Using a referral code? You'll get 20% discount on seller registration!
-                    </p>
-                  </div>
+
                 </div>
                 
                 {showOtherBusinessCategory && (
