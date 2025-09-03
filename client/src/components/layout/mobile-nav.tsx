@@ -29,9 +29,6 @@ export default function MobileNav() {
   // Use utility functions for consistent role checking
   const userIsAdmin = isAdmin(user);
   
-  console.log('🔍 MobileNav - User role object:', user?.role);
-  console.log('🔍 MobileNav - isAdmin:', userIsAdmin);
-  
   const navItems = userIsAdmin ? adminNavItems : sellerNavItems;
 
   return (

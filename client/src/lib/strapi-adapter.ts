@@ -127,6 +127,11 @@ export function normalizeProduct(strapiProduct: StrapiEntity) {
     sku: normalized.sku || `SKU-${normalized.id}`,
     image: normalized.image, // Keep the full image object for display
     images: normalized.image ? [normalized.image.url] : [],
+    // Add missing offer fields
+    isOfferActive: normalized.isOfferActive || false,
+    offerStartDate: normalized.offerStartDate,
+    offerEndDate: normalized.offerEndDate,
+    originalPrice: normalized.originalPrice?.toString() || normalized.mrp?.toString() || "0.00",
     createdAt: normalized.createdAt,
   };
 }

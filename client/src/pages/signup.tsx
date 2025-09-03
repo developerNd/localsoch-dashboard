@@ -42,6 +42,9 @@ interface SignupFormData {
   businessCategoryId: number | null;
   otherBusinessCategory: string; // For custom business category
   gstNumber: string; // GST number field
+  bankAccountName: string;
+  ifscCode: string;
+  bankAccountType: 'savings' | 'current';
   acceptTerms: boolean;
 }
 
@@ -64,6 +67,9 @@ export default function Signup() {
     businessCategoryId: null,
     otherBusinessCategory: "",
     gstNumber: "",
+    bankAccountName: "",
+    ifscCode: "",
+    bankAccountType: 'savings',
     acceptTerms: false,
   });
   const [error, setError] = useState("");
@@ -169,8 +175,9 @@ export default function Signup() {
     if (!formData.businessCategoryId && !formData.otherBusinessCategory) {
       return "Please select a business category or specify a custom one";
     }
-    if (showOtherBusinessCategory && !formData.otherBusinessCategory) {
-      return "Please specify your business category";
+    // minimal banking validation optional at signup
+    if (!formData.bankAccountName || !formData.ifscCode) {
+      return "Please provide banking name and IFSC";
     }
     return null;
   };
@@ -273,6 +280,9 @@ export default function Signup() {
           gstNumber: formData.gstNumber,
           phone: formData.phone,
           email: formData.email,
+          bankAccountName: formData.bankAccountName,
+          ifscCode: formData.ifscCode,
+          bankAccountType: formData.bankAccountType,
         },
       }));
 
@@ -473,8 +483,46 @@ export default function Signup() {
                       placeholder="Enter GST number"
                     />
                   </div>
-                  
+                  <div>
+                    <Label htmlFor="bankAccountName">Account Holder Name</Label>
+                    <Input
+                      id="bankAccountName"
+                      type="text"
+                      value={formData.bankAccountName}
+                      onChange={(e) => handleInputChange('bankAccountName', e.target.value)}
+                      placeholder="Enter account holder name"
+                      required
+                    />
+                  </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="ifscCode">IFSC Code</Label>
+                    <Input
+                      id="ifscCode"
+                      type="text"
+                      value={formData.ifscCode}
+                      onChange={(e) => handleInputChange('ifscCode', e.target.value)}
+                      placeholder="Enter IFSC code"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bankAccountType">Account Type</Label>
+                    <Select 
+                      value={formData.bankAccountType}
+                      onValueChange={(value) => handleInputChange('bankAccountType', value as 'savings' | 'current')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select account type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="savings">Savings</SelectItem>
+                        <SelectItem value="current">Current</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 
                 {showOtherBusinessCategory && (

@@ -18,10 +18,6 @@ export default function Sidebar({ className }: SidebarProps) {
   const { user } = useAuth();
   const [location] = useLocation();
   
-  console.log('🔍 Sidebar - Received user:', user);
-  console.log('🔍 Sidebar - User role object:', user?.role);
-  console.log('🔍 Sidebar - User role type:', typeof user?.role);
-
   // Use seller-specific analytics for sellers, general analytics for admins
   const { data: sellerAnalytics } = useSellerAnalytics(user?.vendorId || undefined);
   const { data: adminAnalytics } = useAdminAnalytics();
@@ -30,8 +26,6 @@ export default function Sidebar({ className }: SidebarProps) {
   const userIsAdmin = isAdmin(user);
   const userIsSeller = isSeller(user);
   
-  console.log('🔍 Sidebar - User role object:', user?.role);
-  console.log('🔍 Sidebar - isAdmin:', userIsAdmin, 'isSeller:', userIsSeller);
   const analytics = userIsSeller ? sellerAnalytics : adminAnalytics;
 
   // Fetch vendor data for sellers to get profile image
@@ -74,6 +68,7 @@ export default function Sidebar({ className }: SidebarProps) {
     { href: '/seller/earnings', icon: 'fas fa-chart-line', label: 'Earnings' },
     { href: '/seller/button-tracking', icon: 'fas fa-mouse-pointer', label: 'Button Tracking' },
     { href: '/seller/reviews', icon: 'fas fa-star', label: 'Reviews' },
+    { href: '/seller/subscriptions', icon: 'fas fa-credit-card', label: 'Subscriptions' },
     { href: '/seller/profile', icon: 'fas fa-user-cog', label: 'Shop Settings' },
   ];
 

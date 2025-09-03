@@ -21,7 +21,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useUpdateVendor, useUpdateUser, useCreateVendor } from '@/hooks/use-api';
-import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle, Clock, Truck } from 'lucide-react';
 import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
 import { LocationSelector } from '@/components/ui/location-selector';
 
@@ -56,14 +56,163 @@ const shopFormSchema = z.object({
   businessCategoryId: z.number().optional(),
 });
 
+const shopHoursSchema = z.object({
+  monday: z.object({
+    isOpen: z.boolean().default(true),
+    openTime: z.string().optional(),
+    closeTime: z.string().optional(),
+    breakStart: z.string().optional(),
+    breakEnd: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  tuesday: z.object({
+    isOpen: z.boolean().default(true),
+    openTime: z.string().optional(),
+    closeTime: z.string().optional(),
+    breakStart: z.string().optional(),
+    breakEnd: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  wednesday: z.object({
+    isOpen: z.boolean().default(true),
+    openTime: z.string().optional(),
+    closeTime: z.string().optional(),
+    breakStart: z.string().optional(),
+    breakEnd: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  thursday: z.object({
+    isOpen: z.boolean().default(true),
+    openTime: z.string().optional(),
+    closeTime: z.string().optional(),
+    breakStart: z.string().optional(),
+    breakEnd: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  friday: z.object({
+    isOpen: z.boolean().default(true),
+    openTime: z.string().optional(),
+    closeTime: z.string().optional(),
+    breakStart: z.string().optional(),
+    breakEnd: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  saturday: z.object({
+    isOpen: z.boolean().default(true),
+    openTime: z.string().optional(),
+    closeTime: z.string().optional(),
+    breakStart: z.string().optional(),
+    breakEnd: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  sunday: z.object({
+    isOpen: z.boolean().default(true),
+    openTime: z.string().optional(),
+    closeTime: z.string().optional(),
+    breakStart: z.string().optional(),
+    breakEnd: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  timezone: z.string().default('Asia/Kolkata'),
+});
+
+const deliveryFeesSchema = z.object({
+  baseDeliveryFee: z.string().default('0.00'),
+  freeDeliveryThreshold: z.string().default('0.00'),
+  deliveryRadius: z.string().default('10.00'),
+  deliveryTime: z.string().default('1-2 hours'),
+  isDeliveryAvailable: z.boolean().default(true),
+  distanceBasedFees: z.array(z.object({
+    minDistance: z.string(),
+    maxDistance: z.string(),
+    fee: z.string(),
+    description: z.string().optional(),
+  })).optional(),
+  orderValueBasedFees: z.array(z.object({
+    minOrderValue: z.string(),
+    maxOrderValue: z.string(),
+    fee: z.string(),
+    description: z.string().optional(),
+  })).optional(),
+});
+
 const bankingFormSchema = z.object({
   bankAccountNumber: z.string().min(1, 'Bank account number is required'),
   ifscCode: z.string().min(1, 'IFSC code is required'),
+  bankAccountName: z.string().min(1, 'Account holder name is required'),
+  bankAccountType: z.enum(['savings', 'current']).default('savings'),
 });
 
 type UserFormData = z.infer<typeof userFormSchema>;
 type ShopFormData = z.infer<typeof shopFormSchema>;
+type ShopHoursData = z.infer<typeof shopHoursSchema>;
+type DeliveryFeesData = z.infer<typeof deliveryFeesSchema>;
 type BankingFormData = z.infer<typeof bankingFormSchema>;
+
+// Helper functions for time formatting
+function formatTimeForBackend(time?: string | null): string | undefined {
+  if (!time) return undefined;
+  // Expecting HH:mm from the form; convert to HH:mm:ss.SSS
+  // If already includes seconds, leave as-is (ensure .SSS)
+  const hhmm = /^(\d{2}):(\d{2})$/;
+  const hhmmss = /^(\d{2}):(\d{2}):(\d{2})(\.\d{3})?$/;
+  if (hhmm.test(time)) {
+    return `${time}:00.000`;
+  }
+  if (hhmmss.test(time)) {
+    const [, h, m, s, ms] = time.match(hhmmss)!;
+    return `${h}:${m}:${s}${ms || '.000'}`;
+  }
+  return time;
+}
+
+function formatTimeForForm(time?: string | null): string | undefined {
+  if (!time) return undefined;
+  // Convert HH:mm:ss(.SSS) -> HH:mm for the select controls
+  const hhmmss = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d{3})?$/;
+  const hhmm = /^(\d{2}):(\d{2})$/;
+  if (hhmmss.test(time)) {
+    const [, h, m] = time.match(hhmmss)!;
+    return `${h}:${m}`;
+  }
+  if (hhmm.test(time)) return time;
+  return undefined;
+}
+
+function formatShopHoursForBackend(data: any) {
+  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
+  const result: any = { ...data };
+  for (const day of days) {
+    if (result[day]) {
+      result[day] = {
+        ...result[day],
+        openTime: formatTimeForBackend(result[day].openTime),
+        closeTime: formatTimeForBackend(result[day].closeTime),
+        breakStart: formatTimeForBackend(result[day].breakStart),
+        breakEnd: formatTimeForBackend(result[day].breakEnd),
+      };
+    }
+  }
+  return result;
+}
+
+function formatShopHoursForForm(data: any) {
+  if (!data) return undefined;
+  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
+  const result: any = { ...data };
+  for (const day of days) {
+    if (result[day]) {
+      result[day] = {
+        ...result[day],
+        openTime: formatTimeForForm(result[day].openTime) || undefined,
+        closeTime: formatTimeForForm(result[day].closeTime) || undefined,
+        breakStart: formatTimeForForm(result[day].breakStart) || undefined,
+        breakEnd: formatTimeForForm(result[day].breakEnd) || undefined,
+      };
+    }
+  }
+  return result;
+}
 
 export default function SellerProfile() {
   const { user } = useAuth();
@@ -72,6 +221,8 @@ export default function SellerProfile() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('personal');
+  const [distanceFees, setDistanceFees] = useState<Array<{minDistance: string, maxDistance: string, fee: string, description: string}>>([]);
+  const [orderValueFees, setOrderValueFees] = useState<Array<{minOrderValue: string, maxOrderValue: string, fee: string, description: string}>>([]);
 
   // Get vendor ID from user object
   const getVendorId = () => {
@@ -132,11 +283,40 @@ export default function SellerProfile() {
     },
   });
 
+  const shopHoursForm = useForm<ShopHoursData>({
+    resolver: zodResolver(shopHoursSchema),
+    defaultValues: {
+      monday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+      tuesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+      wednesday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+      thursday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+      friday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+      saturday: { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+      sunday: { isOpen: false, openTime: '10:00', closeTime: '16:00' },
+      timezone: 'Asia/Kolkata',
+    },
+  });
+
+  const deliveryFeesForm = useForm<DeliveryFeesData>({
+    resolver: zodResolver(deliveryFeesSchema),
+    defaultValues: {
+      baseDeliveryFee: '0.00',
+      freeDeliveryThreshold: '0.00',
+      deliveryRadius: '10.00',
+      deliveryTime: '1-2 hours',
+      isDeliveryAvailable: true,
+      distanceBasedFees: [],
+      orderValueBasedFees: [],
+    },
+  });
+
   const bankingForm = useForm<BankingFormData>({
     resolver: zodResolver(bankingFormSchema),
     defaultValues: {
       bankAccountNumber: '',
       ifscCode: '',
+      bankAccountName: '',
+      bankAccountType: 'savings',
     },
   });
 
@@ -159,9 +339,6 @@ export default function SellerProfile() {
   // Update shop form when vendor data loads
   useEffect(() => {
     if (vendorData) {
-      console.log('🔍 Populating shop form with vendor data:', vendorData);
-      console.log('🔍 Business category from vendor data:', vendorData.businessCategory);
-      
       const formData = {
         name: vendorData.name || '',
         description: vendorData.description || '',
@@ -177,17 +354,52 @@ export default function SellerProfile() {
         businessCategoryId: vendorData.businessCategory?.id || undefined,
       };
       
-      console.log('🔍 Form data being set:', formData);
-      console.log('🔍 Business category ID being set:', formData.businessCategoryId);
-      
       shopForm.reset(formData);
 
       bankingForm.reset({
         bankAccountNumber: vendorData.bankAccountNumber || '',
         ifscCode: vendorData.ifscCode || '',
+        bankAccountName: vendorData.bankAccountName || '',
+        bankAccountType: vendorData.bankAccountType || 'savings',
       });
+
+      // Populate shop hours form
+      if (vendorData.shopHours) {
+        const normalized = formatShopHoursForForm(vendorData.shopHours);
+        shopHoursForm.reset({
+          monday: normalized?.monday || { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+          tuesday: normalized?.tuesday || { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+          wednesday: normalized?.wednesday || { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+          thursday: normalized?.thursday || { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+          friday: normalized?.friday || { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+          saturday: normalized?.saturday || { isOpen: true, openTime: '09:00', closeTime: '18:00' },
+          sunday: normalized?.sunday || { isOpen: false, openTime: '10:00', closeTime: '16:00' },
+          timezone: vendorData.shopHours.timezone || 'Asia/Kolkata',
+        });
+      }
+
+      // Populate delivery fees form
+      if (vendorData.deliveryFees) {
+        deliveryFeesForm.reset({
+          baseDeliveryFee: vendorData.deliveryFees.baseDeliveryFee || '0.00',
+          freeDeliveryThreshold: vendorData.deliveryFees.freeDeliveryThreshold || '0.00',
+          deliveryRadius: vendorData.deliveryFees.deliveryRadius || '10.00',
+          deliveryTime: vendorData.deliveryFees.deliveryTime || '1-2 hours',
+          isDeliveryAvailable: vendorData.deliveryFees.isDeliveryAvailable !== false,
+          distanceBasedFees: vendorData.deliveryFees.distanceBasedFees || [],
+          orderValueBasedFees: vendorData.deliveryFees.orderValueBasedFees || [],
+        });
+
+        // Set the arrays for dynamic fee management
+        if (vendorData.deliveryFees.distanceBasedFees) {
+          setDistanceFees(vendorData.deliveryFees.distanceBasedFees);
+        }
+        if (vendorData.deliveryFees.orderValueBasedFees) {
+          setOrderValueFees(vendorData.deliveryFees.orderValueBasedFees);
+        }
+      }
     }
-  }, [vendorData, shopForm, bankingForm]);
+      }, [vendorData, shopForm, bankingForm, shopHoursForm, deliveryFeesForm]);
 
   // Don't reset form during mutation to prevent clearing
   const isUpdatingUser = updateUserMutation.isPending;
@@ -203,15 +415,11 @@ export default function SellerProfile() {
       return;
     }
 
-    console.log('🔍 handleUserUpdate - form data:', data);
-    console.log('🔍 handleUserUpdate - user.id:', user.id);
-
     try {
       const updateData = {
         id: user.id,
         ...data,
       };
-      console.log('🔍 handleUserUpdate - updateData:', updateData);
       
       await updateUserMutation.mutateAsync(updateData);
 
@@ -281,40 +489,24 @@ export default function SellerProfile() {
       }
 
       // Now update the vendor with the form data
-      console.log('🔍 Updating vendor with data:', data);
-      console.log('🔍 Business Category ID in data:', data.businessCategoryId);
-      console.log('🔍 Selected image:', selectedImage);
-      
       if (selectedImage) {
         // If there's an image, use FormData
         const formData = new FormData();
         formData.append('data', JSON.stringify(data));
         formData.append('files.profileImage', selectedImage);
         
-        console.log('🔍 Using FormData for update');
-        console.log('🔍 FormData data field:', JSON.stringify(data));
-
         const response = await updateVendorMutation.mutateAsync({
           id: currentVendorId!,
           data: formData,
         });
         
-        console.log('🔍 Update response:', response);
-        console.log('🔍 Vendor data after update:', vendorData);
-        console.log('🔍 Profile image data:', vendorData?.profileImage);
       } else {
         // If no image, send as regular JSON
-        console.log('🔍 Using JSON for update');
-        console.log('🔍 JSON data:', data);
-
         const response = await updateVendorMutation.mutateAsync({
           id: currentVendorId!,
           data: data,
         });
         
-        console.log('🔍 Update response:', response);
-        console.log('🔍 Vendor data after update:', vendorData);
-        console.log('🔍 Profile image data:', vendorData?.profileImage);
       }
 
       // Clear selected image after successful upload
@@ -332,6 +524,168 @@ export default function SellerProfile() {
       toast({
         title: "Error",
         description: error.message || "Failed to update shop details",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleShopHoursUpdate = async (data: ShopHoursData) => {
+    // Clean up the data - remove undefined break times
+    const cleanedData = {
+      ...data,
+      monday: data.monday ? { ...data.monday, breakStart: data.monday.breakStart || undefined, breakEnd: data.monday.breakEnd || undefined } : undefined,
+      tuesday: data.tuesday ? { ...data.tuesday, breakStart: data.tuesday.breakStart || undefined, breakEnd: data.tuesday.breakEnd || undefined } : undefined,
+      wednesday: data.wednesday ? { ...data.wednesday, breakStart: data.wednesday.breakStart || undefined, breakEnd: data.wednesday.breakEnd || undefined } : undefined,
+      thursday: data.thursday ? { ...data.thursday, breakStart: data.thursday.breakStart || undefined, breakEnd: data.thursday.breakEnd || undefined } : undefined,
+      friday: data.friday ? { ...data.friday, breakStart: data.friday.breakStart || undefined, breakEnd: data.friday.breakEnd || undefined } : undefined,
+      saturday: data.saturday ? { ...data.saturday, breakStart: data.saturday.breakStart || undefined, breakEnd: data.saturday.breakEnd || undefined } : undefined,
+      sunday: data.sunday ? { ...data.sunday, breakStart: data.sunday.breakStart || undefined, breakEnd: data.sunday.breakEnd || undefined } : undefined,
+    };
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User information not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let currentVendorId = vendorId;
+
+      // If no vendor exists, create one first
+      if (!currentVendorId) {
+        toast({
+          title: "Creating Shop Profile",
+          description: "Setting up your shop profile...",
+        });
+
+        const vendorData = {
+          name: 'My Shop',
+          description: '',
+          contact: '',
+          whatsapp: '',
+          email: user.email,
+          address: '',
+          city: '',
+          state: '',
+          pincode: '',
+          gstNumber: '',
+          businessType: '',
+          businessCategoryId: undefined,
+          bankAccountNumber: '',
+          ifscCode: '',
+          user: user.id,
+          isActive: true,
+          isApproved: false,
+          status: 'pending'
+        };
+
+        const newVendor = await createVendorMutation.mutateAsync(vendorData);
+        currentVendorId = newVendor.data.id;
+        
+        // Update the user context with the new vendor ID
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      }
+
+      // Update the vendor with shop hours data
+      await updateVendorMutation.mutateAsync({
+        id: currentVendorId!,
+        data: {
+          shopHours: formatShopHoursForBackend(cleanedData)
+        },
+      });
+
+      // Invalidate the vendor query to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['vendor', currentVendorId] });
+
+      toast({
+        title: "Success",
+        description: "Shop hours updated successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update shop hours",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeliveryFeesUpdate = async (data: DeliveryFeesData) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "User information not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      let currentVendorId = vendorId;
+
+      // If no vendor exists, create one first
+      if (!currentVendorId) {
+        toast({
+          title: "Creating Shop Profile",
+          description: "Setting up your shop profile...",
+        });
+
+        const vendorData = {
+          name: 'My Shop',
+          description: '',
+          contact: '',
+          whatsapp: '',
+          email: user.email,
+          address: '',
+          city: '',
+          state: '',
+          pincode: '',
+          gstNumber: '',
+          businessType: '',
+          businessCategoryId: undefined,
+          bankAccountNumber: '',
+          ifscCode: '',
+          user: user.id,
+          isActive: true,
+          isApproved: false,
+          status: 'pending'
+        };
+
+        const newVendor = await createVendorMutation.mutateAsync(vendorData);
+        currentVendorId = newVendor.data.id;
+        
+        // Update the user context with the new vendor ID
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      }
+
+      // Prepare delivery fees data with arrays
+      const deliveryFeesData = {
+        ...data,
+        distanceBasedFees: distanceFees,
+        orderValueBasedFees: orderValueFees,
+      };
+
+      // Update the vendor with delivery fees data
+      await updateVendorMutation.mutateAsync({
+        id: currentVendorId!,
+        data: {
+          deliveryFees: deliveryFeesData
+        },
+      });
+
+      // Invalidate the vendor query to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['vendor', currentVendorId] });
+
+      toast({
+        title: "Success",
+        description: "Delivery settings updated successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update delivery settings",
         variant: "destructive",
       });
     }
@@ -372,6 +726,8 @@ export default function SellerProfile() {
           businessCategoryId: undefined,
           bankAccountNumber: data.bankAccountNumber || '',
           ifscCode: data.ifscCode || '',
+          bankAccountName: data.bankAccountName || '',
+          bankAccountType: data.bankAccountType || 'savings',
           user: user.id,
           isActive: true,
           isApproved: false,
@@ -506,7 +862,7 @@ export default function SellerProfile() {
 
           {/* Settings Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="personal" className="flex items-center space-x-2">
                 <User className="w-4 h-4" />
                 <span>Personal</span>
@@ -514,6 +870,14 @@ export default function SellerProfile() {
               <TabsTrigger value="shop" className="flex items-center space-x-2">
                 <Store className="w-4 h-4" />
                 <span>Shop Details</span>
+              </TabsTrigger>
+              <TabsTrigger value="hours" className="flex items-center space-x-2">
+                <Clock className="w-4 h-4" />
+                <span>Shop Hours</span>
+              </TabsTrigger>
+              <TabsTrigger value="delivery" className="flex items-center space-x-2">
+                <Truck className="w-4 h-4" />
+                <span>Delivery</span>
               </TabsTrigger>
               <TabsTrigger value="banking" className="flex items-center space-x-2">
                 <CreditCard className="w-4 h-4" />
@@ -787,7 +1151,6 @@ export default function SellerProfile() {
                         <Select 
                           value={shopForm.watch('businessCategoryId')?.toString() || ""} 
                           onValueChange={(value) => {
-                            console.log('🔍 Business category selected:', value);
                             shopForm.setValue('businessCategoryId', value ? parseInt(value) : undefined);
                             // Trigger form validation
                             shopForm.trigger('businessCategoryId');
@@ -878,6 +1241,517 @@ export default function SellerProfile() {
               </Card>
             </TabsContent>
 
+            {/* Shop Hours Tab */}
+            <TabsContent value="hours">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Clock className="w-5 h-5" />
+                    <span>Shop Hours</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Alert className="mb-6">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Set your shop's business hours for each day of the week. Customers will see these hours when viewing your shop.
+                    </AlertDescription>
+                  </Alert>
+
+                  <form onSubmit={shopHoursForm.handleSubmit(handleShopHoursUpdate)} className="space-y-6">
+                    {/* 
+                    ========================================
+                    IMPROVED TIME SELECTION
+                    ========================================
+                    Time inputs now use dropdown selectors with 15-minute intervals
+                    for better user experience and data consistency.
+                    ========================================
+                    */}
+                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+                      <div key={day} className="border rounded-lg p-4">
+                        {(() => { const path = (suffix: 'isOpen' | 'openTime' | 'closeTime' | 'breakStart' | 'breakEnd' | 'notes') => `${day}.${suffix}` as any; return (
+                        <>
+                        <div className="flex items-center justify-between mb-4">
+                          <Label className="text-lg font-medium capitalize">{day}</Label>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={`${day}-open`}
+                              checked={Boolean(shopHoursForm.watch(path('isOpen')))}
+                              onChange={(e) => shopHoursForm.setValue(path('isOpen'), e.target.checked)}
+                              className="rounded border-gray-300"
+                            />
+                            <Label htmlFor={`${day}-open`}>Open</Label>
+                          </div>
+                        </div>
+                        
+                        {Boolean(shopHoursForm.watch(path('isOpen'))) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor={`${day}-openTime`}>Open Time</Label>
+                              <Select 
+                                value={(shopHoursForm.watch(path('openTime')) as string | undefined) || '09:00'} 
+                                onValueChange={(value) => shopHoursForm.setValue(path('openTime'), value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select time" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, hour) => 
+                                    Array.from({ length: 4 }, (_, minute) => {
+                                      const time = `${hour.toString().padStart(2, '0')}:${(minute * 15).toString().padStart(2, '0')}`;
+                                      const hour12 = ((hour % 12) || 12).toString().padStart(2, '0');
+                                      const minuteStr = (minute * 15).toString().padStart(2, '0');
+                                      const ampm = hour < 12 ? 'AM' : 'PM';
+                                      const label = `${hour12}:${minuteStr} ${ampm}`;
+                                      return (
+                                        <SelectItem key={time} value={time}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    })
+                                  ).flat()}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor={`${day}-closeTime`}>Close Time</Label>
+                              <Select 
+                                value={(shopHoursForm.watch(path('closeTime')) as string | undefined) || '18:00'} 
+                                onValueChange={(value) => shopHoursForm.setValue(path('closeTime'), value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select time" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, hour) => 
+                                    Array.from({ length: 4 }, (_, minute) => {
+                                      const time = `${hour.toString().padStart(2, '0')}:${(minute * 15).toString().padStart(2, '0')}`;
+                                      const hour12 = ((hour % 12) || 12).toString().padStart(2, '0');
+                                      const minuteStr = (minute * 15).toString().padStart(2, '0');
+                                      const ampm = hour < 12 ? 'AM' : 'PM';
+                                      const label = `${hour12}:${minuteStr} ${ampm}`;
+                                      return (
+                                        <SelectItem key={time} value={time}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    })
+                                  ).flat()}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor={`${day}-breakStart`}>Break Start (Optional)</Label>
+                              <Select 
+                                value={(shopHoursForm.watch(path('breakStart')) as string | undefined) || 'no-break'} 
+                                onValueChange={(value) => shopHoursForm.setValue(path('breakStart'), value === 'no-break' ? undefined : value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select break start time" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="no-break">No break</SelectItem>
+                                  {Array.from({ length: 24 }, (_, hour) => 
+                                    Array.from({ length: 4 }, (_, minute) => {
+                                      const time = `${hour.toString().padStart(2, '0')}:${(minute * 15).toString().padStart(2, '0')}`;
+                                      const hour12 = ((hour % 12) || 12).toString().padStart(2, '0');
+                                      const minuteStr = (minute * 15).toString().padStart(2, '0');
+                                      const ampm = hour < 12 ? 'AM' : 'PM';
+                                      const label = `${hour12}:${minuteStr} ${ampm}`;
+                                      return (
+                                        <SelectItem key={time} value={time}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    })
+                                  ).flat()}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor={`${day}-breakEnd`}>Break End (Optional)</Label>
+                              <Select 
+                                value={(shopHoursForm.watch(path('breakEnd')) as string | undefined) || 'no-break'} 
+                                onValueChange={(value) => shopHoursForm.setValue(path('breakEnd'), value === 'no-break' ? undefined : value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select break end time" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="no-break">No break</SelectItem>
+                                  {Array.from({ length: 24 }, (_, hour) => 
+                                    Array.from({ length: 4 }, (_, minute) => {
+                                      const time = `${hour.toString().padStart(2, '0')}:${(minute * 15).toString().padStart(2, '0')}`;
+                                      const hour12 = ((hour % 12) || 12).toString().padStart(2, '0');
+                                      const minuteStr = (minute * 15).toString().padStart(2, '0');
+                                      const ampm = hour < 12 ? 'AM' : 'PM';
+                                      const label = `${hour12}:${minuteStr} ${ampm}`;
+                                      return (
+                                        <SelectItem key={time} value={time}>
+                                          {label}
+                                        </SelectItem>
+                                      );
+                                    })
+                                  ).flat()}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="md:col-span-2">
+                              <Label htmlFor={`${day}-notes`}>Notes (Optional)</Label>
+                              <Input
+                                id={`${day}-notes`}
+                                {...(shopHoursForm.register(path('notes')) as any)}
+                                placeholder="e.g., Lunch break, Special hours"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        </>
+                        ) })()}
+                      </div>
+                    ))}
+
+                    <div>
+                      <Label htmlFor="timezone">Timezone</Label>
+                      <Select 
+                        value={shopHoursForm.watch('timezone')} 
+                        onValueChange={(value) => shopHoursForm.setValue('timezone', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select timezone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
+                          <SelectItem value="Asia/Delhi">Asia/Delhi</SelectItem>
+                          <SelectItem value="Asia/Mumbai">Asia/Mumbai</SelectItem>
+                          <SelectItem value="Asia/Kolkata">Asia/Kolkata</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex justify-end">
+                      <Button 
+                        type="submit"
+                        disabled={updateVendorMutation.isPending}
+                        className="flex items-center space-x-2"
+                      >
+                        {updateVendorMutation.isPending ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>Updating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Update Shop Hours</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Delivery Fees Tab */}
+            <TabsContent value="delivery">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Truck className="w-5 h-5" />
+                    <span>Delivery Settings</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Alert className="mb-6">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Configure your delivery fees and delivery options. This helps customers understand delivery costs.
+                    </AlertDescription>
+                  </Alert>
+
+                  <form onSubmit={deliveryFeesForm.handleSubmit(handleDeliveryFeesUpdate)} className="space-y-6">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="delivery-available"
+                        checked={deliveryFeesForm.watch('isDeliveryAvailable')}
+                        onChange={(e) => deliveryFeesForm.setValue('isDeliveryAvailable', e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor="delivery-available">Delivery Available</Label>
+                    </div>
+
+                    {deliveryFeesForm.watch('isDeliveryAvailable') && (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <Label htmlFor="baseDeliveryFee">Base Delivery Fee (₹)</Label>
+                            <Input
+                              id="baseDeliveryFee"
+                              type="number"
+                              step="0.01"
+                              {...deliveryFeesForm.register('baseDeliveryFee')}
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="freeDeliveryThreshold">Free Delivery Threshold (₹)</Label>
+                            <Input
+                              id="freeDeliveryThreshold"
+                              type="number"
+                              step="0.01"
+                              {...deliveryFeesForm.register('freeDeliveryThreshold')}
+                              placeholder="0.00"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Orders above this amount get free delivery</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <Label htmlFor="deliveryRadius">Delivery Radius (km)</Label>
+                            <Input
+                              id="deliveryRadius"
+                              type="number"
+                              step="0.1"
+                              {...deliveryFeesForm.register('deliveryRadius')}
+                              placeholder="10.0"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="deliveryTime">Estimated Delivery Time</Label>
+                            <Input
+                              id="deliveryTime"
+                              {...deliveryFeesForm.register('deliveryTime')}
+                              placeholder="1-2 hours"
+                            />
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* 
+                        ========================================
+                        ADVANCED DELIVERY FEE FEATURES
+                        ========================================
+                        These features are commented out for future use.
+                        They will provide advanced delivery fee management
+                        including distance-based and order value-based pricing.
+                        ========================================
+                        */}
+
+                        {/* Distance-Based Fees - Commented out for future use
+                        <div>
+                          <Label className="text-lg font-medium">Distance-Based Fees</Label>
+                          <p className="text-sm text-gray-500 mb-4">Set different fees for different distance ranges</p>
+                          
+                          {distanceFees.map((fee, index) => (
+                            <div key={index} className="border rounded-lg p-4 mb-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <Label>Min Distance (km)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    value={fee.minDistance}
+                                    onChange={(e) => {
+                                      const newFees = [...distanceFees];
+                                      newFees[index].minDistance = e.target.value;
+                                      setDistanceFees(newFees);
+                                    }}
+                                    placeholder="0.0"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Max Distance (km)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    value={fee.maxDistance}
+                                    onChange={(e) => {
+                                      const newFees = [...distanceFees];
+                                      newFees[index].maxDistance = e.target.value;
+                                      setDistanceFees(newFees);
+                                    }}
+                                    placeholder="5.0"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Fee (₹)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={fee.fee}
+                                    onChange={(e) => {
+                                      const newFees = [...distanceFees];
+                                      newFees[index].fee = e.target.value;
+                                      setDistanceFees(newFees);
+                                    }}
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <Label>Description (Optional)</Label>
+                                <Input
+                                  value={fee.description}
+                                  onChange={(e) => {
+                                    const newFees = [...distanceFees];
+                                    newFees[index].description = e.target.value;
+                                    setDistanceFees(newFees);
+                                  }}
+                                  placeholder="e.g., Local area delivery"
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => {
+                                  const newFees = distanceFees.filter((_, i) => i !== index);
+                                  setDistanceFees(newFees);
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          ))}
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setDistanceFees([...distanceFees, { minDistance: '', maxDistance: '', fee: '', description: '' }])}
+                            className="w-full"
+                          >
+                            Add Distance Fee
+                          </Button>
+                        </div>
+                        */}
+
+                        <Separator />
+
+                        {/* Order Value-Based Fees - Commented out for future use
+                        <div>
+                          <Label className="text-lg font-medium">Order Value-Based Fees</Label>
+                          <p className="text-sm text-gray-500 mb-4">Set different fees for different order value ranges</p>
+                          
+                          {orderValueFees.map((fee, index) => (
+                            <div key={index} className="border rounded-lg p-4 mb-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <Label>Min Order Value (₹)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={fee.minOrderValue}
+                                    onChange={(e) => {
+                                      const newFees = [...orderValueFees];
+                                      newFees[index].minOrderValue = e.target.value;
+                                      setOrderValueFees(newFees);
+                                    }}
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Max Order Value (₹)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={fee.maxOrderValue}
+                                    onChange={(e) => {
+                                      const newFees = [...orderValueFees];
+                                      newFees[index].maxOrderValue = e.target.value;
+                                      setOrderValueFees(newFees);
+                                    }}
+                                    placeholder="500.00"
+                                  />
+                                </div>
+                                <div>
+                                  <Label>Fee (₹)</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={fee.fee}
+                                    onChange={(e) => {
+                                      const newFees = [...orderValueFees];
+                                      newFees[index].fee = e.target.value;
+                                      setOrderValueFees(newFees);
+                                    }}
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-2">
+                                <Label>Description (Optional)</Label>
+                                <Input
+                                  value={fee.description}
+                                  onChange={(e) => {
+                                    const newFees = [...orderValueFees];
+                                    newFees[index].description = e.target.value;
+                                    setOrderValueFees(newFees);
+                                  }}
+                                  placeholder="e.g., Small order fee"
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="mt-2"
+                                onClick={() => {
+                                  const newFees = orderValueFees.filter((_, i) => i !== index);
+                                  setOrderValueFees(newFees);
+                                }}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          ))}
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setOrderValueFees([...orderValueFees, { minOrderValue: '', maxOrderValue: '', fee: '', description: '' }])}
+                            className="w-full"
+                          >
+                            Add Order Value Fee
+                          </Button>
+                        </div>
+                        */}
+                      </>
+                    )}
+
+                    <Separator />
+
+                    <div className="flex justify-end">
+                      <Button 
+                        type="submit"
+                        disabled={updateVendorMutation.isPending}
+                        className="flex items-center space-x-2"
+                      >
+                        {updateVendorMutation.isPending ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>Updating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Update Delivery Settings</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             {/* Banking Information Tab */}
             <TabsContent value="banking">
               <Card>
@@ -921,6 +1795,42 @@ export default function SellerProfile() {
                         {bankingForm.formState.errors.ifscCode && (
                           <p className="text-sm text-red-500 mt-1">
                             {bankingForm.formState.errors.ifscCode.message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <Label htmlFor="bankAccountName">Account Holder Name *</Label>
+                        <Input
+                          id="bankAccountName"
+                          {...bankingForm.register('bankAccountName')}
+                          placeholder="Enter account holder name"
+                        />
+                        {bankingForm.formState.errors.bankAccountName && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {bankingForm.formState.errors.bankAccountName.message}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="bankAccountType">Account Type *</Label>
+                        <Select
+                          value={bankingForm.watch('bankAccountType')}
+                          onValueChange={(value) => bankingForm.setValue('bankAccountType', value as 'savings' | 'current')}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select account type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="savings">Savings</SelectItem>
+                            <SelectItem value="current">Current</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {bankingForm.formState.errors.bankAccountType && (
+                          <p className="text-sm text-red-500 mt-1">
+                            {bankingForm.formState.errors.bankAccountType.message}
                           </p>
                         )}
                       </div>

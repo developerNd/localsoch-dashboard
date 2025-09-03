@@ -154,9 +154,52 @@ export function useUpdateProduct() {
       const response = await apiRequest('PUT', `/api/products/${id}`, strapiData);
       return await response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+    onMutate: async ({ id, data }) => {
+      console.log('🔄 useUpdateProduct - Optimistic update for product:', id);
+      
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['/api/products'] });
+      
+      // Snapshot the previous value
+      const previousProducts = queryClient.getQueryData(['/api/products']);
+      
+      // Optimistically update to the new value
+      queryClient.setQueryData(['/api/products'], (old: any) => {
+        if (!old) return old;
+        return old.map((product: any) => 
+          product.id === id 
+            ? { ...product, ...data }
+            : product
+        );
+      });
+      
+      // Return a context object with the snapshotted value
+      return { previousProducts };
     },
+    onSuccess: (data, variables) => {
+      console.log('🔄 useUpdateProduct - Cache invalidation triggered for product:', variables.id);
+      
+      // Invalidate all product-related queries
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products', variables.id] });
+      
+      // Force refetch the products list
+      queryClient.refetchQueries({ queryKey: ['/api/products'] });
+      
+      console.log('🔄 useUpdateProduct - Cache invalidation completed');
+    },
+    onError: (error, variables, context) => {
+      console.error('❌ useUpdateProduct - Error updating product:', error);
+      
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousProducts) {
+        queryClient.setQueryData(['/api/products'], context.previousProducts);
+      }
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+    }
   });
 }
 
@@ -168,9 +211,21 @@ export function useToggleProductActive() {
       const response = await apiRequest('PUT', `/api/products/${id}/toggle-active`, { isActive });
       return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      console.log('🔄 useToggleProductActive - Cache invalidation triggered for product:', variables.id);
+      
+      // Invalidate all product-related queries
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products', variables.id] });
+      
+      // Force refetch the products list
+      queryClient.refetchQueries({ queryKey: ['/api/products'] });
+      
+      console.log('🔄 useToggleProductActive - Cache invalidation completed');
     },
+    onError: (error) => {
+      console.error('❌ useToggleProductActive - Error toggling product:', error);
+    }
   });
 }
 
@@ -271,10 +326,22 @@ export function useUpdateProductStatus() {
       });
       return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      console.log('🔄 useUpdateProductStatus - Cache invalidation triggered for product:', variables.id);
+      
+      // Invalidate all product-related queries
       queryClient.invalidateQueries({ queryKey: ['/api/products/admin/all'] });
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products', variables.id] });
+      
+      // Force refetch the products list
+      queryClient.refetchQueries({ queryKey: ['/api/products'] });
+      
+      console.log('🔄 useUpdateProductStatus - Cache invalidation completed');
     },
+    onError: (error) => {
+      console.error('❌ useUpdateProductStatus - Error updating product status:', error);
+    }
   });
 }
 

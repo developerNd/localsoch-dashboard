@@ -17,6 +17,7 @@ import SellerInventory from "@/pages/seller/inventory";
 import SellerEarnings from "@/pages/seller/earnings";
 import SellerButtonTracking from "@/pages/seller/button-tracking";
 import SellerReviews from "@/pages/seller/reviews";
+import SellerSubscriptions from "@/pages/seller/subscriptions";
 import SellerProfile from "@/pages/seller/profile";
 import PendingApproval from "@/pages/seller/pending-approval";
 import AdminAnalytics from "@/pages/admin/analytics";
@@ -123,6 +124,11 @@ function Router() {
       <Route path="/seller/reviews">
         <ProtectedRoute allowedRoles={['seller', 'admin']}>
           <SellerReviews />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/seller/subscriptions">
+        <ProtectedRoute allowedRoles={['seller', 'admin']}>
+          <SellerSubscriptions />
         </ProtectedRoute>
       </Route>
       <Route path="/seller/profile">
