@@ -330,7 +330,7 @@ export default function SubscriptionSelection() {
           
           if (isNewRegistration) {
             // Complete seller registration with subscription
-            const success = await completeSellerRegistration(response, referralCode.trim());
+            const success = await completeSellerRegistration(response, referralCode.trim(), selectedPlan?.id);
             
             if (success) {
               // Clear pending data

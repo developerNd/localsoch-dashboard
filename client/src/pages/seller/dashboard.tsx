@@ -269,24 +269,6 @@ export default function SellerDashboard() {
                       Expires: {new Date(subscription.expiresAt).toLocaleDateString()}
                     </p>
                   )}
-                  {subscription.plan?.features && subscription.plan.features.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs font-medium text-gray-700">Features:</p>
-                      <ul className="text-xs text-gray-600 space-y-1">
-                        {subscription.plan.features.slice(0, 3).map((feature: string, index: number) => (
-                          <li key={index} className="flex items-center">
-                            <i className="fas fa-check text-green-500 mr-1 text-xs"></i>
-                            {feature}
-                          </li>
-                        ))}
-                        {subscription.plan.features.length > 3 && (
-                          <li className="text-xs text-gray-500">
-                            +{subscription.plan.features.length - 3} more features
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
                 </>
               ) : (
                 <>

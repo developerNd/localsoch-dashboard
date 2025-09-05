@@ -43,6 +43,7 @@ interface SignupFormData {
   otherBusinessCategory: string; // For custom business category
   gstNumber: string; // GST number field
   bankAccountName: string;
+  bankAccountNumber: string;
   ifscCode: string;
   bankAccountType: 'savings' | 'current';
   acceptTerms: boolean;
@@ -68,6 +69,7 @@ export default function Signup() {
     otherBusinessCategory: "",
     gstNumber: "",
     bankAccountName: "",
+    bankAccountNumber: "",
     ifscCode: "",
     bankAccountType: 'savings',
     acceptTerms: false,
@@ -176,8 +178,8 @@ export default function Signup() {
       return "Please select a business category or specify a custom one";
     }
     // minimal banking validation optional at signup
-    if (!formData.bankAccountName || !formData.ifscCode) {
-      return "Please provide banking name and IFSC";
+    if (!formData.bankAccountName || !formData.bankAccountNumber || !formData.ifscCode) {
+      return "Please provide all banking information (account holder name, account number, and IFSC code)";
     }
     return null;
   };
@@ -281,6 +283,7 @@ export default function Signup() {
           phone: formData.phone,
           email: formData.email,
           bankAccountName: formData.bankAccountName,
+          bankAccountNumber: formData.bankAccountNumber,
           ifscCode: formData.ifscCode,
           bankAccountType: formData.bankAccountType,
         },
@@ -491,6 +494,17 @@ export default function Signup() {
                       value={formData.bankAccountName}
                       onChange={(e) => handleInputChange('bankAccountName', e.target.value)}
                       placeholder="Enter account holder name"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bankAccountNumber">Bank Account Number</Label>
+                    <Input
+                      id="bankAccountNumber"
+                      type="text"
+                      value={formData.bankAccountNumber}
+                      onChange={(e) => handleInputChange('bankAccountNumber', e.target.value)}
+                      placeholder="Enter bank account number"
                       required
                     />
                   </div>

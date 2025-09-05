@@ -181,7 +181,7 @@ export const verifyPayment = async (
 };
 
 // Complete seller registration after payment
-export const completeSellerRegistration = async (paymentResponse: any, referralCode?: string): Promise<boolean> => {
+export const completeSellerRegistration = async (paymentResponse: any, referralCode?: string, planId?: number): Promise<boolean> => {
   try {
     const pendingData = localStorage.getItem('pendingSellerData');
     if (!pendingData) {
@@ -215,6 +215,7 @@ export const completeSellerRegistration = async (paymentResponse: any, referralC
         orderId: paymentResponse.razorpay_order_id,
         signature: paymentResponse.razorpay_signature,
         userId: sellerData.user.id,
+        planId: planId,
         vendorData: {
           name: sellerData.formData.shopName,
           description: sellerData.formData.shopDescription,
@@ -229,6 +230,12 @@ export const completeSellerRegistration = async (paymentResponse: any, referralC
           whatsapp: sellerData.formData.phone,
           businessCategoryId: sellerData.formData.businessCategoryId,
           referralCode: referralCode || sellerData.formData.referralCode || '',
+          // Include GST and bank information if available
+          gstNumber: sellerData.formData.gstNumber || null,
+          bankAccountNumber: sellerData.formData.bankAccountNumber || null,
+          ifscCode: sellerData.formData.ifscCode || null,
+          bankAccountName: sellerData.formData.bankAccountName || null,
+          bankAccountType: sellerData.formData.bankAccountType || 'savings',
         }
       }),
     });
