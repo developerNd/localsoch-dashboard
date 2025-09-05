@@ -33,20 +33,17 @@ export function LocationSelector({
 
   // Cache for API responses
   const citiesCache = useRef<Map<string, string[]>>(new Map());
+  
+  // Track previous state to detect actual state changes
+  const previousState = useRef<string>('');
 
   // Memoize callbacks to prevent unnecessary re-renders
   const handleStateChange = useCallback((stateName: string) => {
-    console.log('🔍 LocationSelector: handleStateChange called with:', stateName);
-    console.log('🔍 LocationSelector: Available states:', states);
-    
     const state = states.find(s => s.name === stateName);
-    console.log('🔍 LocationSelector: Found state:', state);
     
     if (state) {
-      console.log('🔍 LocationSelector: Calling onStateChange with ID:', state.id);
       onStateChange(state.id);
     } else {
-      console.log('🔍 LocationSelector: No state found, calling onStateChange with empty string');
       onStateChange('');
     }
   }, [states, onStateChange]);
@@ -88,20 +85,15 @@ export function LocationSelector({
     const loadInitialData = async () => {
       if (!selectedState || states.length === 0) return;
       
-      console.log('🔍 LocationSelector: Loading initial data for state:', selectedState);
-      
       // Load districts for the selected state
       setLoadingCities(true);
       try {
-        console.log('🔍 Loading districts for state:', selectedState);
         let allDistricts;
         try {
           allDistricts = await getAllCitiesOnlyForState(selectedState);
         } catch (error) {
-          console.log('🔍 New API failed, falling back to old method');
           allDistricts = await getAllCitiesForState(selectedState);
         }
-        console.log('🔍 Loaded districts:', allDistricts.length, allDistricts.slice(0, 5));
         setCities(allDistricts);
         citiesCache.current.set(selectedState, allDistricts);
       } catch (error) {
@@ -158,33 +150,38 @@ export function LocationSelector({
         const cachedCities = citiesCache.current.get(cacheKey)!;
         setCities(cachedCities);
         
-        // Only reset pincode if the current city is not in the new state's cities
-        if (selectedPincode && selectedCity && !cachedCities.includes(selectedCity)) {
+        // Only clear pincode if state actually changed (not on initial load)
+        const isStateChange = previousState.current !== selectedState && previousState.current !== '';
+        
+        if (isStateChange && selectedPincode && selectedCity && !cachedCities.includes(selectedCity)) {
           onPincodeChange('');
         }
+        
+        previousState.current = selectedState;
         return;
       }
 
       setLoadingCities(true);
       try {
-        console.log('🔍 Loading districts for state (effect):', selectedState);
         let allDistricts;
         try {
           allDistricts = await getAllCitiesOnlyForState(selectedState);
         } catch (error) {
-          console.log('🔍 New API failed, falling back to old method');
           allDistricts = await getAllCitiesForState(selectedState);
         }
-        console.log('🔍 Loaded districts (effect):', allDistricts.length, allDistricts.slice(0, 5));
         setCities(allDistricts);
         
         // Cache the result
         citiesCache.current.set(cacheKey, allDistricts);
         
-        // Only reset pincode if the current city is not in the new state's districts
-        if (selectedPincode && selectedCity && !allDistricts.includes(selectedCity)) {
+        // Only clear pincode if state actually changed (not on initial load)
+        const isStateChange = previousState.current !== selectedState && previousState.current !== '';
+        
+        if (isStateChange && selectedPincode && selectedCity && !allDistricts.includes(selectedCity)) {
           onPincodeChange('');
         }
+        
+        previousState.current = selectedState;
       } catch (error) {
         console.error('Error loading districts:', error);
         setCities([]);

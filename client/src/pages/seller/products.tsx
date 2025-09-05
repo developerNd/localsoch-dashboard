@@ -22,6 +22,7 @@ import { useProducts, useCategories, useCreateProduct, useUpdateProduct, useDele
 import { z } from 'zod';
 import { getImageUrl, API_CONFIG } from '@/lib/config';
 
+
 // Product form schema
 const productFormSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -48,6 +49,8 @@ const productFormSchema = z.object({
 });
 
 type ProductFormData = z.infer<typeof productFormSchema>;
+
+
 
 // Helper function to normalize Strapi product data
 const normalizeProduct = (product: any) => {
@@ -112,6 +115,39 @@ export default function SellerProducts() {
   const getVendorId = (user: any) => {
     // Only use the vendorId from the database, no hardcoded mapping
     return user?.vendorId;
+  };
+
+  // Function to clean expired offers
+  const cleanExpiredOffers = async () => {
+    try {
+      const response = await fetch('/api/products/offers/check-expired', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to clean expired offers');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Expired Offers Cleaned",
+        description: `Updated ${result.data.updatedCount} products with expired offers`,
+      });
+
+      // Refresh the products list
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    } catch (error) {
+      console.error('Error cleaning expired offers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to clean expired offers. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Helper function to safely access product data (handles both Strapi and normalized formats)
@@ -292,6 +328,8 @@ export default function SellerProducts() {
   // Fetch categories for the form
   const { data: categories } = useCategories();
 
+
+
   // Function to calculate discount
   const calculateDiscount = (mrp: string, sellingPrice: string) => {
     const mrpValue = parseFloat(mrp) || 0;
@@ -369,24 +407,78 @@ export default function SellerProducts() {
       header: 'Selling Price',
       width: '120px',
       sortable: true,
-      render: (value: any, product: any) => (
-        <div>₹{parseFloat(getProductData(product, 'price') || 0).toLocaleString()}</div>
-      )
+      render: (value: any, product: any) => {
+        const isOfferActive = getProductData(product, 'isOfferActive');
+        const offerEndDate = getProductData(product, 'offerEndDate');
+        const originalPrice = getProductData(product, 'originalPrice');
+        const mrp = getProductData(product, 'mrp');
+        
+        // Check if offer has expired
+        let displayPrice = getProductData(product, 'price') || 0;
+        let isExpired = false;
+        
+        if (isOfferActive && offerEndDate) {
+          const endDate = new Date(offerEndDate);
+          const now = new Date();
+          isExpired = endDate < now;
+          
+          // If expired, show original price (MRP)
+          if (isExpired) {
+            displayPrice = originalPrice || mrp || displayPrice;
+          }
+        }
+        
+        return (
+          <div className={isExpired ? 'text-red-600 font-medium' : ''}>
+            ₹{parseFloat(displayPrice).toLocaleString()}
+            {isExpired && (
+              <div className="text-xs text-red-500 mt-1">
+                (Offer expired)
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       key: 'discount',
       header: 'Discount',
       width: '100px',
       sortable: true,
-      render: (value: any, product: any) => (
-        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-          parseFloat(getProductData(product, 'discount') || '0') > 0
-            ? 'bg-green-100 text-green-800'
-            : 'bg-gray-100 text-gray-800'
-        }`}>
-          {parseFloat(getProductData(product, 'discount') || '0').toFixed(1)}%
-        </span>
-      )
+      render: (value: any, product: any) => {
+        const isOfferActive = getProductData(product, 'isOfferActive');
+        const offerEndDate = getProductData(product, 'offerEndDate');
+        
+        // Check if offer has expired
+        let displayDiscount = parseFloat(getProductData(product, 'discount') || '0');
+        let isExpired = false;
+        
+        if (isOfferActive && offerEndDate) {
+          const endDate = new Date(offerEndDate);
+          const now = new Date();
+          isExpired = endDate < now;
+          
+          // If expired, show 0% discount
+          if (isExpired) {
+            displayDiscount = 0;
+          }
+        }
+        
+        return (
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            displayDiscount > 0
+              ? 'bg-green-100 text-green-800'
+              : isExpired
+              ? 'bg-red-100 text-red-800'
+              : 'bg-gray-100 text-gray-800'
+          }`}>
+            {displayDiscount.toFixed(1)}%
+            {isExpired && displayDiscount === 0 && (
+              <span className="ml-1 text-xs">(expired)</span>
+            )}
+          </span>
+        );
+      }
     },
     {
       key: 'offer',
@@ -799,6 +891,15 @@ export default function SellerProducts() {
                 Add Product
               </Button>
 
+              <Button 
+                variant="outline"
+                onClick={cleanExpiredOffers}
+                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              >
+                <i className="fas fa-clock mr-2"></i>
+                Clean Expired Offers
+              </Button>
+
 
             </div>
           )}
@@ -833,6 +934,8 @@ export default function SellerProducts() {
             </div>
           </div>
         )}
+
+
 
         {/* Search and Filters */}
         <div className="flex items-center gap-4 mb-6">

@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -61,57 +63,36 @@ const shopHoursSchema = z.object({
     isOpen: z.boolean().default(true),
     openTime: z.string().optional(),
     closeTime: z.string().optional(),
-    breakStart: z.string().optional(),
-    breakEnd: z.string().optional(),
-    notes: z.string().optional(),
   }).optional(),
   tuesday: z.object({
     isOpen: z.boolean().default(true),
     openTime: z.string().optional(),
     closeTime: z.string().optional(),
-    breakStart: z.string().optional(),
-    breakEnd: z.string().optional(),
-    notes: z.string().optional(),
   }).optional(),
   wednesday: z.object({
     isOpen: z.boolean().default(true),
     openTime: z.string().optional(),
     closeTime: z.string().optional(),
-    breakStart: z.string().optional(),
-    breakEnd: z.string().optional(),
-    notes: z.string().optional(),
   }).optional(),
   thursday: z.object({
     isOpen: z.boolean().default(true),
     openTime: z.string().optional(),
     closeTime: z.string().optional(),
-    breakStart: z.string().optional(),
-    breakEnd: z.string().optional(),
-    notes: z.string().optional(),
   }).optional(),
   friday: z.object({
     isOpen: z.boolean().default(true),
     openTime: z.string().optional(),
     closeTime: z.string().optional(),
-    breakStart: z.string().optional(),
-    breakEnd: z.string().optional(),
-    notes: z.string().optional(),
   }).optional(),
   saturday: z.object({
     isOpen: z.boolean().default(true),
     openTime: z.string().optional(),
     closeTime: z.string().optional(),
-    breakStart: z.string().optional(),
-    breakEnd: z.string().optional(),
-    notes: z.string().optional(),
   }).optional(),
   sunday: z.object({
     isOpen: z.boolean().default(true),
     openTime: z.string().optional(),
     closeTime: z.string().optional(),
-    breakStart: z.string().optional(),
-    breakEnd: z.string().optional(),
-    notes: z.string().optional(),
   }).optional(),
   timezone: z.string().default('Asia/Kolkata'),
 });
@@ -188,8 +169,6 @@ function formatShopHoursForBackend(data: any) {
         ...result[day],
         openTime: formatTimeForBackend(result[day].openTime),
         closeTime: formatTimeForBackend(result[day].closeTime),
-        breakStart: formatTimeForBackend(result[day].breakStart),
-        breakEnd: formatTimeForBackend(result[day].breakEnd),
       };
     }
   }
@@ -206,8 +185,6 @@ function formatShopHoursForForm(data: any) {
         ...result[day],
         openTime: formatTimeForForm(result[day].openTime) || undefined,
         closeTime: formatTimeForForm(result[day].closeTime) || undefined,
-        breakStart: formatTimeForForm(result[day].breakStart) || undefined,
-        breakEnd: formatTimeForForm(result[day].breakEnd) || undefined,
       };
     }
   }
@@ -221,8 +198,55 @@ export default function SellerProfile() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('personal');
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['personal']));
+  const [loadingTabs, setLoadingTabs] = useState<Set<string>>(new Set());
   const [distanceFees, setDistanceFees] = useState<Array<{minDistance: string, maxDistance: string, fee: string, description: string}>>([]);
   const [orderValueFees, setOrderValueFees] = useState<Array<{minOrderValue: string, maxOrderValue: string, fee: string, description: string}>>([]);
+
+  // Handle tab change with immediate activation and async content loading
+  const handleTabChange = (tabValue: string) => {
+    console.log('🔍 Tab Change Start:', {
+      tabValue,
+      timestamp: Date.now(),
+      currentActiveTab: activeTab,
+      isAlreadyLoaded: loadedTabs.has(tabValue)
+    });
+    
+    // Force immediate visual update using requestAnimationFrame
+    requestAnimationFrame(() => {
+      setActiveTab(tabValue);
+      console.log('🔍 Tab Activated (requestAnimationFrame):', { tabValue, timestamp: Date.now() });
+    });
+    
+    // Load content asynchronously if not already loaded
+    if (!loadedTabs.has(tabValue)) {
+      console.log('🔍 Starting Content Load:', { tabValue, timestamp: Date.now() });
+      
+      setLoadingTabs(prev => {
+        const newSet = new Set(prev);
+        newSet.add(tabValue);
+        return newSet;
+      });
+      
+      // Use setTimeout to make content loading truly async
+      setTimeout(() => {
+        console.log('🔍 Content Load Complete:', { tabValue, timestamp: Date.now() });
+        
+        setLoadedTabs(prev => {
+          const newSet = new Set(prev);
+          newSet.add(tabValue);
+          return newSet;
+        });
+        setLoadingTabs(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(tabValue);
+          return newSet;
+        });
+      }, 0); // Even 0ms makes it async
+    } else {
+      console.log('🔍 Content Already Loaded:', { tabValue, timestamp: Date.now() });
+    }
+  };
 
   // Get vendor ID from user object
   const getVendorId = () => {
@@ -530,17 +554,8 @@ export default function SellerProfile() {
   };
 
   const handleShopHoursUpdate = async (data: ShopHoursData) => {
-    // Clean up the data - remove undefined break times
-    const cleanedData = {
-      ...data,
-      monday: data.monday ? { ...data.monday, breakStart: data.monday.breakStart || undefined, breakEnd: data.monday.breakEnd || undefined } : undefined,
-      tuesday: data.tuesday ? { ...data.tuesday, breakStart: data.tuesday.breakStart || undefined, breakEnd: data.tuesday.breakEnd || undefined } : undefined,
-      wednesday: data.wednesday ? { ...data.wednesday, breakStart: data.wednesday.breakStart || undefined, breakEnd: data.wednesday.breakEnd || undefined } : undefined,
-      thursday: data.thursday ? { ...data.thursday, breakStart: data.thursday.breakStart || undefined, breakEnd: data.thursday.breakEnd || undefined } : undefined,
-      friday: data.friday ? { ...data.friday, breakStart: data.friday.breakStart || undefined, breakEnd: data.friday.breakEnd || undefined } : undefined,
-      saturday: data.saturday ? { ...data.saturday, breakStart: data.saturday.breakStart || undefined, breakEnd: data.saturday.breakEnd || undefined } : undefined,
-      sunday: data.sunday ? { ...data.sunday, breakStart: data.sunday.breakStart || undefined, breakEnd: data.sunday.breakEnd || undefined } : undefined,
-    };
+    // Use the data as is since we removed break times
+    const cleanedData = data;
     if (!user?.id) {
       toast({
         title: "Error",
@@ -860,8 +875,8 @@ export default function SellerProfile() {
             </CardContent>
           </Card>
 
-          {/* Settings Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                      {/* Settings Tabs */}
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="personal" className="flex items-center space-x-2">
                 <User className="w-4 h-4" />
@@ -1243,22 +1258,44 @@ export default function SellerProfile() {
 
             {/* Shop Hours Tab */}
             <TabsContent value="hours">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Clock className="w-5 h-5" />
-                    <span>Shop Hours</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Alert className="mb-6">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Set your shop's business hours for each day of the week. Customers will see these hours when viewing your shop.
-                    </AlertDescription>
-                  </Alert>
+              {(() => {
+                console.log('🔍 Shop Hours Tab Rendering:', {
+                  isLoading: loadingTabs.has('hours'),
+                  isLoaded: loadedTabs.has('hours'),
+                  timestamp: Date.now()
+                });
+                return null;
+              })()}
+              {loadingTabs.has('hours') ? (
+                <Card>
+                  <CardContent className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading shop hours...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : loadedTabs.has('hours') ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Clock className="w-5 h-5" />
+                      <span>Shop Hours</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Alert className="mb-6">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Set your shop's business hours for each day of the week. Customers will see these hours when viewing your shop.
+                      </AlertDescription>
+                    </Alert>
 
                   <form onSubmit={shopHoursForm.handleSubmit(handleShopHoursUpdate)} className="space-y-6">
+                    {(() => {
+                      console.log('🔍 Shop Hours Form Rendering Start:', { timestamp: Date.now() });
+                      return null;
+                    })()}
                     {/* 
                     ========================================
                     IMPROVED TIME SELECTION
@@ -1267,21 +1304,28 @@ export default function SellerProfile() {
                     for better user experience and data consistency.
                     ========================================
                     */}
-                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
+                      console.log('🔍 Rendering Day:', { day, timestamp: Date.now() });
+                      return (
                       <div key={day} className="border rounded-lg p-4">
-                        {(() => { const path = (suffix: 'isOpen' | 'openTime' | 'closeTime' | 'breakStart' | 'breakEnd' | 'notes') => `${day}.${suffix}` as any; return (
+                        {(() => { const path = (suffix: 'isOpen' | 'openTime' | 'closeTime') => `${day}.${suffix}` as any; return (
                         <>
                         <div className="flex items-center justify-between mb-4">
                           <Label className="text-lg font-medium capitalize">{day}</Label>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
+                          <div className="flex items-center space-x-3">
+                            <Switch
                               id={`${day}-open`}
                               checked={Boolean(shopHoursForm.watch(path('isOpen')))}
-                              onChange={(e) => shopHoursForm.setValue(path('isOpen'), e.target.checked)}
-                              className="rounded border-gray-300"
+                              onCheckedChange={(checked) => shopHoursForm.setValue(path('isOpen'), checked)}
                             />
-                            <Label htmlFor={`${day}-open`}>Open</Label>
+                            <div className="flex flex-col">
+                              <Label htmlFor={`${day}-open`} className="text-sm font-medium">
+                                {Boolean(shopHoursForm.watch(path('isOpen'))) ? 'Open' : 'Closed'}
+                              </Label>
+                              <span className="text-xs text-gray-500">
+                                {Boolean(shopHoursForm.watch(path('isOpen'))) ? 'Shop is open on this day' : 'Shop is closed on this day'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         
@@ -1341,76 +1385,13 @@ export default function SellerProfile() {
                                 </SelectContent>
                               </Select>
                             </div>
-                            <div>
-                              <Label htmlFor={`${day}-breakStart`}>Break Start (Optional)</Label>
-                              <Select 
-                                value={(shopHoursForm.watch(path('breakStart')) as string | undefined) || 'no-break'} 
-                                onValueChange={(value) => shopHoursForm.setValue(path('breakStart'), value === 'no-break' ? undefined : value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select break start time" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="no-break">No break</SelectItem>
-                                  {Array.from({ length: 24 }, (_, hour) => 
-                                    Array.from({ length: 4 }, (_, minute) => {
-                                      const time = `${hour.toString().padStart(2, '0')}:${(minute * 15).toString().padStart(2, '0')}`;
-                                      const hour12 = ((hour % 12) || 12).toString().padStart(2, '0');
-                                      const minuteStr = (minute * 15).toString().padStart(2, '0');
-                                      const ampm = hour < 12 ? 'AM' : 'PM';
-                                      const label = `${hour12}:${minuteStr} ${ampm}`;
-                                      return (
-                                        <SelectItem key={time} value={time}>
-                                          {label}
-                                        </SelectItem>
-                                      );
-                                    })
-                                  ).flat()}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label htmlFor={`${day}-breakEnd`}>Break End (Optional)</Label>
-                              <Select 
-                                value={(shopHoursForm.watch(path('breakEnd')) as string | undefined) || 'no-break'} 
-                                onValueChange={(value) => shopHoursForm.setValue(path('breakEnd'), value === 'no-break' ? undefined : value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select break end time" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="no-break">No break</SelectItem>
-                                  {Array.from({ length: 24 }, (_, hour) => 
-                                    Array.from({ length: 4 }, (_, minute) => {
-                                      const time = `${hour.toString().padStart(2, '0')}:${(minute * 15).toString().padStart(2, '0')}`;
-                                      const hour12 = ((hour % 12) || 12).toString().padStart(2, '0');
-                                      const minuteStr = (minute * 15).toString().padStart(2, '0');
-                                      const ampm = hour < 12 ? 'AM' : 'PM';
-                                      const label = `${hour12}:${minuteStr} ${ampm}`;
-                                      return (
-                                        <SelectItem key={time} value={time}>
-                                          {label}
-                                        </SelectItem>
-                                      );
-                                    })
-                                  ).flat()}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="md:col-span-2">
-                              <Label htmlFor={`${day}-notes`}>Notes (Optional)</Label>
-                              <Input
-                                id={`${day}-notes`}
-                                {...(shopHoursForm.register(path('notes')) as any)}
-                                placeholder="e.g., Lunch break, Special hours"
-                              />
-                            </div>
                           </div>
                         )}
                         </>
                         ) })()}
                       </div>
-                    ))}
+                      );
+                    })}
 
                     <div>
                       <Label htmlFor="timezone">Timezone</Label>
@@ -1425,7 +1406,9 @@ export default function SellerProfile() {
                           <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
                           <SelectItem value="Asia/Delhi">Asia/Delhi</SelectItem>
                           <SelectItem value="Asia/Mumbai">Asia/Mumbai</SelectItem>
-                          <SelectItem value="Asia/Kolkata">Asia/Kolkata</SelectItem>
+                          <SelectItem value="Asia/Bangalore">Asia/Bangalore</SelectItem>
+                          <SelectItem value="Asia/Chennai">Asia/Chennai</SelectItem>
+                          <SelectItem value="Asia/Hyderabad">Asia/Hyderabad</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1452,13 +1435,37 @@ export default function SellerProfile() {
                       </Button>
                     </div>
                   </form>
+                  {(() => {
+                    console.log('🔍 Shop Hours Form Rendering Complete:', { timestamp: Date.now() });
+                    return null;
+                  })()}
                 </CardContent>
               </Card>
+              ) : (
+                <Card>
+                  <CardContent className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading shop hours...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             {/* Delivery Fees Tab */}
             <TabsContent value="delivery">
-              <Card>
+              {loadingTabs.has('delivery') ? (
+                <Card>
+                  <CardContent className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading delivery settings...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : loadedTabs.has('delivery') ? (
+                <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
                     <Truck className="w-5 h-5" />
@@ -1750,6 +1757,16 @@ export default function SellerProfile() {
                   </form>
                 </CardContent>
               </Card>
+              ) : (
+                <Card>
+                  <CardContent className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading delivery settings...</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             {/* Banking Information Tab */}
