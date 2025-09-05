@@ -6,11 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import Header from '@/components/layout/header';
 import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
+import SubscriptionInvoice from '@/components/invoice/SubscriptionInvoice';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { Download, CreditCard, CheckCircle } from 'lucide-react';
+import { Download, CreditCard, CheckCircle, FileText, Eye } from 'lucide-react';
 import { API_CONFIG } from '@/lib/config';
+import { generateSubscriptionInvoicePDF } from '@/lib/pdf-generator';
 
 interface Subscription {
   id: number;
@@ -20,129 +22,184 @@ interface Subscription {
   amount: number;
   currency: string;
   paymentId: string;
-  plan: {
+  orderId?: string;
+  paymentMethod?: string;
+  autoRenew?: boolean;
+  createdAt: string;
+  // Plan data might be stored directly on subscription
+  planName?: string;
+  planDescription?: string;
+  planDuration?: number;
+  planDurationType?: string;
+  features?: string[] | any;
+  // Or as a relation
+  plan?: {
     name: string;
     description: string;
-    features: string[];
+    features: string[] | any;
+    duration?: number;
+    durationType?: string;
+    price?: number;
+    currency?: string;
   };
+  subscriptionPlan?: {
+    name: string;
+    description: string;
+    features: string[] | any;
+    duration?: number;
+    durationType?: string;
+    price?: number;
+    currency?: string;
+  };
+  vendor?: {
+    name: string;
+    email?: string;
+    contact?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+}
+
+interface InvoiceData {
+  invoiceNumber: string;
+  invoiceDate: string;
+  subscriptionId: number;
+  subscriptionDate: string;
+  vendorName: string;
+  vendorEmail: string;
+  vendorPhone: string;
+  vendorAddress: string;
+  vendorCity: string;
+  vendorState: string;
+  vendorPincode: string;
+  planName: string;
+  planDescription: string;
+  planDuration: number;
+  planDurationType: string;
+  startDate: string;
+  endDate: string;
+  amount: number;
+  currency: string;
+  paymentId: string;
+  orderId: string;
+  paymentMethod: string;
+  status: string;
+  features: string[];
+  autoRenew: boolean;
 }
 
 export default function SellerSubscriptions() {
   const { user } = useAuth();
   const { toast } = useToast();
   const vendorId = user?.vendorId;
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
+
+  // Generate invoice data from subscription
+  const generateInvoiceData = (subscription: Subscription): InvoiceData => {
+    const invoiceNumber = `INV-${subscription.id}-${Date.now().toString().slice(-4)}`;
+    const invoiceDate = new Date().toISOString().split('T')[0];
+    
+    // Handle plan data properly - check multiple possible locations
+    let plan = subscription.plan || subscription.subscriptionPlan;
+    
+    // If plan is just an ID, we need to fetch the full plan data
+    if (plan && typeof plan === 'number') {
+      // For now, we'll use the subscription's own data
+      plan = undefined;
+    }
+    
+    // If no plan found, try to get data from subscription itself
+    if (!plan) {
+      plan = {
+        name: subscription.planName || 'Subscription Plan',
+        description: subscription.planDescription || '',
+        duration: subscription.planDuration || 30,
+        durationType: subscription.planDurationType || 'days',
+        price: subscription.amount || 0,
+        currency: subscription.currency || 'INR',
+        features: subscription.features || []
+      };
+    }
+    
+    const planFeatures = plan?.features || [];
+    
+    // Convert features to array if it's a string or object
+    let featuresArray: string[] = [];
+    if (Array.isArray(planFeatures)) {
+      featuresArray = planFeatures;
+    } else if (typeof planFeatures === 'string') {
+      try {
+        featuresArray = JSON.parse(planFeatures);
+      } catch {
+        featuresArray = [planFeatures];
+      }
+    } else if (planFeatures && typeof planFeatures === 'object') {
+      featuresArray = Object.values(planFeatures) as string[];
+    }
+    
+    // If no features found, add some default ones
+    if (featuresArray.length === 0) {
+      featuresArray = [
+        'Product listing and management',
+        'Order management system',
+        'Basic analytics and reporting',
+        'Customer support'
+      ];
+    }
+    
+    return {
+      invoiceNumber,
+      invoiceDate,
+      subscriptionId: subscription.id,
+      subscriptionDate: new Date(subscription.createdAt).toISOString().split('T')[0],
+      vendorName: subscription.vendor?.name || user?.firstName + ' ' + user?.lastName || 'Vendor',
+      vendorEmail: subscription.vendor?.email || user?.email || '',
+      vendorPhone: subscription.vendor?.contact || '',
+      vendorAddress: subscription.vendor?.address || '',
+      vendorCity: subscription.vendor?.city || '',
+      vendorState: subscription.vendor?.state || '',
+      vendorPincode: subscription.vendor?.pincode || '',
+      planName: plan?.name || 'Subscription Plan',
+      planDescription: plan?.description || '',
+      planDuration: plan?.duration || 30, // Default to 30 days
+      planDurationType: plan?.durationType || 'days',
+      startDate: new Date(subscription.startDate).toISOString().split('T')[0],
+      endDate: new Date(subscription.endDate).toISOString().split('T')[0],
+      amount: subscription.amount || plan?.price || 0,
+      currency: subscription.currency || plan?.currency || 'INR',
+      paymentId: subscription.paymentId || '',
+      orderId: subscription.orderId || '',
+      paymentMethod: subscription.paymentMethod || 'razorpay',
+      status: subscription.status,
+      features: featuresArray,
+      autoRenew: subscription.autoRenew || false,
+    };
+  };
 
   const { data: currentSubscription } = useQuery({
     queryKey: ['current-subscription', vendorId],
     queryFn: async ({ queryKey }: { queryKey: any[] }): Promise<any> => {
       if (!vendorId) return null;
       try {
-        const response = await apiRequest('GET', `/api/subscriptions/vendor/${vendorId}/current`);
+        const response = await apiRequest('GET', `/api/subscriptions/vendor/${vendorId}/current?populate=*`);
         const data = await response.json();
         return data.data;
       } catch (error) {
+        console.error('Error fetching subscription:', error);
         return null;
       }
     },
     enabled: !!vendorId,
   });
 
-  const handlePreviewInvoice = async (subscriptionId: number) => {
+  const handlePreviewInvoice = (subscription: Subscription) => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        toast({ title: "Error", description: "Please log in to preview invoices", variant: "destructive" });
-        return;
-      }
-
-      const apiUrl = `${API_CONFIG.API_URL}/api/subscriptions/${subscriptionId}/invoice`;
-
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to preview invoice'}`);
-      }
-
-      const invoiceContent = await response.text();
-
-      if (!invoiceContent || invoiceContent.trim().length === 0) {
-        throw new Error('Invoice content is empty');
-      }
-
-      // Show invoice content in a new window/tab
-      const newWindow = window.open('', '_blank');
-      if (newWindow) {
-        newWindow.document.write(`
-          <html>
-            <head>
-              <title>Subscription Invoice Preview</title>
-              <style>
-                body { 
-                  font-family: monospace; 
-                  white-space: pre-wrap; 
-                  padding: 20px; 
-                  background: #f5f5f5;
-                  line-height: 1.6;
-                }
-                .invoice-content {
-                  background: white;
-                  padding: 20px;
-                  border-radius: 8px;
-                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                  max-width: 800px;
-                  margin: 0 auto;
-                }
-                .header {
-                  text-align: center;
-                  margin-bottom: 20px;
-                  color: #333;
-                }
-                .actions {
-                  text-align: center;
-                  margin: 20px 0;
-                }
-                button {
-                  background: #007bff;
-                  color: white;
-                  border: none;
-                  padding: 10px 20px;
-                  border-radius: 5px;
-                  cursor: pointer;
-                  margin: 0 10px;
-                }
-                button:hover {
-                  background: #0056b3;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="header">
-                <h1>Subscription Invoice Preview</h1>
-                <p>This is a preview of your subscription invoice</p>
-              </div>
-              <div class="invoice-content">
-                ${invoiceContent}
-              </div>
-              <div class="actions">
-                <button onclick="window.print()">Print Invoice</button>
-                <button onclick="window.close()">Close Preview</button>
-              </div>
-            </body>
-          </html>
-        `);
-        newWindow.document.close();
-      } else {
-        // Fallback: show in alert if popup is blocked
-        alert('Invoice Preview:\n\n' + invoiceContent.substring(0, 1000) + '...');
-      }
-
+      const invoiceData = generateInvoiceData(subscription);
+      setInvoiceData(invoiceData);
+      setShowInvoice(true);
       toast({ title: "Success", description: "Invoice preview opened successfully" });
     } catch (error) {
       console.error('Invoice preview error:', error);
@@ -155,49 +212,15 @@ export default function SellerSubscriptions() {
     }
   };
 
-  const handleDownloadInvoice = async (subscriptionId: number) => {
+  const handleDownloadPDF = (subscription: Subscription) => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        toast({ title: "Error", description: "Please log in to download invoices", variant: "destructive" });
-        return;
-      }
-
-      const apiUrl = `${API_CONFIG.API_URL}/api/subscriptions/${subscriptionId}/invoice`;
-
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText || 'Failed to download invoice'}`);
-      }
-
-      const invoiceContent = await response.text();
-
-      if (!invoiceContent || invoiceContent.trim().length === 0) {
-        throw new Error('Invoice content is empty');
-      }
-
-      const blob = new Blob([invoiceContent], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `subscription-invoice-${subscriptionId}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({ title: "Success", description: "Invoice downloaded successfully" });
+      const invoiceData = generateInvoiceData(subscription);
+      const filename = `subscription-invoice-${subscription.id}-${new Date().toISOString().split('T')[0]}.pdf`;
+      generateSubscriptionInvoicePDF(invoiceData, filename);
+      toast({ title: "Success", description: "Invoice PDF downloaded successfully" });
     } catch (error) {
-      console.error('Invoice download error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to download invoice';
+      console.error('PDF download error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to download PDF';
       toast({ 
         title: "Error", 
         description: errorMessage, 
@@ -264,26 +287,23 @@ export default function SellerSubscriptions() {
                     <h4 className="font-medium text-gray-900 mb-2">Actions</h4>
                     <div className="space-y-2">
                       <Button
-                        onClick={() => handlePreviewInvoice(currentSubscription.id)}
+                        onClick={() => handlePreviewInvoice(currentSubscription)}
                         variant="outline"
                         size="sm"
                         className="w-full"
                       >
-                        <Download className="w-4 h-4 mr-2" />
+                        <Eye className="w-4 h-4 mr-2" />
                         Preview Invoice
                       </Button>
                       
-                      {/* Download button commented out for now
                       <Button
-                        onClick={() => handleDownloadInvoice(currentSubscription.id)}
-                        variant="outline"
+                        onClick={() => handleDownloadPDF(currentSubscription)}
+                        className="w-full bg-blue-600 hover:bg-blue-700"
                         size="sm"
-                        className="w-full"
                       >
                         <Download className="w-4 h-4 mr-2" />
-                        Download Invoice
+                        Download PDF
                       </Button>
-                      */}
                     </div>
                   </div>
                 </div>
@@ -301,6 +321,7 @@ export default function SellerSubscriptions() {
                     </div>
                   </div>
                 )}
+
               </CardContent>
             </Card>
           ) : (
@@ -318,6 +339,38 @@ export default function SellerSubscriptions() {
           )}
         </div>
       </main>
+
+      {/* Invoice Modal */}
+      {showInvoice && invoiceData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+              <h2 className="text-xl font-semibold">Subscription Invoice</h2>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => generateSubscriptionInvoicePDF(invoiceData)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+                <Button
+                  onClick={() => setShowInvoice(false)}
+                  variant="outline"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="p-4">
+              <SubscriptionInvoice 
+                invoiceData={invoiceData} 
+                showActions={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
