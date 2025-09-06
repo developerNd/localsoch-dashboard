@@ -489,36 +489,56 @@ export default function SellerProducts() {
         
         const isOfferActive = getProductData(product, 'isOfferActive');
         const offerEndDate = getProductData(product, 'offerEndDate');
+        const discount = parseFloat(getProductData(product, 'discount') || '0');
         
-        
-        if (!isOfferActive || !offerEndDate) {
+        // Check if there's an active offer with end date
+        if (isOfferActive && offerEndDate) {
+          const endDate = new Date(offerEndDate);
+          const now = new Date();
+          const isExpired = endDate < now;
+          
+          if (isExpired) {
+            return (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                Expired
+              </span>
+            );
+          }
+          
+          // Calculate time remaining
+          const timeRemaining = endDate.getTime() - now.getTime();
+          const daysRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24));
+          
           return (
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-              No Offer
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800" 
+                  title={`Expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`}>
+              {daysRemaining}d left
             </span>
           );
         }
         
-        const endDate = new Date(offerEndDate);
-        const now = new Date();
-        const isExpired = endDate < now;
-        
-        if (isExpired) {
+        // Check if there's an active offer but no time limit set
+        if (isOfferActive && !offerEndDate && discount > 0) {
           return (
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-              Expired
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+              Time Not Set
             </span>
           );
         }
         
-        // Calculate time remaining
-        const timeRemaining = endDate.getTime() - now.getTime();
-        const daysRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24));
+        // Check if there's a discount but no active offer (permanent discounts)
+        if (discount > 0) {
+          return (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              {discount}% OFF
+            </span>
+          );
+        }
         
+        // No offer or discount
         return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800" 
-                title={`Expires in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`}>
-            {daysRemaining}d left
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            No Offer
           </span>
         );
       }
@@ -674,7 +694,15 @@ export default function SellerProducts() {
       if (data.isOfferActive) {
         productData.isOfferActive = true;
         productData.offerStartDate = data.offerStartDate ? new Date(data.offerStartDate).toISOString() : new Date().toISOString();
-        productData.offerEndDate = data.offerEndDate ? new Date(data.offerEndDate).toISOString() : undefined;
+        
+        // Set default end date to 10 days from now if not provided
+        if (data.offerEndDate) {
+          productData.offerEndDate = new Date(data.offerEndDate).toISOString();
+        } else {
+          const defaultEndDate = new Date();
+          defaultEndDate.setDate(defaultEndDate.getDate() + 10);
+          productData.offerEndDate = defaultEndDate.toISOString();
+        }
         
         // If this is a new offer, store the original price
         if (!editingProduct || !editingProduct.originalPrice) {
@@ -742,6 +770,28 @@ export default function SellerProducts() {
     const offerEndDate = getProductData(product, 'offerEndDate');
     const isOfferActive = getProductData(product, 'isOfferActive') || false;
     
+    console.log('🔍 Editing product offer data:', {
+      offerStartDate,
+      offerEndDate,
+      isOfferActive,
+      productId: product.id
+    });
+    
+    // Convert dates to datetime-local format (YYYY-MM-DDTHH:MM)
+    const formatDateForInput = (dateString: string | null | undefined) => {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString);
+        return date.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+      } catch (error) {
+        console.error('Error formatting date:', error);
+        return '';
+      }
+    };
+    
+    const formattedStartDate = formatDateForInput(offerStartDate);
+    const formattedEndDate = formatDateForInput(offerEndDate);
+    
     form.reset({
       name: getProductData(product, 'name') || '',
       description: getProductData(product, 'description') || '',
@@ -752,8 +802,8 @@ export default function SellerProducts() {
       categoryId: customCategory ? -1 : (categoryId || undefined), // Set to -1 if custom category
       customCategory: customCategory || '', // Set custom category if exists
       image: undefined, // Reset image for edit
-      offerStartDate: offerStartDate || '',
-      offerEndDate: offerEndDate || '',
+      offerStartDate: formattedStartDate,
+      offerEndDate: formattedEndDate,
       isOfferActive: isOfferActive,
     });
     
