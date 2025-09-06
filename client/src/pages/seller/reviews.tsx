@@ -253,7 +253,7 @@ export default function SellerReviews() {
                   <span className="text-sm font-medium text-gray-600">{value}/5</span>
                 </div>
               ) },
-              { key: 'comment', header: 'Comment', render: (value: any) => (
+              { key: 'comment', header: 'Reviews', render: (value: any) => (
                 <div className="max-w-md">
                   <p className="text-sm text-gray-700">{value || 'No comment'}</p>
                 </div>
