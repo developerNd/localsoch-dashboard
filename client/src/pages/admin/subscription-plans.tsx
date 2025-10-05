@@ -50,7 +50,7 @@ export default function AdminSubscriptionPlans() {
     description: '',
     price: '',
     duration: '',
-    durationType: 'days',
+    durationType: 'months', // Changed from 'days' to 'months' as default
     isActive: true,
     isPopular: false,
     features: [''],
@@ -217,7 +217,7 @@ export default function AdminSubscriptionPlans() {
       description: '',
       price: '',
       duration: '',
-      durationType: 'days',
+      durationType: 'months', // Changed from 'days' to 'months' as default
       isActive: true,
       isPopular: false,
       features: [''],
@@ -249,6 +249,15 @@ export default function AdminSubscriptionPlans() {
       toast({
         title: "Error",
         description: "Valid duration is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.durationType) {
+      toast({
+        title: "Error",
+        description: "Duration type is required",
         variant: "destructive",
       });
       return;
@@ -308,6 +317,15 @@ export default function AdminSubscriptionPlans() {
       toast({
         title: "Error",
         description: "Valid duration is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.durationType) {
+      toast({
+        title: "Error",
+        description: "Duration type is required",
         variant: "destructive",
       });
       return;
@@ -472,18 +490,22 @@ export default function AdminSubscriptionPlans() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="durationType">Duration Type</Label>
+                    <Label htmlFor="durationType">Duration Type *</Label>
                     <select
                       id="durationType"
                       value={formData.durationType}
                       onChange={(e) => setFormData(prev => ({ ...prev, durationType: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
                     >
                       <option value="days">Days</option>
                       <option value="weeks">Weeks</option>
-                      <option value="months">Months</option>
+                      <option value="months">Months (Recommended)</option>
                       <option value="years">Years</option>
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      💡 Most subscription plans use months (e.g., 1 month, 3 months, 12 months)
+                    </p>
                   </div>
                   <div>
                     <Label htmlFor="maxProducts">Max Products</Label>

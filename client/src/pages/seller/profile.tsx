@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -23,9 +23,9 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useUpdateVendor, useUpdateUser, useCreateVendor } from '@/hooks/use-api';
-import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle, Clock, Truck } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle, Clock, Truck, MapPin, Loader2 } from 'lucide-react';
 import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
-import { LocationSelector } from '@/components/ui/location-selector';
+import { LocationCoordinates } from '@/lib/location-utils';
 
 // Business category type
 interface BusinessCategory {
@@ -56,6 +56,11 @@ const shopFormSchema = z.object({
   gstNumber: z.string().optional(),
   businessType: z.string().optional(),
   businessCategoryId: z.number().optional(),
+  // GPS Location fields
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  locationAccuracy: z.number().optional(),
+  gpsAddress: z.string().optional(),
 });
 
 const shopHoursSchema = z.object({
@@ -202,6 +207,11 @@ export default function SellerProfile() {
   const [loadingTabs, setLoadingTabs] = useState<Set<string>>(new Set());
   const [distanceFees, setDistanceFees] = useState<Array<{minDistance: string, maxDistance: string, fee: string, description: string}>>([]);
   const [orderValueFees, setOrderValueFees] = useState<Array<{minOrderValue: string, maxOrderValue: string, fee: string, description: string}>>([]);
+  const [isCapturingGPS, setIsCapturingGPS] = useState(false);
+  const [gpsRequired, setGpsRequired] = useState(true);
+  const [gpsAvailable, setGpsAvailable] = useState(true);
+  const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+
 
   // Handle tab change with immediate activation and async content loading
   const handleTabChange = (tabValue: string) => {
@@ -344,6 +354,227 @@ export default function SellerProfile() {
     },
   });
 
+  // Simple GPS capture function for profile
+  const captureGPSLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setGpsAvailable(false);
+      setGpsRequired(false);
+      toast({
+        title: "GPS Not Available",
+        description: "Your device doesn't support GPS location services. Please enter your address manually.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCapturingGPS(true);
+    setGpsPermissionDenied(false);
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          (error) => {
+            console.error('GPS Error:', error);
+            if (error.code === error.PERMISSION_DENIED) {
+              setGpsPermissionDenied(true);
+              setGpsRequired(false);
+              toast({
+                title: "GPS Permission Denied",
+                description: "Please allow location access or enter your address manually.",
+                variant: "destructive",
+              });
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+              setGpsAvailable(false);
+              setGpsRequired(false);
+              toast({
+                title: "GPS Unavailable",
+                description: "Location services are unavailable. Please enter your address manually.",
+                variant: "destructive",
+              });
+            } else if (error.code === error.TIMEOUT) {
+              toast({
+                title: "GPS Timeout",
+                description: "Location request timed out. Please try again or enter your address manually.",
+                variant: "destructive",
+              });
+            }
+            reject(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 300000
+          }
+        );
+      });
+
+      const { latitude, longitude, accuracy } = position.coords;
+      
+      console.log('🎯 GPS Location Captured in Profile:', {
+        latitude,
+        longitude,
+        accuracy,
+        timestamp: new Date().toISOString()
+      });
+
+      // Reverse geocoding to get address
+      let geocodingSuccess = false;
+      
+      // Try Google Maps API first (more reliable for pincode)
+      const GOOGLE_API_KEY = 'AIzaSyDgdsLMV37MSAxvIscmfV0lozfDAInj188'; // Hardcoded from cityshopping
+      if (GOOGLE_API_KEY) {
+        try {
+          console.log('🌍 Trying Google Maps API for reverse geocoding');
+          const googleUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}&language=en&region=in`;
+          const googleResponse = await fetch(googleUrl);
+          
+          if (googleResponse.ok) {
+            const googleData = await googleResponse.json();
+            console.log('🌍 Google Maps API Response:', googleData);
+            
+            if (googleData.status === 'OK' && googleData.results && googleData.results.length > 0) {
+              const result = googleData.results[0];
+              const addressComponents = result.address_components;
+              
+              let address = result.formatted_address || '';
+              let city = '';
+              let state = '';
+              let pincode = '';
+              
+              addressComponents.forEach((component: any) => {
+                const types = component.types;
+                if (types.includes('locality') || types.includes('administrative_area_level_2')) {
+                  city = component.long_name;
+                } else if (types.includes('administrative_area_level_1')) {
+                  state = component.long_name;
+                } else if (types.includes('postal_code')) {
+                  pincode = component.long_name;
+                }
+              });
+              
+              console.log('🏠 Google Maps Geocoding Result:', {
+                address,
+                city,
+                state,
+                pincode
+              });
+
+              // Update form with GPS location
+              shopForm.setValue('latitude', latitude);
+              shopForm.setValue('longitude', longitude);
+              shopForm.setValue('locationAccuracy', accuracy);
+              shopForm.setValue('gpsAddress', address); // Store GPS-derived address
+              
+              // Auto-populate address fields
+              if (address) shopForm.setValue('address', address); // Set main address field
+              if (city) shopForm.setValue('city', city);
+              if (state) shopForm.setValue('state', state);
+              if (pincode) shopForm.setValue('pincode', pincode);
+              
+              // Trigger form validation
+              shopForm.trigger(['address', 'city', 'state', 'pincode']);
+
+              toast({
+                title: "Location Updated!",
+                description: `GPS coordinates and address updated successfully.`,
+              });
+              
+              geocodingSuccess = true;
+            }
+          }
+        } catch (googleError) {
+          console.log('Google Maps API failed, trying OpenStreetMap:', googleError);
+        }
+      }
+      
+      // Fallback to OpenStreetMap if Google Maps failed
+      if (!geocodingSuccess) {
+        try {
+          console.log('🌍 Trying OpenStreetMap API for reverse geocoding');
+          
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'LocalVendorHub/1.0'
+              }
+            }
+          );
+          
+          console.log('🌍 OpenStreetMap response status:', response.status);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('🌍 OpenStreetMap response:', data);
+            
+            const address = data.display_name || '';
+            const city = data.address?.city || data.address?.town || data.address?.village || data.address?.hamlet || '';
+            const state = data.address?.state || '';
+            const pincode = data.address?.postcode || '';
+            
+            console.log('🏠 OpenStreetMap Geocoding Result:', {
+              address,
+              city,
+              state,
+              pincode,
+              fullAddress: data.address
+            });
+
+            // Update form with GPS location
+            shopForm.setValue('latitude', latitude);
+            shopForm.setValue('longitude', longitude);
+            shopForm.setValue('locationAccuracy', accuracy);
+            shopForm.setValue('gpsAddress', address); // Store GPS-derived address
+            
+            // Auto-populate address fields
+            if (address) shopForm.setValue('address', address); // Set main address field
+            if (city) shopForm.setValue('city', city);
+            if (state) shopForm.setValue('state', state);
+            if (pincode) shopForm.setValue('pincode', pincode);
+            
+            // Trigger form validation
+            shopForm.trigger(['address', 'city', 'state', 'pincode']);
+
+            toast({
+              title: "Location Updated!",
+              description: `GPS coordinates and address updated successfully.`,
+            });
+            
+            geocodingSuccess = true;
+          } else {
+            console.error('OpenStreetMap API error:', response.status, response.statusText);
+            throw new Error(`OpenStreetMap API returned ${response.status}`);
+          }
+        } catch (osmError) {
+          console.error('OpenStreetMap geocoding failed:', osmError);
+        }
+      }
+      
+      // If both geocoding services failed, still save GPS coordinates
+      if (!geocodingSuccess) {
+        console.log('🌍 Both geocoding services failed, saving GPS coordinates only');
+        shopForm.setValue('latitude', latitude);
+        shopForm.setValue('longitude', longitude);
+        shopForm.setValue('locationAccuracy', accuracy);
+
+        toast({
+          title: "GPS Updated",
+          description: "Location coordinates updated, but address lookup failed.",
+        });
+      }
+    } catch (error) {
+      console.error('GPS capture failed:', error);
+      toast({
+        title: "GPS Capture Failed",
+        description: "Unable to get your location. Please try again or enter manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCapturingGPS(false);
+    }
+  }, [toast, shopForm]);
+
   // Mutations
   const updateUserMutation = useUpdateUser();
   const updateVendorMutation = useUpdateVendor();
@@ -468,6 +699,16 @@ export default function SellerProfile() {
       toast({
         title: "Error",
         description: "User information not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // GPS validation - required if GPS is available and not disabled
+    if (gpsRequired && gpsAvailable && (!data.latitude || !data.longitude)) {
+      toast({
+        title: "GPS Location Required",
+        description: "GPS location is required for accurate service delivery. Please capture your location or allow manual entry.",
         variant: "destructive",
       });
       return;
@@ -1194,28 +1435,229 @@ export default function SellerProfile() {
                       </div>
                     </div>
 
+                    {/* GPS Location Section - Required */}
+                    <div className="border rounded-lg p-4 bg-blue-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h4 className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                            GPS Location
+                            {gpsRequired && gpsAvailable && (
+                              <span className="text-red-500 text-xs">* Required</span>
+                            )}
+                          </h4>
+                          <p className="text-xs text-blue-700">
+                            {gpsRequired && gpsAvailable 
+                              ? "GPS location is required for accurate service delivery"
+                              : "Update your current location automatically"
+                            }
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {gpsRequired && gpsAvailable && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setGpsRequired(false);
+                                toast({
+                                  title: "Manual Entry Enabled",
+                                  description: "You can now enter your address manually.",
+                                });
+                              }}
+                              className="bg-white border-orange-300 text-orange-700 hover:bg-orange-50"
+                            >
+                              Enter Manually
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={captureGPSLocation}
+                            disabled={isCapturingGPS}
+                            className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
+                          >
+                            {isCapturingGPS ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                Capturing...
+                              </>
+                            ) : (
+                              <>
+                                <MapPin className="h-4 w-4 mr-2" />
+                                Get GPS Location
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* GPS Error States */}
+                      {gpsPermissionDenied && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs">!</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-red-800">GPS Permission Denied</p>
+                              <p className="text-xs text-red-600">
+                                Please allow location access or use manual entry below.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {!gpsAvailable && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-5 h-5 bg-yellow-600 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs">!</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-yellow-800">GPS Not Available</p>
+                              <p className="text-xs text-yellow-600">
+                                GPS services are not available. Please enter your address manually.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* GPS Data Status */}
+                      {shopForm.watch('latitude') && shopForm.watch('longitude') && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-center space-x-2">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                            <div>
+                              <p className="text-sm font-medium text-green-800">GPS Location Captured!</p>
+                              <p className="text-xs text-green-600">
+                                Coordinates: {shopForm.watch('latitude')?.toFixed(6)}, {shopForm.watch('longitude')?.toFixed(6)}
+                                {shopForm.watch('locationAccuracy') && ` (Accuracy: ±${Math.round(shopForm.watch('locationAccuracy') || 0)}m)`}
+                              </p>
+                              {shopForm.watch('gpsAddress') && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  Address: {shopForm.watch('gpsAddress')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Address Field */}
                     <div>
                       <Label htmlFor="address">Address *</Label>
                       <Input
                         id="address"
                         {...shopForm.register('address')}
                         placeholder="Enter your business address"
+                        onChange={(e) => {
+                          const newAddress = e.target.value;
+                          // Update gpsAddress to match the manually entered address
+                          shopForm.setValue('gpsAddress', newAddress);
+                        }}
+                        readOnly={gpsRequired && gpsAvailable}
+                        className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
                       />
+                      {gpsRequired && gpsAvailable && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Address will be auto-filled from GPS location. Click "Enter Manually" to edit.
+                        </p>
+                      )}
                       {shopForm.formState.errors.address && (
                         <p className="text-sm text-red-500 mt-1">
                           {shopForm.formState.errors.address.message}
                         </p>
                       )}
                     </div>
-
-                    <LocationSelector
-                      selectedState={shopForm.watch('state')}
-                      selectedCity={shopForm.watch('city')}
-                      selectedPincode={shopForm.watch('pincode')}
-                      onStateChange={(state) => shopForm.setValue('state', state)}
-                      onCityChange={(city) => shopForm.setValue('city', city)}
-                      onPincodeChange={(pincode) => shopForm.setValue('pincode', pincode)}
-                    />
+                    
+                    {/* Manual Location Input Fields */}
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">
+                        Enter your location details
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor="state">State</Label>
+                          <Input
+                            id="state"
+                            {...shopForm.register('state')}
+                            value={shopForm.watch('state') || ''}
+                            placeholder="Enter state"
+                            onChange={(e) => {
+                              const newState = e.target.value;
+                              shopForm.setValue('state', newState);
+                              // Update gpsAddress to reflect manual changes
+                              const currentAddress = shopForm.getValues('address');
+                              if (currentAddress) {
+                                shopForm.setValue('gpsAddress', currentAddress);
+                              }
+                            }}
+                            readOnly={gpsRequired && gpsAvailable}
+                            className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
+                          />
+                          {shopForm.formState.errors.state && (
+                            <p className="text-sm text-red-500 mt-1">
+                              {shopForm.formState.errors.state.message}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="city">City</Label>
+                          <Input
+                            id="city"
+                            {...shopForm.register('city')}
+                            value={shopForm.watch('city') || ''}
+                            placeholder="Enter city"
+                            onChange={(e) => {
+                              const newCity = e.target.value;
+                              shopForm.setValue('city', newCity);
+                              // Update gpsAddress to reflect manual changes
+                              const currentAddress = shopForm.getValues('address');
+                              if (currentAddress) {
+                                shopForm.setValue('gpsAddress', currentAddress);
+                              }
+                            }}
+                            readOnly={gpsRequired && gpsAvailable}
+                            className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
+                          />
+                          {shopForm.formState.errors.city && (
+                            <p className="text-sm text-red-500 mt-1">
+                              {shopForm.formState.errors.city.message}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="pincode">Pincode</Label>
+                          <Input
+                            id="pincode"
+                            {...shopForm.register('pincode')}
+                            value={shopForm.watch('pincode') || ''}
+                            placeholder="Enter pincode"
+                            onChange={(e) => {
+                              const newPincode = e.target.value;
+                              shopForm.setValue('pincode', newPincode);
+                              // Update gpsAddress to reflect manual changes
+                              const currentAddress = shopForm.getValues('address');
+                              if (currentAddress) {
+                                shopForm.setValue('gpsAddress', currentAddress);
+                              }
+                            }}
+                            readOnly={gpsRequired && gpsAvailable}
+                            className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
+                          />
+                          {shopForm.formState.errors.pincode && (
+                            <p className="text-sm text-red-500 mt-1">
+                              {shopForm.formState.errors.pincode.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     {(shopForm.formState.errors.city || shopForm.formState.errors.state || shopForm.formState.errors.pincode) && (
                       <div className="space-y-1">
                         {shopForm.formState.errors.city && (

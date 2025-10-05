@@ -99,7 +99,7 @@ export default function SellerSubscriptions() {
 
   // Generate invoice data from subscription
   const generateInvoiceData = (subscription: Subscription): InvoiceData => {
-    const invoiceNumber = `INV-${subscription.id}-${Date.now().toString().slice(-4)}`;
+    const invoiceNumber = `INV-${subscription.id + 1000}-${Date.now().toString().slice(-4)}`;
     const invoiceDate = new Date().toISOString().split('T')[0];
     
     // Handle plan data properly - check multiple possible locations
@@ -153,7 +153,7 @@ export default function SellerSubscriptions() {
     return {
       invoiceNumber,
       invoiceDate,
-      subscriptionId: subscription.id,
+      subscriptionId: subscription.id + 1000,
       subscriptionDate: new Date(subscription.createdAt).toISOString().split('T')[0],
       vendorName: subscription.vendor?.name || user?.firstName + ' ' + user?.lastName || 'Vendor',
       vendorEmail: subscription.vendor?.email || user?.email || '',

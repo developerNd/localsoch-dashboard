@@ -10,11 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getApiUrl, API_ENDPOINTS } from "@/lib/config";
-import { LocationSelector } from "@/components/ui/location-selector";
+import { getApiUrl, API_ENDPOINTS, API_CONFIG } from "@/lib/config";
 // import { LocationQuickSearch } from "@/components/ui/location-quick-search"; // REMOVED
-import { getStates } from "@/lib/location-api";
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
+import { LocationCoordinates } from "@/lib/location-utils";
+import { MapPin, Loader2 } from 'lucide-react';
 
 interface BusinessCategory {
   id: number;
@@ -36,8 +36,7 @@ interface SignupFormData {
   shopDescription: string;
   address: string;
   city: string;
-  state: string; // This will store state ID
-  stateName: string; // This will store state name for display
+  state: string; // This will store state name
   pincode: string;
   businessCategoryId: number | null;
   otherBusinessCategory: string; // For custom business category
@@ -47,6 +46,11 @@ interface SignupFormData {
   ifscCode: string;
   bankAccountType: 'savings' | 'current';
   acceptTerms: boolean;
+  // GPS Location fields
+  latitude?: number;
+  longitude?: number;
+  locationAccuracy?: number;
+  gpsAddress?: string;
 }
 
 export default function Signup() {
@@ -63,7 +67,6 @@ export default function Signup() {
     address: "",
     city: "",
     state: "",
-    stateName: "",
     pincode: "",
     businessCategoryId: null,
     otherBusinessCategory: "",
@@ -73,11 +76,20 @@ export default function Signup() {
     ifscCode: "",
     bankAccountType: 'savings',
     acceptTerms: false,
+    // GPS Location fields
+    latitude: undefined,
+    longitude: undefined,
+    locationAccuracy: undefined,
+    gpsAddress: "",
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [signupStatus, setSignupStatus] = useState("");
   const [showOtherBusinessCategory, setShowOtherBusinessCategory] = useState(false);
+  const [isCapturingGPS, setIsCapturingGPS] = useState(false);
+  const [gpsRequired, setGpsRequired] = useState(true);
+  const [gpsAvailable, setGpsAvailable] = useState(true);
+  const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -93,34 +105,9 @@ export default function Signup() {
     },
   });
 
-  // New query for states to map names to IDs
-  const { data: states } = useQuery({
-    queryKey: ['location-states'],
-    queryFn: getStates,
-  });
-
   const handleInputChange = (field: keyof SignupFormData, value: string | boolean | number | null) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
-
-  // New handler for state change to map name to ID
-  const handleStateChange = useCallback((stateId: string) => {
-    console.log('🔍 Signup: handleStateChange called with stateId:', stateId);
-    console.log('🔍 Signup: Available states:', states);
-    
-    const state = states?.find(s => s.id === stateId);
-    console.log('🔍 Signup: Found state:', state);
-    
-    setFormData(prev => {
-      const newData = {
-        ...prev,
-        state: stateId,
-        stateName: state?.name || ''
-      };
-      console.log('🔍 Signup: Updated formData:', newData);
-      return newData;
-    });
-  }, [states]);
 
   const handleCityChange = useCallback((city: string) => {
     handleInputChange('city', city);
@@ -129,6 +116,311 @@ export default function Signup() {
   const handlePincodeChange = useCallback((pincode: string) => {
     handleInputChange('pincode', pincode);
   }, []);
+
+  // GPS Location handlers
+  const handleGPSLocationChange = useCallback((location: LocationCoordinates) => {
+    console.log('🌍 GPS Location Captured in Signup:', {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy: location.accuracy,
+      address: location.address,
+      city: location.city,
+      state: location.state,
+      pincode: location.pincode,
+      fullLocation: location
+    });
+    
+    setFormData(prev => {
+      const updatedData = {
+        ...prev,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        locationAccuracy: location.accuracy,
+        gpsAddress: location.address || '',
+        // Auto-fill address fields if GPS provides them
+        ...(location.city && { city: location.city }),
+        ...(location.state && { stateName: location.state }),
+        ...(location.pincode && { pincode: location.pincode }),
+        ...(location.address && { address: location.address }),
+      };
+      
+      console.log('📝 Signup form data updated with GPS:', {
+        latitude: updatedData.latitude,
+        longitude: updatedData.longitude,
+        locationAccuracy: updatedData.locationAccuracy,
+        gpsAddress: updatedData.gpsAddress,
+        city: updatedData.city,
+        stateName: updatedData.stateName,
+        pincode: updatedData.pincode,
+        address: updatedData.address
+      });
+      
+      return updatedData;
+    });
+  }, []);
+
+  const handleGPSAddressChange = useCallback((address: string) => {
+    console.log('📍 GPS Address Updated in Signup:', address);
+    setFormData(prev => ({
+      ...prev,
+      gpsAddress: address,
+    }));
+  }, []);
+
+  // Check GPS availability on component mount
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGpsAvailable(false);
+      setGpsRequired(false);
+    }
+  }, []);
+
+  // Simple GPS capture function
+  const captureGPSLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      setGpsAvailable(false);
+      setGpsRequired(false);
+      toast({
+        title: "GPS Not Available",
+        description: "Your device doesn't support GPS location services. Please enter your address manually.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCapturingGPS(true);
+    setError("");
+    setGpsPermissionDenied(false);
+    
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          (error) => {
+            console.error('GPS Error:', error);
+            if (error.code === error.PERMISSION_DENIED) {
+              setGpsPermissionDenied(true);
+              setGpsRequired(false);
+              toast({
+                title: "GPS Permission Denied",
+                description: "Please allow location access or enter your address manually.",
+                variant: "destructive",
+              });
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+              setGpsAvailable(false);
+              setGpsRequired(false);
+              toast({
+                title: "GPS Unavailable",
+                description: "Location services are unavailable. Please enter your address manually.",
+                variant: "destructive",
+              });
+            } else if (error.code === error.TIMEOUT) {
+              toast({
+                title: "GPS Timeout",
+                description: "Location request timed out. Please try again or enter your address manually.",
+                variant: "destructive",
+              });
+            }
+            reject(error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 300000
+          }
+        );
+      });
+
+      const { latitude, longitude, accuracy } = position.coords;
+      
+      console.log('🎯 GPS Location Captured:', {
+        latitude,
+        longitude,
+        accuracy,
+        timestamp: new Date().toISOString()
+      });
+
+      // Reverse geocoding to get address
+      let geocodingSuccess = false;
+      
+      // Try Google Maps API first (more reliable for pincode)
+      const GOOGLE_API_KEY = API_CONFIG.GOOGLE_MAPS_API_KEY; // From environment variable
+      if (GOOGLE_API_KEY) {
+        try {
+          console.log('🌍 Trying Google Maps API for reverse geocoding');
+          const googleUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}&language=en&region=in`;
+          const googleResponse = await fetch(googleUrl);
+          
+          if (googleResponse.ok) {
+            const googleData = await googleResponse.json();
+            console.log('🌍 Google Maps API Response:', googleData);
+            
+            if (googleData.status === 'OK' && googleData.results && googleData.results.length > 0) {
+              const result = googleData.results[0];
+              const addressComponents = result.address_components;
+              
+              let address = result.formatted_address || '';
+              let city = '';
+              let state = '';
+              let pincode = '';
+              
+              addressComponents.forEach((component: any) => {
+                const types = component.types;
+                if (types.includes('locality') || types.includes('administrative_area_level_2')) {
+                  city = component.long_name;
+                } else if (types.includes('administrative_area_level_1')) {
+                  state = component.long_name;
+                } else if (types.includes('postal_code')) {
+                  pincode = component.long_name;
+                }
+              });
+              
+              console.log('🏠 Google Maps Geocoding Result:', {
+                address,
+                city,
+                state,
+                pincode
+              });
+
+              console.log('📝 Setting form data with GPS location:', {
+                latitude,
+                longitude,
+                locationAccuracy: accuracy,
+                gpsAddress: address,
+                city: city || 'previous city',
+                stateName: state || 'previous state',
+                pincode: pincode || 'previous pincode',
+                address: address || 'previous address'
+              });
+
+              // Update form data with GPS location
+              setFormData(prev => {
+                const updatedData = {
+                  ...prev,
+                  latitude,
+                  longitude,
+                  locationAccuracy: accuracy,
+                  gpsAddress: address, // Store GPS-derived address
+                  city: city || prev.city,
+                  state: state || prev.state, // Set state field with state name
+                  pincode: pincode || prev.pincode,
+                  address: address, // Set the main address field to GPS address
+                };
+                
+                console.log('📝 Form data updated with GPS location:', {
+                  latitude: updatedData.latitude,
+                  longitude: updatedData.longitude,
+                  locationAccuracy: updatedData.locationAccuracy,
+                  gpsAddress: updatedData.gpsAddress,
+                  city: updatedData.city,
+                  state: updatedData.state,
+                  pincode: updatedData.pincode,
+                  address: updatedData.address
+                });
+                
+                return updatedData;
+              });
+
+              toast({
+                title: "Location Captured!",
+                description: `GPS coordinates and address captured successfully.`,
+              });
+              
+              geocodingSuccess = true;
+            }
+          }
+        } catch (googleError) {
+          console.log('Google Maps API failed, trying OpenStreetMap:', googleError);
+        }
+      }
+      
+      // Fallback to OpenStreetMap if Google Maps failed
+      if (!geocodingSuccess) {
+        try {
+          console.log('🌍 Trying OpenStreetMap API for reverse geocoding');
+          
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'LocalVendorHub/1.0'
+              }
+            }
+          );
+          
+          console.log('🌍 OpenStreetMap response status:', response.status);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('🌍 OpenStreetMap response:', data);
+            
+            const address = data.display_name || '';
+            const city = data.address?.city || data.address?.town || data.address?.village || data.address?.hamlet || '';
+            const state = data.address?.state || '';
+            const pincode = data.address?.postcode || '';
+            
+            console.log('🏠 OpenStreetMap Geocoding Result:', {
+              address,
+              city,
+              state,
+              pincode,
+              fullAddress: data.address
+            });
+
+            // Update form data with GPS location
+            setFormData(prev => ({
+              ...prev,
+              latitude,
+              longitude,
+              locationAccuracy: accuracy,
+              gpsAddress: address, // Store GPS-derived address
+              city: city || prev.city,
+              state: state || prev.state, // Set state field with state name
+              pincode: pincode || prev.pincode,
+              address: address, // Set the main address field to GPS address
+            }));
+
+            toast({
+              title: "Location Captured!",
+              description: `GPS coordinates and address captured successfully.`,
+            });
+            
+            geocodingSuccess = true;
+          } else {
+            console.error('OpenStreetMap API error:', response.status, response.statusText);
+            throw new Error(`OpenStreetMap API returned ${response.status}`);
+          }
+        } catch (osmError) {
+          console.error('OpenStreetMap geocoding failed:', osmError);
+        }
+      }
+      
+      // If both geocoding services failed, still save GPS coordinates
+      if (!geocodingSuccess) {
+        console.log('🌍 Both geocoding services failed, saving GPS coordinates only');
+        setFormData(prev => ({
+          ...prev,
+          latitude,
+          longitude,
+          locationAccuracy: accuracy,
+        }));
+
+        toast({
+          title: "GPS Captured",
+          description: "Location coordinates captured, but address lookup failed.",
+        });
+      }
+    } catch (error) {
+      console.error('GPS capture failed:', error);
+      toast({
+        title: "GPS Capture Failed",
+        description: "Unable to get your location. Please try again or enter manually.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCapturingGPS(false);
+    }
+  }, [toast]);
 
   // Function to create custom business category
   const createCustomBusinessCategory = async (categoryName: string) => {
@@ -172,8 +464,21 @@ export default function Signup() {
       return "You must accept the terms and conditions";
     }
     if (!formData.shopName || !formData.address || !formData.city || !formData.state || !formData.pincode) {
+      console.log('🔍 Validation failed - missing fields:', {
+        shopName: formData.shopName,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode
+      });
       return "Shop details are required";
     }
+    
+    // GPS validation - required if GPS is available and not disabled
+    if (gpsRequired && gpsAvailable && (!formData.latitude || !formData.longitude)) {
+      return "GPS location is required. Please capture your location or allow manual entry.";
+    }
+    
     if (!formData.businessCategoryId && !formData.otherBusinessCategory) {
       return "Please select a business category or specify a custom one";
     }
@@ -275,7 +580,6 @@ export default function Signup() {
           address: formData.address,
           city: formData.city,
           state: formData.state,
-          stateName: formData.stateName,
           pincode: formData.pincode,
           businessCategoryId: finalBusinessCategoryId,
           otherBusinessCategory: formData.otherBusinessCategory,
@@ -286,6 +590,11 @@ export default function Signup() {
           bankAccountNumber: formData.bankAccountNumber,
           ifscCode: formData.ifscCode,
           bankAccountType: formData.bankAccountType,
+          // GPS Location data
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          locationAccuracy: formData.locationAccuracy,
+          gpsAddress: formData.gpsAddress,
         },
       }));
 
@@ -553,28 +862,217 @@ export default function Signup() {
                   </div>
                 )}
                 
+                {/* GPS Location Section - Required */}
+                <div className="border rounded-lg p-4 bg-blue-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-blue-900 flex items-center gap-2">
+                        GPS Location
+                        {gpsRequired && gpsAvailable && (
+                          <span className="text-red-500 text-xs">* Required</span>
+                        )}
+                      </h4>
+                      <p className="text-xs text-blue-700">
+                        {gpsRequired && gpsAvailable 
+                          ? "GPS location is required for accurate service delivery"
+                          : "Capture your current location automatically"
+                        }
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {gpsRequired && gpsAvailable && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setGpsRequired(false);
+                            toast({
+                              title: "Manual Entry Enabled",
+                              description: "You can now enter your address manually.",
+                            });
+                          }}
+                          className="bg-white border-orange-300 text-orange-700 hover:bg-orange-50"
+                        >
+                          Enter Manually
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={captureGPSLocation}
+                        disabled={isCapturingGPS}
+                        className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
+                      >
+                        {isCapturingGPS ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Capturing...
+                          </>
+                        ) : (
+                          <>
+                            <MapPin className="h-4 w-4 mr-2" />
+                            Get GPS Location
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* GPS Error States */}
+                  {gpsPermissionDenied && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">!</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-red-800">GPS Permission Denied</p>
+                          <p className="text-xs text-red-600">
+                            Please allow location access or use manual entry below.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!gpsAvailable && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-5 h-5 bg-yellow-600 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">!</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-yellow-800">GPS Not Available</p>
+                          <p className="text-xs text-yellow-600">
+                            GPS services are not available. Please enter your address manually.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* GPS Data Status */}
+                  {formData.latitude && formData.longitude && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-green-800">GPS Location Captured!</p>
+                          <p className="text-xs text-green-600">
+                            Coordinates: {formData.latitude?.toFixed(6)}, {formData.longitude?.toFixed(6)}
+                            {formData.locationAccuracy && ` (Accuracy: ±${Math.round(formData.locationAccuracy)}m)`}
+                          </p>
+                          {formData.gpsAddress && (
+                            <p className="text-xs text-green-600 mt-1">
+                              Address: {formData.gpsAddress}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Address Field */}
                 <div>
                   <Label htmlFor="address">Address</Label>
                   <Textarea
                     id="address"
                     value={formData.address}
-                    onChange={(e) => handleInputChange('address', e.target.value)}
+                    onChange={(e) => {
+                      const newAddress = e.target.value;
+                      handleInputChange('address', newAddress);
+                      // Update gpsAddress to match the manually entered address
+                      setFormData(prev => ({
+                        ...prev,
+                        gpsAddress: newAddress
+                      }));
+                    }}
                     placeholder="Enter your shop address"
                     rows={2}
                     required
+                    readOnly={gpsRequired && gpsAvailable}
+                    className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
                   />
+                  {gpsRequired && gpsAvailable && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Address will be auto-filled from GPS location. Click "Enter Manually" to edit.
+                    </p>
+                  )}
                 </div>
                 
-                {/* REMOVED: LocationQuickSearch component */}
-                
-                <LocationSelector
-                  selectedState={formData.state}
-                  selectedCity={formData.city}
-                  selectedPincode={formData.pincode}
-                  onStateChange={handleStateChange}
-                  onCityChange={handleCityChange}
-                  onPincodeChange={handlePincodeChange}
-                />
+                {/* Manual Location Input Fields */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    Enter your location details
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="state">State</Label>
+                      <Input
+                        id="state"
+                        value={formData.state}
+                        onChange={(e) => {
+                          const newState = e.target.value;
+                          handleInputChange('state', newState);
+                          // Update gpsAddress to reflect manual changes
+                          setFormData(prev => ({
+                            ...prev,
+                            gpsAddress: prev.address // Keep current address as gpsAddress
+                          }));
+                        }}
+                        placeholder="Enter state"
+                        required
+                        readOnly={gpsRequired && gpsAvailable}
+                        className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={formData.city}
+                        onChange={(e) => {
+                          const newCity = e.target.value;
+                          handleInputChange('city', newCity);
+                          // Update gpsAddress to reflect manual changes
+                          setFormData(prev => ({
+                            ...prev,
+                            gpsAddress: prev.address // Keep current address as gpsAddress
+                          }));
+                        }}
+                        placeholder="Enter city"
+                        required
+                        readOnly={gpsRequired && gpsAvailable}
+                        className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pincode">Pincode</Label>
+                      <Input
+                        id="pincode"
+                        value={formData.pincode}
+                        onChange={(e) => {
+                          const newPincode = e.target.value;
+                          handleInputChange('pincode', newPincode);
+                          // Update gpsAddress to reflect manual changes
+                          setFormData(prev => ({
+                            ...prev,
+                            gpsAddress: prev.address // Keep current address as gpsAddress
+                          }));
+                        }}
+                        placeholder="Enter pincode"
+                        required
+                        readOnly={gpsRequired && gpsAvailable}
+                        className={gpsRequired && gpsAvailable ? "bg-gray-50 cursor-not-allowed" : ""}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Terms and Conditions */}

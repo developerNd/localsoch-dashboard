@@ -236,6 +236,11 @@ export const completeSellerRegistration = async (paymentResponse: any, referralC
           ifscCode: sellerData.formData.ifscCode || null,
           bankAccountName: sellerData.formData.bankAccountName || null,
           bankAccountType: sellerData.formData.bankAccountType || 'savings',
+          // Include GPS location data
+          latitude: sellerData.formData.latitude || null,
+          longitude: sellerData.formData.longitude || null,
+          locationAccuracy: sellerData.formData.locationAccuracy || null,
+          gpsAddress: sellerData.formData.gpsAddress || null,
         }
       }),
     });

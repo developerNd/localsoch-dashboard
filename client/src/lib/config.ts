@@ -2,13 +2,18 @@
 export const API_CONFIG = {
     // Use production API URL
     get API_URL() {
-      return 'https://api.localsoch.com';
-      // return "http://localhost:1337";
+      // return 'https://api.localsoch.com';
+      return import.meta.env.VITE_API_URL || "http://192.168.150.101:1337";
     },
     
     // Get the appropriate image URL based on environment
     get IMAGE_URL() {
       return this.API_URL;
+    },
+    
+    // Google Maps API Key from environment
+    get GOOGLE_MAPS_API_KEY() {
+      return import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
     }
   };
   
