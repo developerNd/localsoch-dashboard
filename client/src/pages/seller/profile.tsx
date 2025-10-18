@@ -23,9 +23,10 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useUpdateVendor, useUpdateUser, useCreateVendor } from '@/hooks/use-api';
-import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle, Clock, Truck, MapPin, Loader2 } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle, Clock, Truck, MapPin, Loader2, Map } from 'lucide-react';
 import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
 import { LocationCoordinates } from '@/lib/location-utils';
+import { MapLocationSelector } from '@/components/ui/map-location-selector';
 
 // Business category type
 interface BusinessCategory {
@@ -211,6 +212,7 @@ export default function SellerProfile() {
   const [gpsRequired, setGpsRequired] = useState(true);
   const [gpsAvailable, setGpsAvailable] = useState(true);
   const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+  const [showMapSelector, setShowMapSelector] = useState(false);
 
 
   // Handle tab change with immediate activation and async content loading
@@ -573,6 +575,39 @@ export default function SellerProfile() {
     } finally {
       setIsCapturingGPS(false);
     }
+  }, [toast, shopForm]);
+
+  // Handle map location selection
+  const handleMapLocationSelect = useCallback((location: {
+    latitude: number;
+    longitude: number;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+  }) => {
+    console.log('🗺️ Map Location Selected in Profile:', location);
+    
+    // Update form with map-selected location
+    shopForm.setValue('latitude', location.latitude);
+    shopForm.setValue('longitude', location.longitude);
+    shopForm.setValue('locationAccuracy', 0); // Map selection is considered accurate
+    shopForm.setValue('gpsAddress', location.address);
+    shopForm.setValue('address', location.address);
+    shopForm.setValue('city', location.city);
+    shopForm.setValue('state', location.state);
+    shopForm.setValue('pincode', location.pincode);
+    
+    // Trigger form validation
+    shopForm.trigger(['address', 'city', 'state', 'pincode']);
+
+    // Hide map selector after selection
+    setShowMapSelector(false);
+    
+    toast({
+      title: "Location Selected!",
+      description: `Address: ${location.address}`,
+    });
   }, [toast, shopForm]);
 
   // Mutations
@@ -1474,6 +1509,16 @@ export default function SellerProfile() {
                             type="button"
                             variant="outline"
                             size="sm"
+                            onClick={() => setShowMapSelector(!showMapSelector)}
+                            className="bg-white border-green-300 text-green-700 hover:bg-green-50"
+                          >
+                            <Map className="h-4 w-4 mr-2" />
+                            {showMapSelector ? 'Hide Map' : 'Select on Map'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={captureGPSLocation}
                             disabled={isCapturingGPS}
                             className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
@@ -1547,6 +1592,24 @@ export default function SellerProfile() {
                         </div>
                       )}
                     </div>
+                    
+                    {/* Map Location Selector */}
+                    {showMapSelector && (
+                      <div className="mt-4">
+                        <MapLocationSelector
+                          onLocationSelect={handleMapLocationSelect}
+                          initialLocation={shopForm.watch('latitude') && shopForm.watch('longitude') ? {
+                            latitude: shopForm.watch('latitude') || 0,
+                            longitude: shopForm.watch('longitude') || 0,
+                            address: shopForm.watch('gpsAddress') || shopForm.watch('address') || '',
+                            city: shopForm.watch('city') || '',
+                            state: shopForm.watch('state') || '',
+                            pincode: shopForm.watch('pincode') || ''
+                          } : undefined}
+                          disabled={isCapturingGPS}
+                        />
+                      </div>
+                    )}
                     
                     {/* Address Field */}
                     <div>

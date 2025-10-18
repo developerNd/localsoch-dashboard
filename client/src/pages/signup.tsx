@@ -14,7 +14,8 @@ import { getApiUrl, API_ENDPOINTS, API_CONFIG } from "@/lib/config";
 // import { LocationQuickSearch } from "@/components/ui/location-quick-search"; // REMOVED
 import { useCallback, useEffect } from 'react';
 import { LocationCoordinates } from "@/lib/location-utils";
-import { MapPin, Loader2 } from 'lucide-react';
+import { MapPin, Loader2, Map } from 'lucide-react';
+import { MapLocationSelector } from "@/components/ui/map-location-selector";
 
 interface BusinessCategory {
   id: number;
@@ -90,6 +91,7 @@ export default function Signup() {
   const [gpsRequired, setGpsRequired] = useState(true);
   const [gpsAvailable, setGpsAvailable] = useState(true);
   const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+  const [showMapSelector, setShowMapSelector] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -420,6 +422,39 @@ export default function Signup() {
     } finally {
       setIsCapturingGPS(false);
     }
+  }, [toast]);
+
+  // Handle map location selection
+  const handleMapLocationSelect = useCallback((location: {
+    latitude: number;
+    longitude: number;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+  }) => {
+    console.log('🗺️ Map Location Selected in Signup:', location);
+    
+    // Update form data with map-selected location
+    setFormData(prev => ({
+      ...prev,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      locationAccuracy: 0, // Map selection is considered accurate
+      gpsAddress: location.address,
+      address: location.address,
+      city: location.city,
+      state: location.state,
+      pincode: location.pincode,
+    }));
+
+    // Hide map selector after selection
+    setShowMapSelector(false);
+    
+    toast({
+      title: "Location Selected!",
+      description: `Address: ${location.address}`,
+    });
   }, [toast]);
 
   // Function to create custom business category
@@ -879,45 +914,55 @@ export default function Signup() {
                         }
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      {gpsRequired && gpsAvailable && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setGpsRequired(false);
-                            toast({
-                              title: "Manual Entry Enabled",
-                              description: "You can now enter your address manually.",
-                            });
-                          }}
-                          className="bg-white border-orange-300 text-orange-700 hover:bg-orange-50"
-                        >
-                          Enter Manually
-                        </Button>
-                      )}
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={captureGPSLocation}
-                        disabled={isCapturingGPS}
-                        className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
-                      >
-                        {isCapturingGPS ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            Capturing...
-                          </>
-                        ) : (
-                          <>
-                            <MapPin className="h-4 w-4 mr-2" />
-                            Get GPS Location
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                <div className="flex gap-2">
+                  {gpsRequired && gpsAvailable && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setGpsRequired(false);
+                        toast({
+                          title: "Manual Entry Enabled",
+                          description: "You can now enter your address manually.",
+                        });
+                      }}
+                      className="bg-white border-orange-300 text-orange-700 hover:bg-orange-50"
+                    >
+                      Enter Manually
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMapSelector(!showMapSelector)}
+                    className="bg-white border-green-300 text-green-700 hover:bg-green-50"
+                  >
+                    <Map className="h-4 w-4 mr-2" />
+                    {showMapSelector ? 'Hide Map' : 'Select on Map'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={captureGPSLocation}
+                    disabled={isCapturingGPS}
+                    className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    {isCapturingGPS ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Capturing...
+                      </>
+                    ) : (
+                      <>
+                        <MapPin className="h-4 w-4 mr-2" />
+                        Get GPS Location
+                      </>
+                    )}
+                  </Button>
+                </div>
                   </div>
                   
                   {/* GPS Error States */}
@@ -976,6 +1021,24 @@ export default function Signup() {
                     </div>
                   )}
                 </div>
+                
+                {/* Map Location Selector */}
+                {showMapSelector && (
+                  <div className="mt-4">
+                    <MapLocationSelector
+                      onLocationSelect={handleMapLocationSelect}
+                      initialLocation={formData.latitude && formData.longitude ? {
+                        latitude: formData.latitude,
+                        longitude: formData.longitude,
+                        address: formData.gpsAddress || formData.address || '',
+                        city: formData.city || '',
+                        state: formData.state || '',
+                        pincode: formData.pincode || ''
+                      } : undefined}
+                      disabled={isCapturingGPS}
+                    />
+                  </div>
+                )}
                 
                 {/* Address Field */}
                 <div>
