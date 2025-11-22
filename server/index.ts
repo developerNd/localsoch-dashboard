@@ -6,6 +6,21 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Add CSP headers for development (allows Google Maps and other required scripts)
+app.use((req, res, next) => {
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://checkout.razorpay.com https://*.razorpay.com https://replit.com; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https: https://maps.googleapis.com https://maps.gstatic.com; " +
+    "connect-src 'self' https: https://maps.googleapis.com wss: ws:; " +
+    "frame-src https://checkout.razorpay.com https://*.razorpay.com; " +
+    "font-src 'self' data:;"
+  );
+  next();
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
