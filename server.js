@@ -20,11 +20,12 @@ app.use(helmet({
         "'self'",
         "https://checkout.razorpay.com",
         "https://*.razorpay.com",
+        "https://maps.googleapis.com",
         "'unsafe-inline'",
         "'unsafe-eval'"
       ],
-      imgSrc: ["'self'", "data:", "https:", "https://api.localsoch.com"],
-      connectSrc: ["'self'", "https:", "https://api.localsoch.com", "wss://api.localsoch.com", "ws://api.localsoch.com"],
+      imgSrc: ["'self'", "data:", "https:", "https://api.localsoch.com", "https://maps.googleapis.com", "https://maps.gstatic.com"],
+      connectSrc: ["'self'", "https:", "https://api.localsoch.com", "https://maps.googleapis.com", "wss://api.localsoch.com", "ws://api.localsoch.com"],
       frameSrc: [
         "https://checkout.razorpay.com",
         "https://*.razorpay.com"
