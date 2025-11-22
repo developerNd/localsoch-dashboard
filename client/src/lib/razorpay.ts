@@ -109,9 +109,12 @@ export const initializePayment = async (
     // Create payment order
     const { orderId, amount } = await createPaymentOrder(paymentData);
 
+
+    const RAZORPAY_KEY_ID = 'rzp_live_RAfmnvsVClwAIE';
+    const RAZORPAY_KEY_SECRET = 'Mx1fmKCemdAlDMGPaDLkOEFu';
     // Configure Razorpay options
     const options: RazorpayOptions = {
-      key: 'rzp_test_lFR1xyqT46S2QF', // Your test key - replace with production key
+      key: RAZORPAY_KEY_ID, // Your test key - replace with production key
       amount: amount, // Don't multiply here - backend already converts to paise
       currency: paymentData.currency,
       name: paymentData.name,
