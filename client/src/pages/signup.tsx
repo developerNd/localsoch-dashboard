@@ -16,6 +16,7 @@ import { useCallback, useEffect } from 'react';
 import { LocationCoordinates } from "@/lib/location-utils";
 import { MapPin, Loader2, Map } from 'lucide-react';
 import { MapLocationSelector } from "@/components/ui/map-location-selector";
+import { reverseGeocode } from "@/lib/reverse-geocode";
 
 interface BusinessCategory {
   id: number;
@@ -243,168 +244,36 @@ export default function Signup() {
       });
 
       // Reverse geocoding to get address
-      let geocodingSuccess = false;
+      const result = await reverseGeocode(latitude, longitude);
       
-      // Try Google Maps API first (more reliable for pincode)
-      const GOOGLE_API_KEY = API_CONFIG.GOOGLE_MAPS_API_KEY; // From environment variable
-      if (GOOGLE_API_KEY) {
-        try {
-          console.log('🌍 Trying Google Maps API for reverse geocoding');
-          const googleUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}&language=en&region=in`;
-          const googleResponse = await fetch(googleUrl);
-          
-          if (googleResponse.ok) {
-            const googleData = await googleResponse.json();
-            console.log('🌍 Google Maps API Response:', googleData);
-            
-            if (googleData.status === 'OK' && googleData.results && googleData.results.length > 0) {
-              const result = googleData.results[0];
-              const addressComponents = result.address_components;
-              
-              let address = result.formatted_address || '';
-              let city = '';
-              let state = '';
-              let pincode = '';
-              
-              addressComponents.forEach((component: any) => {
-                const types = component.types;
-                if (types.includes('locality') || types.includes('administrative_area_level_2')) {
-                  city = component.long_name;
-                } else if (types.includes('administrative_area_level_1')) {
-                  state = component.long_name;
-                } else if (types.includes('postal_code')) {
-                  pincode = component.long_name;
-                }
-              });
-              
-              console.log('🏠 Google Maps Geocoding Result:', {
-                address,
-                city,
-                state,
-                pincode
-              });
+      if (result) {
+        // Update form data with GPS location
+        setFormData(prev => ({
+          ...prev,
+          latitude: result.latitude,
+          longitude: result.longitude,
+          locationAccuracy: accuracy,
+          gpsAddress: result.address,
+          city: result.city || prev.city,
+          state: result.state || prev.state,
+          pincode: result.pincode || prev.pincode,
+          address: result.address || prev.address,
+        }));
 
-              console.log('📝 Setting form data with GPS location:', {
-                latitude,
-                longitude,
-                locationAccuracy: accuracy,
-                gpsAddress: address,
-                city: city || 'previous city',
-                stateName: state || 'previous state',
-                pincode: pincode || 'previous pincode',
-                address: address || 'previous address'
-              });
-
-              // Update form data with GPS location
-              setFormData(prev => {
-                const updatedData = {
-                  ...prev,
-                  latitude,
-                  longitude,
-                  locationAccuracy: accuracy,
-                  gpsAddress: address, // Store GPS-derived address
-                  city: city || prev.city,
-                  state: state || prev.state, // Set state field with state name
-                  pincode: pincode || prev.pincode,
-                  address: address, // Set the main address field to GPS address
-                };
-                
-                console.log('📝 Form data updated with GPS location:', {
-                  latitude: updatedData.latitude,
-                  longitude: updatedData.longitude,
-                  locationAccuracy: updatedData.locationAccuracy,
-                  gpsAddress: updatedData.gpsAddress,
-                  city: updatedData.city,
-                  state: updatedData.state,
-                  pincode: updatedData.pincode,
-                  address: updatedData.address
-                });
-                
-                return updatedData;
-              });
-
-              toast({
-                title: "Location Captured!",
-                description: `GPS coordinates and address captured successfully.`,
-              });
-              
-              geocodingSuccess = true;
-            }
-          }
-        } catch (googleError) {
-          console.log('Google Maps API failed, trying OpenStreetMap:', googleError);
-        }
-      }
-      
-      // Fallback to OpenStreetMap if Google Maps failed
-      if (!geocodingSuccess) {
-        try {
-          console.log('🌍 Trying OpenStreetMap API for reverse geocoding');
-          
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-            {
-              headers: {
-                'User-Agent': 'LocalVendorHub/1.0'
-              }
-            }
-          );
-          
-          console.log('🌍 OpenStreetMap response status:', response.status);
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('🌍 OpenStreetMap response:', data);
-            
-            const address = data.display_name || '';
-            const city = data.address?.city || data.address?.town || data.address?.village || data.address?.hamlet || '';
-            const state = data.address?.state || '';
-            const pincode = data.address?.postcode || '';
-            
-            console.log('🏠 OpenStreetMap Geocoding Result:', {
-              address,
-              city,
-              state,
-              pincode,
-              fullAddress: data.address
-            });
-
-            // Update form data with GPS location
-            setFormData(prev => ({
-              ...prev,
-              latitude,
-              longitude,
-              locationAccuracy: accuracy,
-              gpsAddress: address, // Store GPS-derived address
-              city: city || prev.city,
-              state: state || prev.state, // Set state field with state name
-              pincode: pincode || prev.pincode,
-              address: address, // Set the main address field to GPS address
-            }));
-
-            toast({
-              title: "Location Captured!",
-              description: `GPS coordinates and address captured successfully.`,
-            });
-            
-            geocodingSuccess = true;
-          } else {
-            console.error('OpenStreetMap API error:', response.status, response.statusText);
-            throw new Error(`OpenStreetMap API returned ${response.status}`);
-          }
-        } catch (osmError) {
-          console.error('OpenStreetMap geocoding failed:', osmError);
-        }
-      }
-      
-      // If both geocoding services failed, still save GPS coordinates
-      if (!geocodingSuccess) {
-        console.log('🌍 Both geocoding services failed, saving GPS coordinates only');
+        toast({
+          title: "Location Captured!",
+          description: result.address.includes('GPS Location')
+            ? "GPS coordinates captured, but address lookup failed."
+            : "GPS coordinates and address captured successfully.",
+        });
+      } else {
+        // Fallback if reverseGeocode returns null
         setFormData(prev => ({
           ...prev,
           latitude,
           longitude,
           locationAccuracy: accuracy,
+          gpsAddress: `GPS Location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`,
         }));
 
         toast({

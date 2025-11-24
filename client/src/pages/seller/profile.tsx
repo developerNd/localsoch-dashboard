@@ -24,9 +24,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useUpdateVendor, useUpdateUser, useCreateVendor } from '@/hooks/use-api';
 import { Upload, X, Image as ImageIcon, Save, User, Store, CreditCard, AlertCircle, CheckCircle, Clock, Truck, MapPin, Loader2, Map } from 'lucide-react';
-import { getApiUrl, getImageUrl, API_ENDPOINTS } from '@/lib/config';
+import { getApiUrl, getImageUrl, API_ENDPOINTS, API_CONFIG } from '@/lib/config';
 import { LocationCoordinates } from '@/lib/location-utils';
 import { MapLocationSelector } from '@/components/ui/map-location-selector';
+import { reverseGeocode } from '@/lib/reverse-geocode';
 
 // Business category type
 interface BusinessCategory {
@@ -421,144 +422,36 @@ export default function SellerProfile() {
       });
 
       // Reverse geocoding to get address
-      let geocodingSuccess = false;
+      const result = await reverseGeocode(latitude, longitude);
       
-      // Try Google Maps API first (more reliable for pincode)
-      const GOOGLE_API_KEY = 'AIzaSyDgdsLMV37MSAxvIscmfV0lozfDAInj188'; // Hardcoded from cityshopping
-      if (GOOGLE_API_KEY) {
-        try {
-          console.log('🌍 Trying Google Maps API for reverse geocoding');
-          const googleUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}&language=en&region=in`;
-          const googleResponse = await fetch(googleUrl);
-          
-          if (googleResponse.ok) {
-            const googleData = await googleResponse.json();
-            console.log('🌍 Google Maps API Response:', googleData);
-            
-            if (googleData.status === 'OK' && googleData.results && googleData.results.length > 0) {
-              const result = googleData.results[0];
-              const addressComponents = result.address_components;
-              
-              let address = result.formatted_address || '';
-              let city = '';
-              let state = '';
-              let pincode = '';
-              
-              addressComponents.forEach((component: any) => {
-                const types = component.types;
-                if (types.includes('locality') || types.includes('administrative_area_level_2')) {
-                  city = component.long_name;
-                } else if (types.includes('administrative_area_level_1')) {
-                  state = component.long_name;
-                } else if (types.includes('postal_code')) {
-                  pincode = component.long_name;
-                }
-              });
-              
-              console.log('🏠 Google Maps Geocoding Result:', {
-                address,
-                city,
-                state,
-                pincode
-              });
+      if (result) {
+        // Update form with GPS location
+        shopForm.setValue('latitude', result.latitude);
+        shopForm.setValue('longitude', result.longitude);
+        shopForm.setValue('locationAccuracy', accuracy);
+        shopForm.setValue('gpsAddress', result.address);
+        
+        // Auto-populate address fields
+        if (result.address) shopForm.setValue('address', result.address);
+        if (result.city) shopForm.setValue('city', result.city);
+        if (result.state) shopForm.setValue('state', result.state);
+        if (result.pincode) shopForm.setValue('pincode', result.pincode);
+        
+        // Trigger form validation
+        shopForm.trigger(['address', 'city', 'state', 'pincode']);
 
-              // Update form with GPS location
-              shopForm.setValue('latitude', latitude);
-              shopForm.setValue('longitude', longitude);
-              shopForm.setValue('locationAccuracy', accuracy);
-              shopForm.setValue('gpsAddress', address); // Store GPS-derived address
-              
-              // Auto-populate address fields
-              if (address) shopForm.setValue('address', address); // Set main address field
-              if (city) shopForm.setValue('city', city);
-              if (state) shopForm.setValue('state', state);
-              if (pincode) shopForm.setValue('pincode', pincode);
-              
-              // Trigger form validation
-              shopForm.trigger(['address', 'city', 'state', 'pincode']);
-
-              toast({
-                title: "Location Updated!",
-                description: `GPS coordinates and address updated successfully.`,
-              });
-              
-              geocodingSuccess = true;
-            }
-          }
-        } catch (googleError) {
-          console.log('Google Maps API failed, trying OpenStreetMap:', googleError);
-        }
-      }
-      
-      // Fallback to OpenStreetMap if Google Maps failed
-      if (!geocodingSuccess) {
-        try {
-          console.log('🌍 Trying OpenStreetMap API for reverse geocoding');
-          
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-            {
-              headers: {
-                'User-Agent': 'LocalVendorHub/1.0'
-              }
-            }
-          );
-          
-          console.log('🌍 OpenStreetMap response status:', response.status);
-          
-          if (response.ok) {
-            const data = await response.json();
-            console.log('🌍 OpenStreetMap response:', data);
-            
-            const address = data.display_name || '';
-            const city = data.address?.city || data.address?.town || data.address?.village || data.address?.hamlet || '';
-            const state = data.address?.state || '';
-            const pincode = data.address?.postcode || '';
-            
-            console.log('🏠 OpenStreetMap Geocoding Result:', {
-              address,
-              city,
-              state,
-              pincode,
-              fullAddress: data.address
-            });
-
-            // Update form with GPS location
-            shopForm.setValue('latitude', latitude);
-            shopForm.setValue('longitude', longitude);
-            shopForm.setValue('locationAccuracy', accuracy);
-            shopForm.setValue('gpsAddress', address); // Store GPS-derived address
-            
-            // Auto-populate address fields
-            if (address) shopForm.setValue('address', address); // Set main address field
-            if (city) shopForm.setValue('city', city);
-            if (state) shopForm.setValue('state', state);
-            if (pincode) shopForm.setValue('pincode', pincode);
-            
-            // Trigger form validation
-            shopForm.trigger(['address', 'city', 'state', 'pincode']);
-
-            toast({
-              title: "Location Updated!",
-              description: `GPS coordinates and address updated successfully.`,
-            });
-            
-            geocodingSuccess = true;
-          } else {
-            console.error('OpenStreetMap API error:', response.status, response.statusText);
-            throw new Error(`OpenStreetMap API returned ${response.status}`);
-          }
-        } catch (osmError) {
-          console.error('OpenStreetMap geocoding failed:', osmError);
-        }
-      }
-      
-      // If both geocoding services failed, still save GPS coordinates
-      if (!geocodingSuccess) {
-        console.log('🌍 Both geocoding services failed, saving GPS coordinates only');
+        toast({
+          title: "Location Updated!",
+          description: result.address.includes('GPS Location')
+            ? "Location coordinates updated, but address lookup failed."
+            : "GPS coordinates and address updated successfully.",
+        });
+      } else {
+        // Fallback if reverseGeocode returns null
         shopForm.setValue('latitude', latitude);
         shopForm.setValue('longitude', longitude);
         shopForm.setValue('locationAccuracy', accuracy);
+        shopForm.setValue('gpsAddress', `GPS Location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`);
 
         toast({
           title: "GPS Updated",
@@ -577,7 +470,7 @@ export default function SellerProfile() {
     }
   }, [toast, shopForm]);
 
-  // Handle map location selection
+  // Handle map location selection (called when user confirms location)
   const handleMapLocationSelect = useCallback((location: {
     latitude: number;
     longitude: number;
@@ -586,7 +479,7 @@ export default function SellerProfile() {
     state: string;
     pincode: string;
   }) => {
-    console.log('🗺️ Map Location Selected in Profile:', location);
+    console.log('🗺️ Map Location Confirmed in Profile:', location);
     
     // Update form with map-selected location
     shopForm.setValue('latitude', location.latitude);
@@ -601,11 +494,11 @@ export default function SellerProfile() {
     // Trigger form validation
     shopForm.trigger(['address', 'city', 'state', 'pincode']);
 
-    // Hide map selector after selection
+    // Hide map selector after confirmation
     setShowMapSelector(false);
     
     toast({
-      title: "Location Selected!",
+      title: "Location Confirmed!",
       description: `Address: ${location.address}`,
     });
   }, [toast, shopForm]);

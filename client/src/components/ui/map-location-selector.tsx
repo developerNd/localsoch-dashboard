@@ -3,6 +3,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin, Loader2, Check } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { API_CONFIG } from '@/lib/config';
+import { reverseGeocode } from '@/lib/reverse-geocode';
+
+// Google Maps type declarations
+declare global {
+  interface Window {
+    google: {
+      maps: {
+        Map: new (element: HTMLElement, options?: any) => any;
+        Marker: new (options?: any) => any;
+        MapTypeId: {
+          ROADMAP: string;
+        };
+        LatLng: new (lat: number, lng: number) => any;
+      };
+    };
+  }
+}
 
 interface MapLocationSelectorProps {
   onLocationSelect: (location: {
@@ -51,8 +69,18 @@ export function MapLocationSelector({
         return;
       }
 
+      const GOOGLE_API_KEY = API_CONFIG.GOOGLE_MAPS_API_KEY;
+      if (!GOOGLE_API_KEY) {
+        toast({
+          title: "Google Maps API Key Missing",
+          description: "Please configure VITE_GOOGLE_MAPS_API_KEY in your environment variables.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyDgdsLMV37MSAxvIscmfV0lozfDAInj188&libraries=places`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&libraries=places`;
       script.async = true;
       script.defer = true;
       script.onload = () => {
@@ -113,7 +141,14 @@ export function MapLocationSelector({
 
         markerRef.current = marker;
 
-        // Reverse geocode the selected location
+        // Add dragend listener to update location when marker is dragged
+        marker.addListener('dragend', (event: any) => {
+          const newLat = event.latLng.lat();
+          const newLng = event.latLng.lng();
+          reverseGeocodeLocation(newLat, newLng);
+        });
+
+        // Reverse geocode the selected location (updates display only, doesn't confirm)
         reverseGeocodeLocation(lat, lng);
       });
 
@@ -125,6 +160,14 @@ export function MapLocationSelector({
           title: 'Current Location',
           draggable: true,
         });
+        
+        // Add dragend listener to update location when marker is dragged
+        marker.addListener('dragend', (event: any) => {
+          const newLat = event.latLng.lat();
+          const newLng = event.latLng.lng();
+          reverseGeocodeLocation(newLat, newLng);
+        });
+        
         markerRef.current = marker;
       }
     };
@@ -138,107 +181,29 @@ export function MapLocationSelector({
     setIsLoading(true);
     
     try {
-      // Try Google Maps Geocoding API first
-      const GOOGLE_API_KEY = 'AIzaSyDgdsLMV37MSAxvIscmfV0lozfDAInj188';
-      const googleUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}&language=en&region=in`;
+      const result = await reverseGeocode(latitude, longitude);
       
-      let geocodingSuccess = false;
-      
-      try {
-        const response = await fetch(googleUrl);
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (data.status === 'OK' && data.results && data.results.length > 0) {
-            const result = data.results[0];
-            const addressComponents = result.address_components;
-            
-            let address = result.formatted_address || '';
-            let city = '';
-            let state = '';
-            let pincode = '';
-            
-            addressComponents.forEach((component: any) => {
-              const types = component.types;
-              if (types.includes('locality') || types.includes('administrative_area_level_2')) {
-                city = component.long_name;
-              } else if (types.includes('administrative_area_level_1')) {
-                state = component.long_name;
-              } else if (types.includes('postal_code')) {
-                pincode = component.long_name;
-              }
-            });
-            
-            const locationData = {
-              latitude,
-              longitude,
-              address,
-              city,
-              state,
-              pincode
-            };
-            
-            setSelectedLocation(locationData);
-            onLocationSelect(locationData);
-            
-            toast({
-              title: "Location Selected!",
-              description: `Address: ${address}`,
-            });
-            
-            geocodingSuccess = true;
-          }
-        }
-      } catch (error) {
-        console.log('Google Maps API failed, trying OpenStreetMap:', error);
-      }
-      
-      // Fallback to OpenStreetMap if Google Maps failed
-      if (!geocodingSuccess) {
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
-            {
-              headers: {
-                'User-Agent': 'LocalVendorHub/1.0'
-              }
-            }
-          );
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            const address = data.display_name || '';
-            const city = data.address?.city || data.address?.town || data.address?.village || data.address?.hamlet || '';
-            const state = data.address?.state || '';
-            const pincode = data.address?.postcode || '';
-            
-            const locationData = {
-              latitude,
-              longitude,
-              address,
-              city,
-              state,
-              pincode
-            };
-            
-            setSelectedLocation(locationData);
-            onLocationSelect(locationData);
-            
-            toast({
-              title: "Location Selected!",
-              description: `Address: ${address}`,
-            });
-            
-            geocodingSuccess = true;
-          }
-        } catch (error) {
-          console.error('OpenStreetMap geocoding failed:', error);
-        }
-      }
-      
-      // If both geocoding services failed, still save coordinates
-      if (!geocodingSuccess) {
+      if (result) {
+        const locationData = {
+          latitude: result.latitude,
+          longitude: result.longitude,
+          address: result.address,
+          city: result.city,
+          state: result.state,
+          pincode: result.pincode
+        };
+        
+        setSelectedLocation(locationData);
+        // Don't call onLocationSelect automatically - wait for user to confirm
+        
+        toast({
+          title: "Location Updated",
+          description: result.address.includes('GPS Location')
+            ? "Coordinates saved, but address lookup failed. Please confirm to proceed."
+            : `Address: ${result.address}`,
+        });
+      } else {
+        // Fallback if reverseGeocode returns null
         const locationData = {
           latitude,
           longitude,
@@ -249,11 +214,10 @@ export function MapLocationSelector({
         };
         
         setSelectedLocation(locationData);
-        onLocationSelect(locationData);
         
         toast({
-          title: "Location Selected",
-          description: "Coordinates saved, but address lookup failed.",
+          title: "Location Updated",
+          description: "Coordinates saved, but address lookup failed. Please confirm to proceed.",
         });
       }
     } catch (error) {

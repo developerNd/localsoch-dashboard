@@ -13,8 +13,8 @@ app.use((req, res, next) => {
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://checkout.razorpay.com https://*.razorpay.com https://replit.com; " +
     "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: https: https://maps.googleapis.com https://maps.gstatic.com; " +
-    "connect-src 'self' https: https://maps.googleapis.com wss: ws:; " +
+    "img-src 'self' data: https: http: https://maps.googleapis.com https://maps.gstatic.com; " +
+    "connect-src 'self' http: https: https://maps.googleapis.com wss: ws:; " +
     "frame-src https://checkout.razorpay.com https://*.razorpay.com; " +
     "font-src 'self' data:;"
   );
