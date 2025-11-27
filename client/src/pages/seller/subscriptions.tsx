@@ -11,7 +11,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { Download, CreditCard, CheckCircle, FileText, Eye } from 'lucide-react';
-import { API_CONFIG } from '@/lib/config';
+import { API_CONFIG, GST_RATE, calculateGst, calculateTotalWithGst } from '@/lib/config';
 import { generateSubscriptionInvoicePDF } from '@/lib/pdf-generator';
 
 interface Subscription {
@@ -59,6 +59,7 @@ interface Subscription {
     city?: string;
     state?: string;
     pincode?: string;
+    gstNumber?: string;
   };
 }
 
@@ -74,6 +75,7 @@ interface InvoiceData {
   vendorCity: string;
   vendorState: string;
   vendorPincode: string;
+  vendorGstNumber?: string;
   planName: string;
   planDescription: string;
   planDuration: number;
@@ -82,6 +84,9 @@ interface InvoiceData {
   endDate: string;
   amount: number;
   currency: string;
+  gstRate?: number;
+  gstAmount?: number;
+  subtotal?: number;
   paymentId: string;
   orderId: string;
   paymentMethod: string;
@@ -150,6 +155,12 @@ export default function SellerSubscriptions() {
       ];
     }
     
+    // Calculate GST using rate from config
+    const gstRate = GST_RATE;
+    const subtotal = subscription.amount || plan?.price || 0;
+    const gstAmount = calculateGst(subtotal, gstRate);
+    const totalAmount = calculateTotalWithGst(subtotal, gstRate);
+    
     return {
       invoiceNumber,
       invoiceDate,
@@ -162,14 +173,18 @@ export default function SellerSubscriptions() {
       vendorCity: subscription.vendor?.city || '',
       vendorState: subscription.vendor?.state || '',
       vendorPincode: subscription.vendor?.pincode || '',
+      vendorGstNumber: subscription.vendor?.gstNumber || '',
       planName: plan?.name || 'Subscription Plan',
       planDescription: plan?.description || '',
       planDuration: plan?.duration || 30, // Default to 30 days
       planDurationType: plan?.durationType || 'days',
       startDate: new Date(subscription.startDate).toISOString().split('T')[0],
       endDate: new Date(subscription.endDate).toISOString().split('T')[0],
-      amount: subscription.amount || plan?.price || 0,
+      amount: totalAmount, // Total amount including GST
       currency: subscription.currency || plan?.currency || 'INR',
+      subtotal: subtotal,
+      gstRate: gstRate,
+      gstAmount: gstAmount,
       paymentId: subscription.paymentId || '',
       orderId: subscription.orderId || '',
       paymentMethod: subscription.paymentMethod || 'razorpay',
@@ -184,12 +199,21 @@ export default function SellerSubscriptions() {
     queryFn: async ({ queryKey }: { queryKey: any[] }): Promise<any> => {
       if (!vendorId) return null;
       try {
-        const response = await apiRequest('GET', `/api/subscriptions/vendor/${vendorId}/current?populate=*`);
+        // Fetch subscription with vendor data including GST number
+        const response = await apiRequest('GET', `/api/subscriptions/vendor/${vendorId}/current?populate[plan]=*&populate[vendor][fields][0]=name&populate[vendor][fields][1]=email&populate[vendor][fields][2]=contact&populate[vendor][fields][3]=address&populate[vendor][fields][4]=city&populate[vendor][fields][5]=state&populate[vendor][fields][6]=pincode&populate[vendor][fields][7]=gstNumber`);
         const data = await response.json();
         return data.data;
       } catch (error) {
         console.error('Error fetching subscription:', error);
-        return null;
+        // Fallback to populate all if specific fields don't work
+        try {
+          const fallbackResponse = await apiRequest('GET', `/api/subscriptions/vendor/${vendorId}/current?populate=*`);
+          const fallbackData = await fallbackResponse.json();
+          return fallbackData.data;
+        } catch (fallbackError) {
+          console.error('Error fetching subscription with fallback:', fallbackError);
+          return null;
+        }
       }
     },
     enabled: !!vendorId,

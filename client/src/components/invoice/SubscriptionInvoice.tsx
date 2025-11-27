@@ -16,6 +16,7 @@ interface InvoiceData {
   vendorCity: string;
   vendorState: string;
   vendorPincode: string;
+  vendorGstNumber?: string;
   planName: string;
   planDescription: string;
   planDuration: number;
@@ -24,6 +25,9 @@ interface InvoiceData {
   endDate: string;
   amount: number;
   currency: string;
+  subtotal?: number;
+  gstRate?: number;
+  gstAmount?: number;
   paymentId: string;
   orderId: string;
   paymentMethod: string;
@@ -147,6 +151,13 @@ export default function SubscriptionInvoice({
                     </div>
                   </div>
                 )}
+                
+                {invoiceData.vendorGstNumber && (
+                  <div>
+                    <p className="text-sm text-gray-600">GST Number</p>
+                    <p className="font-semibold text-gray-900">{invoiceData.vendorGstNumber}</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -233,6 +244,25 @@ export default function SubscriptionInvoice({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Amount Breakdown */}
+          <div className="border-t pt-6 mb-6">
+            <div className="space-y-3">
+              {invoiceData.subtotal !== undefined && (
+                <div className="flex justify-between text-gray-700">
+                  <span className="text-sm">Subtotal</span>
+                  <span className="font-medium">{formatCurrency(invoiceData.subtotal, invoiceData.currency)}</span>
+                </div>
+              )}
+              
+              {invoiceData.gstAmount !== undefined && invoiceData.gstRate !== undefined && (
+                <div className="flex justify-between text-gray-700">
+                  <span className="text-sm">GST ({invoiceData.gstRate}%)</span>
+                  <span className="font-medium">{formatCurrency(invoiceData.gstAmount, invoiceData.currency)}</span>
+                </div>
+              )}
             </div>
           </div>
 

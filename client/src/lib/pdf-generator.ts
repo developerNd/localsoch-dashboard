@@ -12,6 +12,7 @@ interface InvoiceData {
   vendorCity: string;
   vendorState: string;
   vendorPincode: string;
+  vendorGstNumber?: string;
   planName: string;
   planDescription: string;
   planDuration: number;
@@ -20,6 +21,9 @@ interface InvoiceData {
   endDate: string;
   amount: number;
   currency: string;
+  subtotal?: number;
+  gstRate?: number;
+  gstAmount?: number;
   paymentId: string;
   orderId: string;
   paymentMethod: string;
@@ -248,6 +252,11 @@ export class PDFGenerator {
       }
     }
     
+    if (invoiceData.vendorGstNumber) {
+      this.doc.text(`GST Number: ${invoiceData.vendorGstNumber}`, this.margin, this.currentY);
+      this.currentY += 6;
+    }
+    
     this.currentY += 10;
   }
 
@@ -344,10 +353,36 @@ export class PDFGenerator {
   }
 
   private addTotalAmount(invoiceData: InvoiceData): void {
-    this.checkPageBreak(30);
+    this.checkPageBreak(40);
     
     this.addLine(this.margin, this.currentY, this.pageWidth - this.margin, this.currentY);
     this.currentY += 10;
+    
+    // Show subtotal if available
+    if (invoiceData.subtotal !== undefined) {
+      this.doc.setFontSize(10);
+      this.doc.setTextColor(0, 0, 0);
+      this.doc.text('Subtotal', this.margin, this.currentY);
+      const subtotalText = this.formatCurrency(invoiceData.subtotal, invoiceData.currency);
+      const subtotalWidth = this.doc.getTextWidth(subtotalText);
+      this.doc.text(subtotalText, this.pageWidth - this.margin - subtotalWidth, this.currentY);
+      this.currentY += 8;
+    }
+    
+    // Show GST if available
+    if (invoiceData.gstAmount !== undefined && invoiceData.gstRate !== undefined) {
+      this.doc.setFontSize(10);
+      this.doc.setTextColor(0, 0, 0);
+      this.doc.text(`GST (${invoiceData.gstRate}%)`, this.margin, this.currentY);
+      const gstText = this.formatCurrency(invoiceData.gstAmount, invoiceData.currency);
+      const gstWidth = this.doc.getTextWidth(gstText);
+      this.doc.text(gstText, this.pageWidth - this.margin - gstWidth, this.currentY);
+      this.currentY += 8;
+    }
+    
+    // Total Amount
+    this.addLine(this.margin, this.currentY, this.pageWidth - this.margin, this.currentY);
+    this.currentY += 8;
     
     this.doc.setFontSize(14);
     this.doc.setTextColor(0, 0, 0);

@@ -2,8 +2,9 @@
 export const API_CONFIG = {
     // Use production API URL
     get API_URL() {
-      // return 'https://api.localsoch.com';
-      return import.meta.env.VITE_API_URL || "http://192.168.150.101:1337";
+      return 'https://api.localsoch.com';
+      // return "http://192.168.150.101:1337";
+      // return import.meta.env.VITE_API_URL || "http://192.168.150.101:1337";
     },
     
     // Get the appropriate image URL based on environment
@@ -20,6 +21,9 @@ export const API_CONFIG = {
   // Environment check
   export const isProduction = import.meta.env.PROD;
   export const isDevelopment = import.meta.env.DEV;
+  
+  // GST Configuration
+  export const GST_RATE = 18; // GST rate in percentage (18% for services in India)
   
   // API Endpoints
   export const API_ENDPOINTS = {
@@ -63,4 +67,25 @@ export const API_CONFIG = {
     if (!imagePath) return '';
     if (imagePath.startsWith('http')) return imagePath;
     return `${API_CONFIG.IMAGE_URL}${imagePath}`;
+  }
+
+  /**
+   * Calculate GST amount with consistent rounding
+   * @param subtotal - The amount before GST
+   * @param gstRate - GST rate in percentage (default: GST_RATE from config)
+   * @returns Rounded GST amount
+   */
+  export function calculateGst(subtotal: number, gstRate: number = GST_RATE): number {
+    return Math.round((subtotal * gstRate) / 100);
+  }
+
+  /**
+   * Calculate total amount including GST with consistent rounding
+   * @param subtotal - The amount before GST
+   * @param gstRate - GST rate in percentage (default: GST_RATE from config)
+   * @returns Total amount including GST
+   */
+  export function calculateTotalWithGst(subtotal: number, gstRate: number = GST_RATE): number {
+    const gstAmount = calculateGst(subtotal, gstRate);
+    return subtotal + gstAmount;
   } 

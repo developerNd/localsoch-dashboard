@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { getApiUrl, API_ENDPOINTS } from '@/lib/config';
+import { getApiUrl, API_ENDPOINTS, GST_RATE, calculateGst, calculateTotalWithGst } from '@/lib/config';
 import { initializePayment, completeSellerRegistration, createSubscription, PaymentData } from '@/lib/razorpay';
 import { useVendorByUser } from '@/hooks/use-api';
 import { CheckCircle, Star, Package, Loader2, AlertCircle, LogIn } from 'lucide-react';
@@ -282,10 +282,19 @@ export default function SubscriptionSelection() {
       // Ensure finalAmount is properly rounded to avoid floating point issues
       finalAmount = Math.round(finalAmount);
       
+      // Calculate GST using rate from config
+      const gstRate = GST_RATE;
+      const subtotal = finalAmount;
+      const gstAmount = calculateGst(subtotal, gstRate);
+      const totalWithGst = calculateTotalWithGst(subtotal, gstRate);
+      
       console.log('💰 Payment calculation:', {
         originalPrice: selectedPlan.price,
-        finalAmount: finalAmount,
-        finalAmountRounded: Math.round(finalAmount),
+        subtotal: subtotal,
+        gstRate: gstRate,
+        gstAmount: gstAmount,
+        totalWithGst: totalWithGst,
+        finalAmountRounded: Math.round(totalWithGst),
         discountApplied: discountApplied,
         discountPercentage: discountPercentage,
         discountType: discountType,
@@ -293,16 +302,18 @@ export default function SubscriptionSelection() {
         referralDiscount: referralDiscount?.finalPrice
       });
       
-      // Final check to ensure amount is a clean integer
-      const amountInRupees = Math.round(finalAmount);
+      // Final check to ensure amount is a clean integer (including GST)
+      const amountInRupees = Math.round(totalWithGst);
       
-      console.log('💳 Final payment amount:', {
-        finalAmount: finalAmount,
+      console.log('💳 Final payment amount (with GST):', {
+        subtotal: subtotal,
+        gstAmount: gstAmount,
+        totalWithGst: totalWithGst,
         amountInRupees: amountInRupees
       });
       
       const paymentData: PaymentData = {
-        amount: amountInRupees, // Send amount in rupees (not paise) to Razorpay
+        amount: amountInRupees, // Send amount in rupees (not paise) to Razorpay, including GST
         currency: selectedPlan.currency,
         name: 'LocalSoch',
         description: discountApplied 
@@ -641,6 +652,7 @@ export default function SubscriptionSelection() {
                 <div className="text-center">
                   <div className="text-3xl font-bold text-gray-900">
                     ₹{plan.price}
+                    <span className="text-lg font-normal text-gray-500 ml-1">+GST</span>
                   </div>
                   <div className="text-sm text-gray-600">
                     per {plan.duration} {plan.durationType}
@@ -910,6 +922,83 @@ export default function SubscriptionSelection() {
           </Card>
         )}
 
+        {/* Payment Summary - Show when plan is selected */}
+        {selectedPlan && (isNewRegistration || isAuthenticated) && (
+          <Card className="mb-6 border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="text-lg">Payment Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {/* Subtotal */}
+                <div className="flex justify-between text-gray-700">
+                  <span>Plan Price:</span>
+                  <span className="font-medium">₹{selectedPlan.price}</span>
+                </div>
+                
+                {/* Discounts */}
+                {couponDiscount?.applied && (
+                  <div className="flex justify-between text-green-700">
+                    <span>Coupon Discount ({couponDiscount.percentage}%):</span>
+                    <span className="font-medium">-₹{selectedPlan.price - couponDiscount.finalPrice}</span>
+                  </div>
+                )}
+                
+                {referralDiscount?.applied && !couponDiscount?.applied && (
+                  <div className="flex justify-between text-yellow-700">
+                    <span>Referral Discount ({referralDiscount.percentage}%):</span>
+                    <span className="font-medium">-₹{selectedPlan.price - referralDiscount.finalPrice}</span>
+                  </div>
+                )}
+                
+                {/* Subtotal after discount */}
+                {(couponDiscount?.applied || referralDiscount?.applied) && (
+                  <div className="flex justify-between text-gray-700 border-t pt-2">
+                    <span>Subtotal:</span>
+                    <span className="font-medium">
+                      ₹{couponDiscount?.applied 
+                        ? Math.round(couponDiscount.finalPrice) 
+                        : referralDiscount?.applied 
+                          ? Math.round(referralDiscount.finalPrice)
+                          : selectedPlan.price}
+                    </span>
+                  </div>
+                )}
+                
+                {/* GST */}
+                <div className="flex justify-between text-gray-700">
+                  <span>GST ({GST_RATE}%):</span>
+                  <span className="font-medium">
+                    ₹{(() => {
+                      const subtotal = couponDiscount?.applied 
+                        ? couponDiscount.finalPrice 
+                        : referralDiscount?.applied 
+                          ? referralDiscount.finalPrice
+                          : selectedPlan.price;
+                      return calculateGst(subtotal, GST_RATE);
+                    })()}
+                  </span>
+                </div>
+                
+                {/* Total */}
+                <div className="flex justify-between text-lg font-bold text-blue-700 border-t pt-3">
+                  <span>Total Amount:</span>
+                  <span>
+                    ₹{(() => {
+                      const subtotal = couponDiscount?.applied 
+                        ? couponDiscount.finalPrice 
+                        : referralDiscount?.applied 
+                          ? referralDiscount.finalPrice
+                          : selectedPlan.price;
+                      return calculateTotalWithGst(subtotal, GST_RATE);
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Payment Button */}
         <div className="text-center">
           {!isNewRegistration && !isAuthenticated ? (
@@ -949,11 +1038,16 @@ export default function SubscriptionSelection() {
                   Processing Payment...
                 </>
               ) : selectedPlan ? (
-                couponDiscount?.applied 
-                  ? `Pay ₹${Math.round(couponDiscount.finalPrice)} for ${selectedPlan.name} (${couponDiscount.percentage}% coupon off)`
-                  : referralDiscount?.applied 
-                    ? `Pay ₹${Math.round(referralDiscount.finalPrice)} for ${selectedPlan.name} (${referralDiscount.percentage}% referral off)`
-                    : `Pay ₹${selectedPlan.price} for ${selectedPlan.name}`
+                (() => {
+                  const subtotal = couponDiscount?.applied 
+                    ? couponDiscount.finalPrice 
+                    : referralDiscount?.applied 
+                      ? referralDiscount.finalPrice
+                      : selectedPlan.price;
+                  const totalWithGst = calculateTotalWithGst(subtotal, GST_RATE);
+                  
+                  return `Pay ₹${totalWithGst} (incl. GST) for ${selectedPlan.name}`;
+                })()
               ) : (
                 'Select a Plan to Continue'
               )}

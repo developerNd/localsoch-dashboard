@@ -111,7 +111,9 @@ export const initializePayment = async (
 
 
     const RAZORPAY_KEY_ID = 'rzp_live_RAfmnvsVClwAIE';
-    const RAZORPAY_KEY_SECRET = 'Mx1fmKCemdAlDMGPaDLkOEFu';
+    // const RAZORPAY_KEY_ID='rzp_test_lFR1xyqT46S2QF'
+
+    const RAZORPAY_KEY_SECRET = 'ft49CcyTYxqQbQipbAPDXnfz';
     // Configure Razorpay options
     const options: RazorpayOptions = {
       key: RAZORPAY_KEY_ID, // Your test key - replace with production key
