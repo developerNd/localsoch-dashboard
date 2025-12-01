@@ -258,8 +258,8 @@ export function MapLocationSelector({
           {/* Map Container */}
           <div 
             ref={mapRef}
-            className="w-full h-64 border rounded-lg bg-gray-100"
-            style={{ minHeight: '256px' }}
+            className="w-full h-64 border rounded-lg bg-gray-100 overflow-hidden"
+            style={{ minHeight: '256px', maxWidth: '100%' }}
           >
             {!mapLoaded && (
               <div className="flex items-center justify-center h-full">

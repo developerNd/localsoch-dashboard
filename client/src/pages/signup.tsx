@@ -530,14 +530,14 @@ export default function Signup() {
           </p>
         </div>
         
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Seller Registration</CardTitle>
             <CardDescription>
               Create your seller account and shop profile
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-hidden">
             <form onSubmit={handleSubmit} className="space-y-6">
                             {/* Personal Information */}
               <div className="space-y-4">
@@ -768,8 +768,8 @@ export default function Signup() {
                 
                 {/* GPS Location Section - Required */}
                 <div className="border rounded-lg p-4 bg-blue-50">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                    <div className="flex-1">
                       <h4 className="text-sm font-medium text-blue-900 flex items-center gap-2">
                         GPS Location
                         {gpsRequired && gpsAvailable && (
@@ -783,55 +783,58 @@ export default function Signup() {
                         }
                       </p>
                     </div>
-                <div className="flex gap-2">
-                  {gpsRequired && gpsAvailable && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setGpsRequired(false);
-                        toast({
-                          title: "Manual Entry Enabled",
-                          description: "You can now enter your address manually.",
-                        });
-                      }}
-                      className="bg-white border-orange-300 text-orange-700 hover:bg-orange-50"
-                    >
-                      Enter Manually
-                    </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowMapSelector(!showMapSelector)}
-                    className="bg-white border-green-300 text-green-700 hover:bg-green-50"
-                  >
-                    <Map className="h-4 w-4 mr-2" />
-                    {showMapSelector ? 'Hide Map' : 'Select on Map'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={captureGPSLocation}
-                    disabled={isCapturingGPS}
-                    className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
-                  >
-                    {isCapturingGPS ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Capturing...
-                      </>
-                    ) : (
-                      <>
-                        <MapPin className="h-4 w-4 mr-2" />
-                        Get GPS Location
-                      </>
-                    )}
-                  </Button>
-                </div>
+                    <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                      {gpsRequired && gpsAvailable && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setGpsRequired(false);
+                            toast({
+                              title: "Manual Entry Enabled",
+                              description: "You can now enter your address manually.",
+                            });
+                          }}
+                          className="bg-white border-orange-300 text-orange-700 hover:bg-orange-50 whitespace-nowrap"
+                        >
+                          Enter Manually
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowMapSelector(!showMapSelector)}
+                        className="bg-white border-green-300 text-green-700 hover:bg-green-50 whitespace-nowrap"
+                      >
+                        <Map className="h-4 w-4 mr-2" />
+                        <span className="hidden sm:inline">{showMapSelector ? 'Hide Map' : 'Select on Map'}</span>
+                        <span className="sm:hidden">{showMapSelector ? 'Hide' : 'Map'}</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={captureGPSLocation}
+                        disabled={isCapturingGPS}
+                        className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50 whitespace-nowrap"
+                      >
+                        {isCapturingGPS ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            <span className="hidden sm:inline">Capturing...</span>
+                            <span className="sm:hidden">...</span>
+                          </>
+                        ) : (
+                          <>
+                            <MapPin className="h-4 w-4 mr-2" />
+                            <span className="hidden sm:inline">Get GPS Location</span>
+                            <span className="sm:hidden">GPS</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   
                   {/* GPS Error States */}
@@ -893,7 +896,7 @@ export default function Signup() {
                 
                 {/* Map Location Selector */}
                 {showMapSelector && (
-                  <div className="mt-4">
+                  <div className="mt-4 w-full overflow-hidden">
                     <MapLocationSelector
                       onLocationSelect={handleMapLocationSelect}
                       initialLocation={formData.latitude && formData.longitude ? {
