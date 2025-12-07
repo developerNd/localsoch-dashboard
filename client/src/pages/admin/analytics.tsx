@@ -227,8 +227,8 @@ export default function AdminAnalytics() {
   // Calculate average order value
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-  // Commission calculation (assuming 5% platform fee)
-  const platformCommission = totalRevenue * 0.05;
+  // Commission calculation (assuming 0% platform fee)
+  const platformCommission = totalRevenue * 0.0;
 
   if (analyticsLoading || ordersLoading || vendorsLoading || productsLoading) {
     return (
@@ -387,7 +387,7 @@ export default function AdminAnalytics() {
                   </p>
                   <p className="text-xs text-primary mt-1">
                     <i className="fas fa-percentage mr-1"></i>
-                    5% of total revenue
+                    0% of total revenue
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center">

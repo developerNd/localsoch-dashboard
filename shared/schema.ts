@@ -30,7 +30,7 @@ export const sellerProfiles = pgTable("seller_profiles", {
   bankAccountNumber: text("bank_account_number"),
   ifscCode: text("ifsc_code"),
   isApproved: boolean("is_approved").default(false),
-  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("5.00"),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("0.00"),
 });
 
 export const categories = pgTable("categories", {

@@ -121,7 +121,12 @@ export default function SellerOrders() {
             notes: orderData.notes || '',
             estimatedDelivery: orderData.estimatedDelivery || '',
             trackingNumber: orderData.trackingNumber || '',
-            deliveryCharge: parseFloat(orderData.deliveryCharge || 0)
+            deliveryCharge: parseFloat(orderData.deliveryCharge || 0),
+            payoutStatus: orderData.payoutStatus || 'pending',
+            payoutAmount: parseFloat(orderData.payoutAmount || 0),
+            commissionAmount: parseFloat(orderData.commissionAmount || 0),
+            payoutDate: orderData.payoutDate,
+            payoutNotes: orderData.payoutNotes
           } as Order;
         });
       } catch (error) {

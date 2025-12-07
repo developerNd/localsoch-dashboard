@@ -97,6 +97,7 @@ export default function Sidebar({ className }: SidebarProps) {
     { href: '/admin/business-categories', icon: 'fas fa-building', label: 'Business Categories' },
     { href: '/admin/product-categories', icon: 'fas fa-tags', label: 'Product Categories' },
     { href: '/admin/subscription-plans', icon: 'fas fa-credit-card', label: 'Subscription Plans' },
+    { href: '/admin/payouts', icon: 'fas fa-money-bill-wave', label: 'Payout Management' },
   ];
 
   const navItems = userIsAdmin ? adminNavItems : sellerNavItems;

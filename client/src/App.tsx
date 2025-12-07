@@ -29,6 +29,7 @@ import AdminNotifications from "@/pages/admin/notifications";
 import AdminBusinessCategories from "@/pages/admin/business-categories";
 import AdminProductCategories from "@/pages/admin/product-categories";
 import AdminSubscriptionPlans from "@/pages/admin/subscription-plans";
+import AdminPayouts from "@/pages/admin/payouts";
 import SubscriptionSelection from "@/pages/subscription-selection";
 import IncompleteRegistration from "@/pages/incomplete-registration";
 import RedirectToPendingApproval from "@/components/RedirectToPendingApproval";
@@ -190,6 +191,12 @@ function Router() {
               <Route path="/admin/subscription-plans">
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminSubscriptionPlans />
+          </ProtectedRoute>
+        </Route>
+        
+        <Route path="/admin/payouts">
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminPayouts />
           </ProtectedRoute>
         </Route>
         

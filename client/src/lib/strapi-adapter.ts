@@ -185,7 +185,7 @@ export function normalizeVendor(strapiVendor: StrapiEntity) {
       bankAccountNumber: null,
       ifscCode: null,
       isApproved: true,
-      commissionRate: "5.00",
+      commissionRate: "0.00",
     },
   };
 }

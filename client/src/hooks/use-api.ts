@@ -1351,6 +1351,100 @@ export function useDeleteNotification() {
   });
 }
 
+// Payout Settlement Hooks
+export function useMarkOrderPayoutPaid() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ orderId, payoutAmount, commissionAmount, payoutNotes }: { 
+      orderId: number; 
+      payoutAmount: number; 
+      commissionAmount: number; 
+      payoutNotes?: string;
+    }) => {
+      const response = await apiRequest('PUT', `/api/orders/${orderId}/payout`, {
+        payoutStatus: 'paid',
+        payoutAmount,
+        commissionAmount,
+        payoutNotes,
+        payoutDate: new Date().toISOString(),
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders/admin/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/earnings'] });
+    },
+  });
+}
+
+export function useSellerPayouts(vendorId: number | undefined) {
+  return useQuery({
+    queryKey: ['/api/payouts/seller', vendorId],
+    queryFn: async () => {
+      if (!vendorId) return null;
+      const response = await apiRequest('GET', `/api/orders?filters[vendor][id][$eq]=${vendorId}&filters[status][$in][0]=delivered&filters[status][$in][1]=pickedUp&populate=*`);
+      const data = await response.json();
+      const orders = data.data || data || [];
+      
+      // Calculate payout summary
+      const pendingPayouts = orders.filter((order: any) => {
+        const orderData = order.attributes || order;
+        return !orderData.payoutStatus || orderData.payoutStatus === 'pending';
+      });
+      
+      const paidPayouts = orders.filter((order: any) => {
+        const orderData = order.attributes || order;
+        return orderData.payoutStatus === 'paid';
+      });
+      
+      const totalPendingAmount = pendingPayouts.reduce((sum: number, order: any) => {
+        const orderData = order.attributes || order;
+        const orderAmount = parseFloat(orderData.totalAmount || 0);
+        const commission = parseFloat(orderData.commissionAmount || 0);
+        return sum + (orderAmount - commission);
+      }, 0);
+      
+      const totalPaidAmount = paidPayouts.reduce((sum: number, order: any) => {
+        const orderData = order.attributes || order;
+        return sum + parseFloat(orderData.payoutAmount || 0);
+      }, 0);
+      
+      const totalCommission = orders.reduce((sum: number, order: any) => {
+        const orderData = order.attributes || order;
+        return sum + parseFloat(orderData.commissionAmount || 0);
+      }, 0);
+      
+      return {
+        orders: orders.map((order: any) => {
+          const orderData = order.attributes || order;
+          return {
+            id: order.id,
+            orderNumber: orderData.orderNumber,
+            totalAmount: parseFloat(orderData.totalAmount || 0),
+            commissionAmount: parseFloat(orderData.commissionAmount || 0),
+            payoutAmount: parseFloat(orderData.payoutAmount || orderData.totalAmount || 0) - parseFloat(orderData.commissionAmount || 0),
+            payoutStatus: orderData.payoutStatus || 'pending',
+            payoutDate: orderData.payoutDate,
+            payoutNotes: orderData.payoutNotes,
+            status: orderData.status,
+            createdAt: orderData.createdAt,
+          };
+        }),
+        summary: {
+          totalPendingAmount,
+          totalPaidAmount,
+          totalCommission,
+          pendingCount: pendingPayouts.length,
+          paidCount: paidPayouts.length,
+        },
+      };
+    },
+    enabled: !!vendorId && vendorId > 0,
+  });
+}
+
 export function useClearAllNotifications() {
   const queryClient = useQueryClient();
   

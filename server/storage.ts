@@ -139,7 +139,7 @@ export class MemStorage implements IStorage {
       bankAccountNumber: "1234567890",
       ifscCode: "HDFC0000123",
       isApproved: true,
-      commissionRate: "5.00",
+      commissionRate: "0.00",
     };
     this.sellerProfiles.set(sellerProfile.userId, sellerProfile);
 

@@ -7,7 +7,7 @@ import Sidebar from '@/components/layout/sidebar';
 import MobileNav from '@/components/layout/mobile-nav';
 import SalesChart from '@/components/charts/sales-chart';
 import { useAuth } from '@/hooks/use-auth';
-import { useSellerEarnings, useProducts } from '@/hooks/use-api';
+import { useSellerEarnings, useProducts, useSellerPayouts } from '@/hooks/use-api';
 
 export default function SellerEarnings() {
   const { user } = useAuth();
@@ -15,6 +15,9 @@ export default function SellerEarnings() {
 
   // Get seller-specific earnings data
   const { data: earnings, isLoading } = useSellerEarnings(user?.vendorId);
+  
+  // Get payout settlement data
+  const { data: payouts, isLoading: payoutsLoading } = useSellerPayouts(user?.vendorId);
   
   // Get seller's products for active products count
   const { data: products } = useProducts();
@@ -250,6 +253,87 @@ export default function SellerEarnings() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Payout Settlement Tracking */}
+        {payouts && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <i className="fas fa-money-bill-wave text-green-600 mr-2"></i>
+                Payout Settlement
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <i className="fas fa-clock text-yellow-600 text-xl"></i>
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Pending Payouts</h3>
+                  <p className="text-2xl font-bold text-yellow-600">₹{payouts.summary?.totalPendingAmount?.toLocaleString() || 0}</p>
+                  <p className="text-xs text-gray-600 mt-1">{payouts.summary?.pendingCount || 0} orders</p>
+                </div>
+
+                <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <i className="fas fa-check-circle text-green-600 text-xl"></i>
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Paid Payouts</h3>
+                  <p className="text-2xl font-bold text-green-600">₹{payouts.summary?.totalPaidAmount?.toLocaleString() || 0}</p>
+                  <p className="text-xs text-gray-600 mt-1">{payouts.summary?.paidCount || 0} orders</p>
+                </div>
+
+                {/* Total Commission Card - Commented out for now */}
+                {/* <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                  <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <i className="fas fa-percentage text-red-600 text-xl"></i>
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Total Commission</h3>
+                  <p className="text-2xl font-bold text-red-600">₹{payouts.summary?.totalCommission?.toLocaleString() || 0}</p>
+                  <p className="text-xs text-gray-600 mt-1">Platform fees</p>
+                </div> */}
+
+                <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <i className="fas fa-wallet text-blue-600 text-xl"></i>
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Total Earnings</h3>
+                  <p className="text-2xl font-bold text-blue-600">
+                    ₹{((payouts.summary?.totalPendingAmount || 0) + (payouts.summary?.totalPaidAmount || 0)).toLocaleString()}
+                  </p>
+                  {/* <p className="text-xs text-gray-600 mt-1">After commission</p> */}
+                </div>
+              </div>
+
+              {/* Pending Payouts List */}
+              {payouts.orders && payouts.orders.filter((o: any) => o.payoutStatus === 'pending').length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-semibold text-gray-900 mb-3">Pending Payouts</h4>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {payouts.orders
+                      .filter((o: any) => o.payoutStatus === 'pending')
+                      .slice(0, 10)
+                      .map((order: any) => (
+                        <div key={order.id} className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{order.orderNumber}</p>
+                            <p className="text-xs text-gray-600">
+                              {new Date(order.createdAt).toLocaleDateString()}
+                              {/* Commission: ₹{order.commissionAmount?.toLocaleString() || 0} - Commented out for now */}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-yellow-600">₹{order.payoutAmount?.toLocaleString() || 0}</p>
+                            <Badge variant="outline" className="bg-yellow-100 text-yellow-800 text-xs">Pending</Badge>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Earnings Summary */}
         <Card>

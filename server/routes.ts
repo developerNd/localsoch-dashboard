@@ -138,7 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         bankAccountNumber: null,
         ifscCode: null,
         isApproved: false,
-        commissionRate: "5.00",
+        commissionRate: "0.00",
       });
 
       res.status(201).json({
